@@ -4,7 +4,7 @@
   --ink: #1b1f24;
   --muted: #5b6470;
   --line: #e3e6ea;
-  --accent: #1565c0;
+  --accent: #1668b7; /* azul del logo */
   --pos: #2e7d32;
   --neg: #d32f2f;
   --neu: #8a94a0;
@@ -133,3 +133,8 @@ dialog.modal .row { display: flex; gap: 8px; flex-wrap: wrap; }
 dialog.modal td.actions { white-space: nowrap; text-align: right; }
 .account button.ghost, td.actions button.ghost { border-color: transparent; }
 button.danger { color: var(--neg); }
+.logo { display: block; flex: none; border-radius: 22%; }
+h1.brand .logo { display: inline-block; vertical-align: middle; margin: -4px 8px 0 0; }
+.login form > .logo { align-self: center; }
+.login form > .logo + h1 { text-align: center; }
+.login form > .logo + h1 + p { text-align: center; }
