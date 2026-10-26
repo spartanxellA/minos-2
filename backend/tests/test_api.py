@@ -1,5 +1,6 @@
 """API, pipeline y WebSocket de punta a punta sobre SQLite en memoria, con el conector de demostración."""
 import pytest
+from conftest import POSTGRES_URL, migrate, needs_postgres, reset_postgres
 from fastapi.testclient import TestClient
 
 from minos.analysis import LexiconAnalyzer
@@ -9,9 +10,16 @@ from minos.main import create_app
 from minos.pipeline import IngestionWorker
 
 
-@pytest.fixture
-def client(tmp_path):
-    settings = Settings(env="development", database_url=f"sqlite+aiosqlite:///{tmp_path / 'minos.db'}", run_workers=False)
+@pytest.fixture(params=["sqlite", pytest.param("postgres", marks=needs_postgres)])
+def client(request, tmp_path):
+    if request.param == "postgres":
+        # PostgreSQL migrado con Alembic, como en producción (con TimescaleDB si está disponible).
+        reset_postgres(POSTGRES_URL)
+        migrate(POSTGRES_URL)
+        settings = Settings(env="development", database_url=POSTGRES_URL, run_workers=False)
+    else:
+        url = f"sqlite+aiosqlite:///{tmp_path / 'minos.db'}"
+        settings = Settings(env="development", database_url=url, run_workers=False, create_schema=True)
     with TestClient(create_app(settings)) as c:
         yield c
 

@@ -37,18 +37,39 @@ Con Docker:
 
 ```bash
 cp .env.example .env   # llena las llaves que tengas
-docker compose up --build
+docker compose up --build -d
 ```
+
+Levanta cinco servicios: `db` (PostgreSQL 16 con TimescaleDB), `migrate` (aplica las migraciones pendientes y
+termina), `nlp`, `api` (arranca cuando `migrate` terminó bien) y `web`. El tablero queda en http://localhost:3000.
+`NEXT_PUBLIC_API_URL` se fija al construir la imagen `web`: para un servidor, cámbiala en `docker-compose.yml` por
+la URL pública de la API.
 
 Sin Docker (Python 3.12+, PostgreSQL local con usuario, clave y base `minos`):
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e nlp -e "backend[dev]"
+python -m minos.migrate                         # crea o actualiza las tablas
 uvicorn minos_nlp.app:app --port 8000 &
 cd backend && MINOS_DEMO__ENABLED=true MINOS_NLP_URL=http://localhost:8000 uvicorn minos.main:app --port 5080
 cd web && npm install && npm run dev            # http://localhost:3000
 ```
+
+## Migraciones
+
+El esquema vive en `backend/minos/migrations` (Alembic) y viaja dentro del paquete, así que la imagen de la API no
+necesita archivos extra.
+
+```bash
+python -m minos.migrate                          # aplica las pendientes (upgrade head)
+python -m minos.migrate revision -m "qué cambia"  # genera una nueva a partir de los modelos de minos/db.py
+python -m minos.migrate downgrade                # revierte la última
+python -m minos.migrate current                  # muestra la versión de la base
+```
+
+Revisa siempre la migración generada antes de subirla. Con TimescaleDB disponible, `risk_snapshots` es una
+hypertable particionada por semana; en un PostgreSQL sin la extensión queda como tabla normal y todo funciona igual.
 
 La configuración va en variables `MINOS_*` (secciones con `__`, duraciones en segundos). Por ejemplo
 `MINOS_DATABASE_URL`, `MINOS_CONNECTORS__X__BEARER_TOKEN` o `MINOS_INGESTION__TICK=30`; la lista completa está en
@@ -64,9 +85,13 @@ cd nlp && pytest
 cd web && npm run typecheck
 ```
 
+Con `MINOS_TEST_POSTGRES_URL=postgresql+asyncpg://...` (una base de prueba, se borra en cada corrida) también se
+prueban las migraciones (que coincidan con los modelos, que suban y bajen, la hypertable) y la API sobre PostgreSQL
+migrado. CI lo hace contra TimescaleDB y además construye las imágenes y levanta el stack con `docker compose`.
+
 ## Pendiente
 
-- Migraciones con Alembic (hoy `create_all` al arrancar) e hypertable de TimescaleDB para `risk_snapshots`.
+- Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
 - Redis (Streams para la cola y pub/sub para el WebSocket) para separar conectores y API en procesos distintos.
   Hoy todo corre en un proceso y `MINOS_RUN_WORKERS=false` deja la API solo sirviendo datos.
 - Conectores fase 2: Reddit, páginas propias de Facebook/Instagram; Bluesky por Jetstream (stream).

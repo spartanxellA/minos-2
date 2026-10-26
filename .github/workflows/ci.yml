@@ -8,6 +8,21 @@ on:
 jobs:
   python:
     runs-on: ubuntu-latest
+    services:
+      # Mismo motor que docker-compose: las pruebas de migraciones y de la API corren también sobre TimescaleDB.
+      db:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: minos
+          POSTGRES_PASSWORD: minos
+          POSTGRES_DB: minos
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U minos -d minos"
+          --health-interval 5s
+          --health-retries 10
+    env:
+      MINOS_TEST_POSTGRES_URL: postgresql+asyncpg://minos:minos@localhost:5432/minos
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,3 +47,21 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir las imágenes de docker-compose
+        run: docker compose build
+      - name: Levantar el stack y esperar a que la API responda
+        run: |
+          docker compose up -d --wait --wait-timeout 180
+          curl -fsS http://localhost:5080/health
+          curl -fsS http://localhost:5080/api/surveys > /dev/null
+          curl -fsS http://localhost:3000 > /dev/null
+      - name: Registros si algo falló
+        if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down -v
