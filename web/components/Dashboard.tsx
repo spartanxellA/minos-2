@@ -8,6 +8,7 @@ import { useLiveTarget } from "@/lib/useLiveTarget";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
 import { SurveyCard } from "./SurveyCard";
+import { Logo } from "./Logo";
 
 const SOURCE_LABEL: Record<string, string> = { rss: "Noticias", x: "X", youtube: "YouTube", bluesky: "Bluesky", demo: "Demo" };
 const SENT = { positive: { label: "Positivo", color: "#2e7d32" }, neutral: { label: "Neutro", color: "#8a94a0" }, negative: { label: "Negativo", color: "#d32f2f" } } as const;
@@ -104,7 +105,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   return (
     <>
       <header className="top">
-        <h1>min<span>OS</span> 2.0</h1>
+        <h1 className="brand"><Logo />min<span>OS</span> 2.0</h1>
         <select value={selected ?? ""} onChange={(e) => setSelected(e.target.value)} aria-label="Objetivo">
           {targets.map((t) => <option key={t.id} value={t.id}>{t.name} · {KIND_LABEL[t.kind]}</option>)}
         </select>
