@@ -8,7 +8,7 @@ from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import db
-from .auth import require_user, websocket_user
+from .auth import Role, current_user, require_role, websocket_user
 from .domain.mentions import Sentiment
 from .schemas import (
     AlertOut, BreakdownOut, ConnectorStateOut, Influencer, MentionOut, RiskOut, SourceSentimentCount, SurveyResponseOut,
@@ -23,7 +23,9 @@ async def get_session(request: Request):
 
 
 Session = Annotated[AsyncSession, Depends(get_session)]
-router = APIRouter(prefix="/api", dependencies=[Depends(require_user)])
+router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
+Analyst = [Depends(require_role(Role.ANALYST))]
+Admin = [Depends(require_role(Role.ADMIN))]
 
 
 def _clean(values: list[str]) -> list[str]:
@@ -66,7 +68,7 @@ async def get_target(target_id: uuid.UUID, session: Session):
     return await _target_or_404(session, target_id)
 
 
-@router.post("/targets", response_model=TargetOut, status_code=status.HTTP_201_CREATED)
+@router.post("/targets", response_model=TargetOut, status_code=status.HTTP_201_CREATED, dependencies=Analyst)
 async def create_target(body: TargetInput, session: Session, response: Response):
     if not body.name.strip():
         raise HTTPException(422, "El nombre es obligatorio.")
@@ -78,7 +80,7 @@ async def create_target(body: TargetInput, session: Session, response: Response)
     return target
 
 
-@router.put("/targets/{target_id}", response_model=TargetOut)
+@router.put("/targets/{target_id}", response_model=TargetOut, dependencies=Analyst)
 async def update_target(target_id: uuid.UUID, body: TargetInput, session: Session):
     target = await _target_or_404(session, target_id)
     _apply(target, body)
@@ -86,7 +88,7 @@ async def update_target(target_id: uuid.UUID, body: TargetInput, session: Sessio
     return target
 
 
-@router.delete("/targets/{target_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/targets/{target_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=Admin)
 async def delete_target(target_id: uuid.UUID, session: Session):
     await _target_or_404(session, target_id)
     # Se borra en orden para no depender de ON DELETE CASCADE (SQLite en pruebas no lo aplica por defecto).
@@ -178,7 +180,7 @@ def _catalog(request: Request) -> SurveyCatalog:
     return request.app.state.surveys
 
 
-@router.post("/targets/{target_id}/survey-responses", response_model=SurveyResponseOut)
+@router.post("/targets/{target_id}/survey-responses", response_model=SurveyResponseOut, dependencies=Analyst)
 async def submit_survey(target_id: uuid.UUID, body: SurveySubmission, session: Session, request: Request):
     await _target_or_404(session, target_id)
     catalog = _catalog(request)
@@ -242,7 +244,7 @@ async def live(ws: WebSocket, target_id: uuid.UUID):
     try:
         await websocket_user(ws)
     except HTTPException:
-        await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+        await ws.close(code=status.WS_1008_POLICY_VIOLATION)  # sin sesión o desde otro sitio
         return
     await ws.accept()
     hub = ws.app.state.hub

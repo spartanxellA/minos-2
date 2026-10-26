@@ -26,10 +26,10 @@ def client(request, tmp_path):
         # PostgreSQL migrado con Alembic, como en producción (con TimescaleDB si está disponible).
         reset_postgres(POSTGRES_URL)
         migrate(POSTGRES_URL)
-        settings = Settings(env="development", database_url=POSTGRES_URL, role="api")
+        settings = Settings(env="development", database_url=POSTGRES_URL, role="api", auth={"mode": "off"})
     else:
         url = f"sqlite+aiosqlite:///{tmp_path / 'minos.db'}"
-        settings = Settings(env="development", database_url=url, role="api", create_schema=True)
+        settings = Settings(env="development", database_url=url, role="api", create_schema=True, auth={"mode": "off"})
     with TestClient(create_app(settings)) as c:
         yield c
 

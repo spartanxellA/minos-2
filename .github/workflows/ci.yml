@@ -60,13 +60,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Cuenta de administrador para la prueba
+        run: printf 'ADMIN_EMAIL=ci@minos.test\nADMIN_PASSWORD=clave-de-prueba-ci\n' > .env
       - name: Construir las imágenes de docker-compose
         run: docker compose build
       - name: Levantar el stack y esperar a que la API responda
         run: |
           docker compose up -d --wait --wait-timeout 180
           curl -fsS http://localhost:5080/health
-          curl -fsS http://localhost:5080/api/surveys > /dev/null
+          # Sin sesión la API responde 401; con la cuenta creada al arrancar, entra.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5080/api/surveys)" = 401
+          curl -fsS -c cookies -H 'content-type: application/json' \
+            -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://localhost:5080/api/auth/login > /dev/null
+          curl -fsS -b cookies http://localhost:5080/api/surveys > /dev/null
           curl -fsS http://localhost:3000 > /dev/null
       - name: Registros si algo falló
         if: failure()
