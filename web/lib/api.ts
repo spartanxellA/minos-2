@@ -121,6 +121,25 @@ export function riskLevel(score: number) {
   return { label: "Riesgo alto", color: "#d32f2f" };
 }
 
+export interface SourceStatus {
+  source: string;
+  configured: boolean;
+  lastRunAt: string | null;
+  lastMentionAt: string | null;
+  mentionsLastDay: number;
+  errors: { targetId: string; targetName: string; at: string | null; error: string }[];
+}
+
+export interface SourcesStatus {
+  sources: SourceStatus[];
+  channels: { channel: string; configured: boolean }[];
+}
+
+export const SOURCE_LABEL: Record<string, string> = {
+  rss: "Noticias", x: "X", youtube: "YouTube", bluesky: "Bluesky", "bluesky-live": "Bluesky en vivo", reddit: "Reddit",
+  facebook: "Facebook", instagram: "Instagram", demo: "Demo",
+};
+
 export type Role = "viewer" | "analyst" | "admin";
 
 export interface User {
@@ -183,6 +202,7 @@ export const api = {
     get<SurveyResponse[]>(`/api/targets/${id}/survey-responses?surveyId=${surveyId}&limit=${limit}`),
   submitSurvey: (id: string, surveyId: string, answers: Record<string, string>) =>
     request<SurveyResponse>(`/api/targets/${id}/survey-responses`, { method: "POST", json: { surveyId, answers } }),
+  sources: () => get<SourcesStatus>("/api/sources"),
   createTarget: (input: Omit<Target, "id" | "enabled">) => request<Target>("/api/targets", { method: "POST", json: input }),
 
   me: () => get<Me>("/api/auth/me"),

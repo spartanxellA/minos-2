@@ -172,6 +172,70 @@ def test_own_channel_comments_skip_the_name_filter(client):
     assert [m["text"] for m in mentions] == ["Qué vergüenza de servicio"]
 
 
+class LongIdConnector:
+    """Como Google Noticias: el id de la nota es un enlace de más de 512 caracteres."""
+
+    source = "rss"
+    is_configured = True
+    poll_interval = timedelta(0)
+    calls = 0
+
+    async def fetch(self, target, cursor):
+        self.calls += 1  # el texto cambia en cada ronda: solo el id evita que se repita
+        link = "https://news.google.com/rss/articles/" + "x" * 900
+        yield MentionDraft("rss", link, link, AuthorInfo("D" * 300, "D" * 300), datetime.now(UTC),
+                           f"Ana López presenta su informe, ronda {self.calls}")
+
+
+def test_long_external_ids_and_authors_fit_and_still_dedupe(client):
+    t = create_target(client)
+    app = client.app
+    worker = IngestionWorker(app.state.db, [LongIdConnector()], LexiconAnalyzer(), app.state.bus, IngestionSettings())
+
+    client.portal.call(worker.run_once)
+    client.portal.call(worker.run_once)
+
+    [m] = client.get(f"/api/targets/{t['id']}/mentions").json()
+    assert m["url"].endswith("x" * 900)
+    assert len(m["author"]) <= 201
+    [state] = client.get(f"/api/targets/{t['id']}/connectors").json()
+    assert state["lastError"] is None
+
+
+class FailingConnector:
+    """Como Meta o YouTube: la llave va en la URL y httpx la copia al mensaje de error."""
+
+    source = "youtube"
+    is_configured = True
+    poll_interval = timedelta(0)
+
+    async def fetch(self, target, cursor):
+        raise RuntimeError("Client error '403 Forbidden' for url 'https://api.example/search?q=Ana&key=SECRETO123&n=5'")
+        yield  # pragma: no cover
+
+
+def test_sources_panel_reports_keys_runs_mentions_and_redacted_errors(client):
+    t = create_target(client)
+    app = client.app
+    worker = IngestionWorker(
+        app.state.db, [DemoConnector(DemoSettings(enabled=True)), FailingConnector()], LexiconAnalyzer(), app.state.bus,
+        IngestionSettings(),
+    )
+    client.portal.call(worker.run_once)
+
+    body = client.get("/api/sources").json()
+    sources = {s["source"]: s for s in body["sources"]}
+    assert {"rss", "x", "youtube", "bluesky", "bluesky-live", "reddit", "facebook", "instagram"} <= set(sources)
+    assert sources["x"]["configured"] is False and sources["bluesky-live"]["configured"] is False
+    assert sources["rss"]["configured"] is True  # Google Noticias no necesita llave
+    assert sources["x"]["mentionsLastDay"] == 0 and sources["x"]["lastRunAt"] is None
+    [error] = sources["youtube"]["errors"]
+    assert error["targetName"] == "Ana López" and "SECRETO123" not in error["error"] and "key=***" in error["error"]
+    [state] = [s for s in client.get(f"/api/targets/{t['id']}/connectors").json() if s["source"] == "youtube"]
+    assert "SECRETO123" not in state["lastError"]
+    assert {c["channel"]: c["configured"] for c in body["channels"]} == {"email": False, "webhook": False, "whatsapp": False}
+
+
 def test_jetstream_stores_matching_posts_and_pushes_them_live(client):
     t = create_target(client)
     app = client.app

@@ -43,7 +43,7 @@ Cada conector se apaga solo si le falta su llave (variables en `.env.example`).
 
 | Fuente | Qué trae | Necesita |
 | --- | --- | --- |
-| Noticias | Google Noticias por nombre y los feeds RSS que se agreguen | nada |
+| Noticias | Google Noticias por nombre y los feeds RSS de medios en `RSS_FEEDS` (solo las notas que mencionan al objetivo) | nada |
 | X | Búsqueda reciente (7 días) de la API v2 | `X_BEARER_TOKEN` (plan de pago de X) |
 | YouTube | Videos por nombre | `YOUTUBE_API_KEY` |
 | Bluesky | Búsqueda cada 5 min | cuenta con contraseña de aplicación |

@@ -2,10 +2,11 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from . import db
+from .connectors.base import redact_secrets
 from .domain.risk import LEVEL_COLOR, LEVEL_LABEL, RiskAlert, RiskLevel
 from .domain.targets import TargetKind
 
@@ -134,6 +135,37 @@ class ConnectorStateOut(Camel):
     value: str | None
     last_run_at: datetime | None
     last_error: str | None
+
+    # Errores guardados antes de que se quitaran las llaves al registrarlos.
+    _redact = field_validator("last_error")(lambda v: v and redact_secrets(v))
+
+
+class SourceError(Camel):
+    target_id: uuid.UUID
+    target_name: str
+    at: datetime | None
+    error: str
+
+    _redact = field_validator("error")(redact_secrets)
+
+
+class SourceStatus(Camel):
+    source: str
+    configured: bool
+    last_run_at: datetime | None = None
+    last_mention_at: datetime | None = None
+    mentions_last_day: int = 0
+    errors: list[SourceError] = Field(default_factory=list)
+
+
+class ChannelStatus(Camel):
+    channel: str
+    configured: bool
+
+
+class SourcesOut(Camel):
+    sources: list[SourceStatus]
+    channels: list[ChannelStatus]
 
 
 class SurveySubmission(Camel):

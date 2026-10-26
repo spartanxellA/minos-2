@@ -164,6 +164,7 @@ class WhatsAppChannel(Channel):
 
 class Notifier:
     def __init__(self, channels: list[Channel], settings: NotificationSettings) -> None:
+        self._all = channels
         self._channels = [c for c in channels if c.is_configured]
         self._settings = settings
         self._tasks: set[asyncio.Task] = set()
@@ -180,6 +181,11 @@ class Notifier:
     @property
     def channels(self) -> list[str]:
         return [c.name for c in self._channels]
+
+    @property
+    def status(self) -> dict[str, bool]:
+        """Todos los canales, configurados o no (panel de fuentes del tablero)."""
+        return {c.name: c.is_configured for c in self._all}
 
     def dashboard_link(self, target_id: uuid.UUID) -> str:
         return f"{self._settings.dashboard_url.rstrip('/')}/?target={target_id}"

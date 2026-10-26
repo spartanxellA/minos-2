@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, UNAUTHORIZED_EVENT, type Me } from "@/lib/api";
 import { Dashboard } from "./Dashboard";
+import { Logo } from "./Logo";
 
 /** Muestra el inicio de sesión hasta que haya una sesión válida; si la sesión vence, vuelve a él. */
 export function AuthGate() {
@@ -46,6 +47,7 @@ function LoginForm({ onLogin }: { onLogin: (me: Me) => void }) {
   return (
     <div className="login">
       <form className="card" onSubmit={submit}>
+        <Logo size={64} />
         <h1>min<span>OS</span> 2.0</h1>
         <p className="muted">Monitoreo de riesgo reputacional</p>
         <label>
