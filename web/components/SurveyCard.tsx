@@ -7,7 +7,12 @@ import { SurveyForm } from "./SurveyForm";
 const date = (iso: string) => new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 
 /** Resultado del último cuestionario de riesgo del objetivo; abre el formulario para contestarlo o actualizarlo. */
-export function SurveyCard({ targetId, targetName }: { targetId: string; targetName: string }) {
+export function SurveyCard({ targetId, targetName, surveyScore }: {
+  targetId: string;
+  targetName: string;
+  /** Puntaje del cuestionario en el último cálculo del IRR; si cambia, alguien contestó desde otro lado. */
+  surveyScore: number | null | undefined;
+}) {
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [history, setHistory] = useState<SurveyResponse[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -15,12 +20,14 @@ export function SurveyCard({ targetId, targetName }: { targetId: string; targetN
   useEffect(() => {
     api.survey(RISK_SURVEY).then(setSurvey).catch(() => {});
   }, []);
+  const known = history?.[0]?.score;
+  const stale = surveyScore != null && history !== null && known !== surveyScore;
   useEffect(() => {
+    if (history !== null && !stale) return;
     let cancelled = false;
-    setHistory(null);
     api.surveyResponses(targetId, RISK_SURVEY, 2).then((h) => !cancelled && setHistory(h)).catch(() => !cancelled && setHistory([]));
     return () => { cancelled = true; };
-  }, [targetId]);
+  }, [targetId, stale]);
 
   const latest = history?.[0] ?? null;
   const before = history?.[1] ?? null;

@@ -120,6 +120,46 @@ class RiskEngineSettings(BaseModel):
     min_baseline_days: int = 7
     media_weight: float = 0.6
     survey_weight: float = 0.4
+    # Un cambio de tendencia o un pico se sigue cumpliendo en cada recálculo; se registra y avisa una vez en este lapso.
+    alert_cooldown: Duration = timedelta(hours=6)
+
+
+class EmailSettings(BaseModel):
+    host: str = ""
+    port: int = 587
+    username: str = ""
+    password: str = ""
+    from_addr: str = ""
+    to: list[str] = Field(default_factory=list)
+    # STARTTLS en el puerto 587; con 465 se usa TLS directo.
+    starttls: bool = True
+
+
+class WebhookSettings(BaseModel):
+    # Recibe un JSON con la alerta; el campo "text" lo entienden los webhooks entrantes de Slack y Teams.
+    urls: list[str] = Field(default_factory=list)
+    # Si se define, cada envío lleva X-Minos-Signature: sha256=HMAC(secreto, cuerpo).
+    secret: str = ""
+
+
+class WhatsAppSettings(BaseModel):
+    # WhatsApp Cloud API. Fuera de una conversación abierta solo se pueden mandar plantillas aprobadas por Meta;
+    # la plantilla recibe tres variables: objetivo, título y detalle de la alerta.
+    access_token: str = ""
+    phone_number_id: str = ""
+    to: list[str] = Field(default_factory=list)
+    template: str = "minos_alerta"
+    language: str = "es_MX"
+    graph_url: str = "https://graph.facebook.com/v23.0"
+
+
+class NotificationSettings(BaseModel):
+    # Dirección del tablero para el enlace de cada aviso.
+    dashboard_url: str = "http://localhost:3000"
+    timeout: Duration = timedelta(seconds=15)
+    email: EmailSettings = EmailSettings()
+    webhook: WebhookSettings = WebhookSettings()
+    whatsapp: WhatsAppSettings = WhatsAppSettings()
 
 
 class AuthSettings(BaseModel):
@@ -148,6 +188,7 @@ class Settings(BaseSettings):
     ingestion: IngestionSettings = IngestionSettings()
     risk_engine: RiskEngineSettings = RiskEngineSettings()
     connectors: ConnectorSettings = ConnectorSettings()
+    notifications: NotificationSettings = NotificationSettings()
 
     @property
     def is_development(self) -> bool:

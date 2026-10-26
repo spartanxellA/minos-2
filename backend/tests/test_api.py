@@ -4,16 +4,19 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from sqlalchemy import delete
 from conftest import POSTGRES_URL, migrate, needs_postgres, reset_postgres
 from fastapi.testclient import TestClient
 
 from minos.analysis import LexiconAnalyzer
-from minos.config import DemoSettings, IngestionSettings, JetstreamSettings, Settings
+from minos import db
+from minos.config import DemoSettings, IngestionSettings, JetstreamSettings, NotificationSettings, RiskEngineSettings, Settings
 from minos.connectors import DemoConnector
 from minos.domain.mentions import AuthorInfo, MentionDraft
 from minos.domain.targets import MonitoredTarget
 from minos.main import create_app
-from minos.pipeline import IngestionWorker
+from minos.notifications import Notifier
+from minos.pipeline import IngestionWorker, RiskEngine
 from minos.pipeline.stream import JetstreamIngestion
 
 
@@ -199,3 +202,55 @@ def test_jetstream_stores_matching_posts_and_pushes_them_live(client):
     assert m["url"] == "https://bsky.app/profile/diario.bsky.social/post/1"
     [queued] = client.portal.call(app.state.bus.next_recompute, 1)
     assert str(queued) == t["id"]
+
+
+class Inbox:
+    name = "inbox"
+    is_configured = True
+
+    def __init__(self):
+        self.got = []
+
+    async def send(self, notice):
+        self.got.append(notice)
+
+
+def test_lasting_alerts_are_recorded_and_notified_once_per_cooldown(client):
+    t = create_target(client)
+    target_id = uuid.UUID(t["id"])
+    app = client.app
+    inbox = Inbox()
+    notifier = Notifier([inbox], NotificationSettings(dashboard_url="https://minos.example"))
+    engine = RiskEngine(app.state.db, app.state.bus, RiskEngineSettings(), notifier)
+
+    async def yesterday_at_zero():
+        async with app.state.db.session() as session:
+            session.add(db.RiskSnapshot(
+                target_id=target_id, at=datetime.now(UTC) - timedelta(hours=25), index=0, level="Low", media_score=0,
+                survey_score=None, negativity=0, severity=0, volume_anomaly=0, mention_count=0, positive=0, negative=0,
+                neutral=0, top_drivers=[],
+            ))
+            await session.commit()
+
+    client.portal.call(yesterday_at_zero)
+    survey = client.get("/api/surveys/RASurvey").json()
+    worst = {q["id"]: max(q["options"], key=lambda o: o["weight"])["value"] for s in survey["sections"] for q in s["questions"]}
+    client.post(f"/api/targets/{t['id']}/survey-responses", json={"surveyId": "RASurvey", "answers": worst})
+    # La respuesta ya disparó un recálculo con el motor de la app (sin canales); se borra para empezar limpio.
+    async def clear_alerts():
+        async with app.state.db.session() as session:
+            await session.execute(delete(db.AlertRecord))
+            await session.commit()
+    client.portal.call(clear_alerts)
+
+    for _ in range(3):  # el índice sigue 40 puntos arriba en cada recálculo
+        client.portal.call(engine.recompute, target_id)
+    client.portal.call(notifier.drain)
+
+    alerts = client.get(f"/api/targets/{t['id']}/alerts").json()
+    assert [a["kind"] for a in alerts] == ["IndexJump"]
+    [notice] = inbox.got
+    assert notice.target_name == "Ana López"
+    assert notice.title == "Cambio de tendencia"
+    assert notice.index == 40
+    assert notice.dashboard_url == f"https://minos.example/?target={t['id']}"

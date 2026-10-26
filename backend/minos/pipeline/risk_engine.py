@@ -10,7 +10,10 @@ from .. import db
 from ..bus import Bus
 from ..config import RiskEngineSettings
 from ..domain.mentions import Sentiment
-from ..domain.risk import IndexWeights, VolumeBaseline, evaluate_alerts, media_risk, reputation_index
+from ..domain.risk import (
+    LEVEL_LABEL, AlertKind, IndexWeights, VolumeBaseline, evaluate_alerts, media_risk, reputation_index,
+)
+from ..notifications import AlertNotice, Notifier
 from ..schemas import AlertOut, RiskOut
 
 log = logging.getLogger(__name__)
@@ -29,11 +32,16 @@ class _Scored:
         return getattr(self._m, name)
 
 
+# Condiciones que siguen activas en recálculos seguidos; las menciones graves son eventos únicos y no se agrupan.
+LASTING_ALERTS = {AlertKind.INDEX_JUMP, AlertKind.NEGATIVE_SPIKE}
+
+
 class RiskEngine:
-    def __init__(self, database: db.Database, bus: Bus, settings: RiskEngineSettings) -> None:
+    def __init__(self, database: db.Database, bus: Bus, settings: RiskEngineSettings, notifier: Notifier | None = None) -> None:
         self._db = database
         self._bus = bus
         self._s = settings
+        self._notifier = notifier
 
     async def run(self) -> None:
         next_full = datetime.min.replace(tzinfo=UTC)
@@ -121,6 +129,12 @@ class RiskEngine:
             new_mentions = [m for m in scored if last_run is None or m.ingested_at > last_run]
 
             alerts = evaluate_alerts(day_ago, index.score, media, new_mentions)
+            if any(a.kind in LASTING_ALERTS for a in alerts):
+                A = db.AlertRecord
+                recent = set((await session.scalars(
+                    select(A.kind).where(A.target_id == target_id, A.at >= now - self._s.alert_cooldown)
+                )).all())
+                alerts = [a for a in alerts if a.kind not in LASTING_ALERTS or a.kind.value not in recent]
             session.add(snapshot)
             session.add_all(
                 db.AlertRecord(target_id=target_id, at=now, kind=a.kind.value, title=a.title, message=a.message,
@@ -129,7 +143,19 @@ class RiskEngine:
             )
             await session.commit()
 
+            target_name = await session.scalar(select(db.Target.name).where(db.Target.id == target_id)) or str(target_id)
+
         await self._bus.publish(target_id, "riskUpdated", RiskOut.of(snapshot))
         for a in alerts:
             await self._bus.publish(target_id, "alertRaised", AlertOut.of_alert(a).model_copy(update={"at": now}))
+        if alerts and self._notifier is not None:
+            urls = {m.id: m.url for m in scored}
+            self._notifier.dispatch([
+                AlertNotice(
+                    target_id=target_id, target_name=target_name, at=now, kind=a.kind.value, title=a.title,
+                    message=a.message, index=index.score, level_label=LEVEL_LABEL[index.level],
+                    dashboard_url=self._notifier.dashboard_link(target_id), mention_url=urls.get(a.mention_id),
+                )
+                for a in alerts
+            ])
         return snapshot

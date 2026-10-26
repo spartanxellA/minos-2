@@ -11,6 +11,7 @@ from .bus import Bus, create_bus
 from .config import Settings
 from .connectors import MentionConnector, build_connectors, new_http_client
 from .db import Database
+from .notifications import Notifier
 from .pipeline import IngestionWorker, RiskEngine
 from .pipeline.stream import JetstreamIngestion
 
@@ -26,6 +27,7 @@ class Runtime:
     connectors: list[MentionConnector]
     engine: RiskEngine
     ingestion: IngestionWorker
+    notifier: Notifier
     _tasks: list[asyncio.Task] = field(default_factory=list)
 
     @classmethod
@@ -36,10 +38,11 @@ class Runtime:
         bus = create_bus(settings.redis_url)
         http = new_http_client()
         connectors = build_connectors(settings, http)
-        engine = RiskEngine(database, bus, settings.risk_engine)
+        notifier = Notifier.from_settings(settings.notifications, http)
+        engine = RiskEngine(database, bus, settings.risk_engine, notifier)
         analyzer = NlpServiceAnalyzer(http, settings.nlp_url)
         ingestion = IngestionWorker(database, connectors, analyzer, bus, settings.ingestion)
-        return cls(settings, database, bus, http, connectors, engine, ingestion)
+        return cls(settings, database, bus, http, connectors, engine, ingestion, notifier)
 
     def spawn(self, coro, name: str) -> None:
         self._tasks.append(asyncio.create_task(coro, name=name))
@@ -49,6 +52,7 @@ class Runtime:
         if self.settings.connectors.jetstream.enabled:
             active.append("bluesky en vivo (jetstream)")
         log.info("Workers en marcha. Conectores activos: %s", ", ".join(active) or "ninguno")
+        log.info("Avisos de alertas por: %s", ", ".join(self.notifier.channels) or "solo el tablero")
         self.spawn(self.ingestion.run(), "ingestion")
         self.spawn(self.engine.run(), "risk-engine")
         jetstream = self.settings.connectors.jetstream
@@ -62,6 +66,7 @@ class Runtime:
         for t in self._tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 await t
+        await self.notifier.drain()
         await self.http.aclose()
         await self.bus.close()
         await self.db.dispose()
