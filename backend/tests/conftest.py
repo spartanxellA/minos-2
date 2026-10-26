@@ -13,10 +13,21 @@ needs_postgres = pytest.mark.skipif(not POSTGRES_URL, reason="define MINOS_TEST_
 
 def reset_postgres(url: str) -> None:
     async def run():
+        from sqlalchemy.exc import DBAPIError
+
         engine = create_async_engine(url)
-        async with engine.begin() as conn:
-            await conn.execute(text("DROP SCHEMA public CASCADE"))
-            await conn.execute(text("CREATE SCHEMA public"))
+        # Los trabajos en segundo plano de TimescaleDB leen el catálogo y a veces chocan con el DROP (deadlock);
+        # Postgres cancela una de las dos transacciones, así que basta con reintentar.
+        for attempt in range(5):
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text("DROP SCHEMA public CASCADE"))
+                    await conn.execute(text("CREATE SCHEMA public"))
+                break
+            except DBAPIError as ex:
+                if "deadlock" not in str(ex) or attempt == 4:
+                    raise
+                await asyncio.sleep(0.2 * (attempt + 1))
         await engine.dispose()
 
     asyncio.run(run())
