@@ -13,7 +13,7 @@ está en Python, igual que los scrapers y el análisis de texto, y el tablero en
 | `backend/minos` | API REST y WebSocket del tablero (`/ws/targets/{id}`) | FastAPI, SQLAlchemy 2, PostgreSQL |
 | `backend/minos/worker.py` | Proceso aparte con la ingesta (conectores) y el motor de riesgo; escala con varias réplicas | asyncio, Redis |
 | `nlp/` | Servicio de análisis: sentimiento para todo, Claude solo para lo negativo o de alto alcance | FastAPI |
-| `web/` | Tablero en vivo | Next.js, ECharts |
+| `web/` | Tablero en vivo y cuestionario de riesgo | Next.js, ECharts |
 | `data/surveys.json` | Los 2 cuestionarios de minOS 1.6 (107 preguntas, opciones y pesos), migrados tal cual | JSON |
 
 ## Cómo fluye una mención
@@ -41,7 +41,10 @@ Modos (`MINOS_ROLE`):
 
 - Medios: `M = 100 × (0.5 N + 0.3 S + 0.2 V)`. N es la negatividad ponderada por alcance, S las acusaciones graves
   y V el volumen anómalo (z/3 contra 28 días, apagado los primeros 7 días).
-- Cuestionario: la fórmula exacta de minOS 1.6 (`risk-survey.ts`), con pruebas de paridad.
+- Cuestionario: la fórmula exacta de minOS 1.6 (`risk-survey.ts`), con pruebas de paridad. Se contesta en el
+  tablero (tarjeta "Cuestionario de riesgo"), por secciones y precargado con las últimas respuestas. Como en 1.6,
+  hay que contestar todas las preguntas: una sin contestar bajaría la sección por debajo de 0. Al guardar se
+  recalcula el IRR y el tablero lo recibe en vivo. Historial: `GET /api/targets/{id}/survey-responses`.
 - `IRR = 0.6 M + 0.4 C`; sin cuestionario, `IRR = M`. Umbrales heredados: ≤ 25 bajo, ≤ 50 medio, > 50 alto.
 - Los pesos se configuran con `MINOS_RISK_ENGINE__MEDIA_WEIGHT` y `MINOS_RISK_ENGINE__SURVEY_WEIGHT`. Son un punto
   de partida para calibrar con datos históricos.
@@ -109,5 +112,5 @@ migrado. Las pruebas del bus usan fakeredis, o un Redis real con `MINOS_TEST_RED
 
 - Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
 - Conectores fase 2: Reddit, páginas propias de Facebook/Instagram; Bluesky por Jetstream (stream).
-- Cuestionario en el tablero, reportes PDF, notificaciones push/correo/WhatsApp, app móvil.
+- Cuestionario de perfil (PDSurvey) en el tablero, reportes PDF, notificaciones push/correo/WhatsApp, app móvil.
 - Recuperar el scraper (Node.js/Python) y el esquema MySQL originales para comparar resultados con la versión anterior.

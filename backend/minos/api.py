@@ -185,6 +185,9 @@ async def submit_survey(target_id: uuid.UUID, body: SurveySubmission, session: S
     survey = catalog.find(body.survey_id)
     if survey is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cuestionario desconocido.")
+    problems = catalog.problems(survey, body.answers)
+    if problems:
+        raise HTTPException(422, {"message": "Respuestas incompletas o inválidas.", "problems": problems})
     result = catalog.score(survey, body.answers)
     row = db.SurveyResponse(
         id=uuid.uuid4(), target_id=target_id, survey_id=survey.id, submitted_at=datetime.now(UTC), answers=body.answers,
@@ -197,6 +200,20 @@ async def submit_survey(target_id: uuid.UUID, body: SurveySubmission, session: S
     if result is not None:
         await request.app.state.risk_engine.recompute(target_id)
     return row
+
+
+@router.get("/targets/{target_id}/survey-responses", response_model=list[SurveyResponseOut])
+async def list_survey_responses(
+    target_id: uuid.UUID, session: Session, survey_id: Annotated[str | None, Query(alias="surveyId")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
+):
+    """Historial de respuestas, la más reciente primero (el tablero precarga el cuestionario con la primera)."""
+    await _target_or_404(session, target_id)
+    S = db.SurveyResponse
+    q = select(S).where(S.target_id == target_id)
+    if survey_id:
+        q = q.where(S.survey_id == survey_id)
+    return (await session.scalars(q.order_by(S.submitted_at.desc()).limit(limit))).all()
 
 
 @router.get("/surveys", response_model=list[SurveySummary])

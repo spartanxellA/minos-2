@@ -66,6 +66,43 @@ def test_survey_response_is_scored_and_moves_the_index(client):
     assert latest["label"] == "Riesgo medio"
 
 
+def test_survey_history_returns_latest_answers_first(client):
+    t = create_target(client)
+    survey = client.get("/api/surveys/RASurvey").json()
+    questions = [q for s in survey["sections"] for q in s["questions"]]
+    best = {q["id"]: min(q["options"], key=lambda o: o["weight"])["value"] for q in questions}
+    worst = {q["id"]: max(q["options"], key=lambda o: o["weight"])["value"] for q in questions}
+    url = f"/api/targets/{t['id']}/survey-responses"
+
+    assert client.get(url).json() == []
+    client.post(url, json={"surveyId": "RASurvey", "answers": best})
+    client.post(url, json={"surveyId": "RASurvey", "answers": worst})
+
+    history = client.get(url, params={"surveyId": "RASurvey"}).json()
+    assert [h["score"] for h in history] == [100, 0]
+    assert history[0]["answers"] == worst
+    assert history[0]["sectionValues"] == {s["id"]: 100 for s in survey["sections"]}
+    assert client.get(url, params={"surveyId": "PDSurvey"}).json() == []
+
+
+def test_survey_rejects_incomplete_or_invalid_answers(client):
+    t = create_target(client)
+    survey = client.get("/api/surveys/RASurvey").json()
+    first, second = survey["sections"][0]["questions"][:2]
+    url = f"/api/targets/{t['id']}/survey-responses"
+
+    r = client.post(url, json={"surveyId": "RASurvey", "answers": {first["id"]: "A", second["id"]: "Z", "NOPE": "A"}})
+
+    assert r.status_code == 422
+    problems = r.json()["detail"]["problems"]
+    assert f"{second['id']}: opción inválida 'Z'" in problems
+    assert "NOPE: pregunta desconocida" in problems
+    assert sum("falta la respuesta" in p for p in problems) == 44  # 46 preguntas, 2 con respuesta
+    assert client.get(url).json() == []
+    # El de perfil no puntúa: se guarda aunque esté a medias.
+    assert client.post(url, json={"surveyId": "PDSurvey", "answers": {}}).status_code == 200
+
+
 def test_pipeline_ingests_analyzes_scores_and_pushes_live(client):
     t = create_target(client)
     app = client.app
