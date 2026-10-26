@@ -9,7 +9,7 @@ está en Python, igual que los scrapers y el análisis de texto, y el tablero en
 | Carpeta | Qué es | Tecnología |
 | --- | --- | --- |
 | `backend/minos/domain` | Objetivos, menciones, cálculo de riesgo (cuestionario, medios, IRR, alertas) | Python puro |
-| `backend/minos/connectors` | Conectores de fuentes (los scrapers): Noticias/RSS (Google Noticias + feeds), X (API v2), YouTube (Data API v3), Bluesky, demo | httpx, feedparser |
+| `backend/minos/connectors` | Conectores de fuentes (los scrapers): Noticias/RSS (Google Noticias + feeds), X (API v2), YouTube (Data API v3), Bluesky (búsqueda y en vivo por Jetstream), Reddit, páginas propias de Facebook e Instagram, demo | httpx, feedparser, websockets |
 | `backend/minos` | API REST y WebSocket del tablero (`/ws/targets/{id}`) | FastAPI, SQLAlchemy 2, PostgreSQL |
 | `backend/minos/worker.py` | Proceso aparte con la ingesta (conectores) y el motor de riesgo; escala con varias réplicas | asyncio, Redis |
 | `nlp/` | Servicio de análisis: sentimiento para todo, Claude solo para lo negativo o de alto alcance | FastAPI |
@@ -36,6 +36,25 @@ Modos (`MINOS_ROLE`):
   dentro de un proceso; sirve para desarrollo y pruebas.
 - `api`: la API solo sirve datos y WebSocket. Los workers corren con `python -m minos.worker`, que exige
   `MINOS_REDIS_URL`.
+
+## Fuentes
+
+Cada conector se apaga solo si le falta su llave (variables en `.env.example`).
+
+| Fuente | Qué trae | Necesita |
+| --- | --- | --- |
+| Noticias | Google Noticias por nombre y los feeds RSS que se agreguen | nada |
+| X | Búsqueda reciente (7 días) de la API v2 | `X_BEARER_TOKEN` (plan de pago de X) |
+| YouTube | Videos por nombre | `YOUTUBE_API_KEY` |
+| Bluesky | Búsqueda cada 5 min | cuenta con contraseña de aplicación |
+| Bluesky en vivo | Todas las publicaciones de la red al momento (Jetstream), filtradas por los objetivos; una sola réplica de workers mantiene la conexión | `BLUESKY_LIVE=true` |
+| Reddit | Publicaciones (la API no permite buscar comentarios), en todo Reddit o en los subreddits de `MINOS_CONNECTORS__REDDIT__SUBREDDITS` | app OAuth de Reddit |
+| Facebook | Comentarios y publicaciones de visitantes en la página del objetivo, y publicaciones que la etiquetan | `META_ACCESS_TOKEN` y `handles.facebook` = id de la página |
+| Instagram | Comentarios en la cuenta del objetivo y publicaciones que la etiquetan | `META_ACCESS_TOKEN` y `handles.instagram` = id de la cuenta profesional |
+
+Facebook e Instagram no permiten buscar menciones públicas: solo se lee lo que pasa en las cuentas propias del
+objetivo, con un token de Meta Business que tenga acceso a ellas. Esos comentarios cuentan aunque no nombren al
+objetivo. Las cuentas se guardan en `handles` del objetivo (`PUT /api/targets/{id}`).
 
 ## Índice de Riesgo Reputacional (IRR, 0–100)
 
@@ -111,6 +130,6 @@ migrado. Las pruebas del bus usan fakeredis, o un Redis real con `MINOS_TEST_RED
 ## Pendiente
 
 - Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
-- Conectores fase 2: Reddit, páginas propias de Facebook/Instagram; Bluesky por Jetstream (stream).
+- Editar las cuentas propias (`handles`) de un objetivo desde el tablero; hoy se hace por la API.
 - Cuestionario de perfil (PDSurvey) en el tablero, reportes PDF, notificaciones push/correo/WhatsApp, app móvil.
 - Recuperar el scraper (Node.js/Python) y el esquema MySQL originales para comparar resultados con la versión anterior.

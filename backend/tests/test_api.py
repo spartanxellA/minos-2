@@ -1,13 +1,20 @@
 """API, pipeline y WebSocket de punta a punta sobre SQLite en memoria, con el conector de demostración."""
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import httpx
 import pytest
 from conftest import POSTGRES_URL, migrate, needs_postgres, reset_postgres
 from fastapi.testclient import TestClient
 
 from minos.analysis import LexiconAnalyzer
-from minos.config import DemoSettings, IngestionSettings, Settings
+from minos.config import DemoSettings, IngestionSettings, JetstreamSettings, Settings
 from minos.connectors import DemoConnector
+from minos.domain.mentions import AuthorInfo, MentionDraft
+from minos.domain.targets import MonitoredTarget
 from minos.main import create_app
 from minos.pipeline import IngestionWorker
+from minos.pipeline.stream import JetstreamIngestion
 
 
 @pytest.fixture(params=["sqlite", pytest.param("postgres", marks=needs_postgres)])
@@ -135,3 +142,60 @@ def test_pipeline_ingests_analyzes_scores_and_pushes_live(client):
     # Segunda ronda inmediata: el intervalo del conector no ha pasado, no se vuelve a consultar.
     client.portal.call(worker.run_once)
     assert len(client.get(f"/api/targets/{t['id']}/mentions").json()) == len(mentions)
+
+
+class OwnPageConnector:
+    """Comentarios en la página propia: hablan del objetivo aunque no lo nombren."""
+
+    source = "facebook"
+    is_configured = True
+    poll_interval = timedelta(0)
+
+    async def fetch(self, target, cursor):
+        now = datetime.now(UTC)
+        yield MentionDraft("facebook", "c1", "https://facebook.com/1", AuthorInfo("Laura"), now, "Qué vergüenza de servicio", own_channel=True)
+        yield MentionDraft("facebook", "c2", "https://facebook.com/2", AuthorInfo("Pedro"), now, "   ", own_channel=True)
+        yield MentionDraft("facebook", "p3", "https://facebook.com/3", AuthorInfo("Otro"), now, "Nada que ver con nadie")
+
+
+def test_own_channel_comments_skip_the_name_filter(client):
+    t = create_target(client)
+    app = client.app
+    worker = IngestionWorker(app.state.db, [OwnPageConnector()], LexiconAnalyzer(), app.state.bus, IngestionSettings())
+
+    client.portal.call(worker.run_once)
+
+    mentions = client.get(f"/api/targets/{t['id']}/mentions").json()
+    assert [m["text"] for m in mentions] == ["Qué vergüenza de servicio"]
+
+
+def test_jetstream_stores_matching_posts_and_pushes_them_live(client):
+    t = create_target(client)
+    app = client.app
+    worker = IngestionWorker(app.state.db, [], LexiconAnalyzer(), app.state.bus, IngestionSettings())
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"profiles": [
+        {"did": "did:plc:a", "handle": "diario.bsky.social", "followersCount": 200000},
+    ]})))
+    stream = JetstreamIngestion(app.state.db, worker, app.state.bus, http, JetstreamSettings())
+    stream.set_targets([MonitoredTarget(name="Ana López", id=uuid.UUID(t["id"]), excluded_terms=["López Obrador"])])
+
+    def event(text, rkey):
+        return {"did": "did:plc:a", "time_us": 1, "kind": "commit", "commit": {
+            "operation": "create", "collection": "app.bsky.feed.post", "rkey": rkey,
+            "record": {"text": text, "createdAt": datetime.now(UTC).isoformat()}}}
+
+    with client.websocket_connect(f"/ws/targets/{t['id']}") as ws:
+        stream.handle(event("Denuncian fraude de Ana López", "1"))
+        stream.handle(event("Ana López, otra vez", "1"))  # mismo post repetido: se descarta
+        stream.handle(event("Habló López Obrador", "2"))
+        stream.handle(event("Algo sin relación", "3"))
+        client.portal.call(stream.flush)
+        added = ws.receive_json()
+
+    assert added["event"] == "mentionsAdded"
+    [m] = added["data"]
+    assert m["author"] == "@diario.bsky.social"
+    assert m["followers"] == 200000
+    assert m["url"] == "https://bsky.app/profile/diario.bsky.social/post/1"
+    [queued] = client.portal.call(app.state.bus.next_recompute, 1)
+    assert str(queued) == t["id"]
