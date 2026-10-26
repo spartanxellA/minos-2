@@ -107,7 +107,7 @@ class Mention(Base):
             published_at=draft.published_at, ingested_at=utcnow(), text=draft.text, language=draft.language,
             likes=e.likes, shares=e.shares, replies=e.replies, views=e.views, fingerprint=fingerprint(draft.text),
             sentiment=analysis.sentiment.value, sentiment_score=analysis.score,
-            is_severe_accusation=analysis.severe_accusation, topic=analysis.topic, summary=analysis.summary,
+            is_severe_accusation=analysis.severe_accusation, topic=analysis.topic and analysis.topic[:200], summary=analysis.summary,
             analyzer=analysis.analyzer, raw=draft.raw,
         )
 

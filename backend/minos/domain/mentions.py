@@ -1,7 +1,7 @@
 """Menciones: lo que entrega un conector, su análisis y la huella para detectar copias."""
 import hashlib
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
 
@@ -34,6 +34,11 @@ class Engagement:
         return self.likes + self.shares + self.replies
 
 
+# Tamaños de las columnas en la base (mentions.external_id y author_handle/author_name).
+MAX_EXTERNAL_ID = 512
+MAX_AUTHOR = 200
+
+
 @dataclass(frozen=True)
 class MentionDraft:
     """Lo que entrega un conector, ya normalizado pero sin analizar."""
@@ -49,6 +54,17 @@ class MentionDraft:
     # Comentario o publicación en un canal propio del objetivo (su página, su cuenta): habla de él aunque no lo nombre.
     own_channel: bool = False
     raw: dict | None = None
+
+    def __post_init__(self) -> None:
+        # Algunos feeds (Google Noticias) usan como id un enlace de más de 512 caracteres: se guarda su hash, que
+        # sigue sirviendo para no repetir la nota.
+        if len(self.external_id) > MAX_EXTERNAL_ID:
+            object.__setattr__(self, "external_id", "sha256:" + hashlib.sha256(self.external_id.encode()).hexdigest())
+        a = self.author
+        if len(a.handle) > MAX_AUTHOR or len(a.display_name or "") > MAX_AUTHOR:
+            object.__setattr__(self, "author", replace(
+                a, handle=a.handle[:MAX_AUTHOR], display_name=a.display_name and a.display_name[:MAX_AUTHOR]
+            ))
 
 
 @dataclass(frozen=True)
