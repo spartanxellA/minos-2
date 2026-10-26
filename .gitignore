@@ -9,3 +9,4 @@ __pycache__/
 *.db
 web/tsconfig.tsbuildinfo
 build/
+backups/

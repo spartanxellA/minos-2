@@ -1,0 +1,66 @@
+# Servidor: se usa encima de docker-compose.yml.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Solo Caddy queda expuesto (80 y 443, con HTTPS automático); la base, Redis, la API y el tablero quedan en la red
+# interna de Docker. Guía completa en DEPLOY.md.
+
+x-prod-env: &prod-env
+  MINOS_ENV: production
+  MINOS_AUTH__MODE: local
+  MINOS_DEMO__ENABLED: "false"
+  MINOS_CORS_ORIGINS: '["https://${DOMAIN:?Define DOMAIN en .env}"]'
+  MINOS_NOTIFICATIONS__DASHBOARD_URL: https://${DOMAIN}
+  # Uvicorn confía en los encabezados X-Forwarded-* de Caddy (la API ya no es accesible desde fuera).
+  FORWARDED_ALLOW_IPS: "*"
+
+services:
+  db:
+    ports: !reset []
+    restart: always
+
+  redis:
+    restart: always
+
+  migrate:
+    environment: *prod-env
+
+  nlp:
+    ports: !reset []
+    restart: always
+
+  api:
+    environment: *prod-env
+    ports: !reset []
+    restart: always
+
+  worker:
+    environment: *prod-env
+    restart: always
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN}
+    ports: !reset []
+    restart: always
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Define ACME_EMAIL en .env (avisos de Let's Encrypt)}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api: { condition: service_healthy }
+      web: { condition: service_started }
+    restart: always
+
+volumes:
+  caddy_data:
+  caddy_config:

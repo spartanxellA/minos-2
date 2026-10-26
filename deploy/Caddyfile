@@ -1,0 +1,25 @@
+# Caddy saca y renueva solo el certificado HTTPS de Let's Encrypt para $DOMAIN.
+# Todo va por un mismo dominio: /api, /ws y /health a la API; lo demás al tablero.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	@api path /api/* /ws/* /health
+	handle @api {
+		reverse_proxy api:8080
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

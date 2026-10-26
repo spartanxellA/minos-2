@@ -122,6 +122,8 @@ pendientes y termina), `nlp`, `api` (`MINOS_ROLE=api`, arranca cuando `migrate` 
 `NEXT_PUBLIC_API_URL` se fija al construir la imagen `web`: para un servidor, cámbiala en `docker-compose.yml` por
 la URL pública de la API.
 
+En un servidor con dominio y HTTPS: ver [DEPLOY.md](DEPLOY.md).
+
 Sin Docker (Python 3.12+, PostgreSQL local con usuario, clave y base `minos`):
 
 ```bash
