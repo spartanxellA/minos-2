@@ -83,19 +83,19 @@ export function UsersDialog({ me, onClose }: { me: Me; onClose: () => void }) {
 
   return (
     <Modal title="Usuarios" onClose={onClose} wide>
-      <table>
+      <table className="users">
         <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Último acceso</th><th /></tr></thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.id} style={{ opacity: u.active ? 1 : 0.55 }}>
               <td>{u.name}{u.id === me.id && <span className="muted"> (tú)</span>}</td>
-              <td>{u.email}</td>
-              <td>
+              <td className="email">{u.email}</td>
+              <td className="role">
                 <select value={u.role} aria-label={`Rol de ${u.email}`} onChange={(e) => run(() => api.updateUser(u.id!, { role: e.target.value as Role }))}>
                   {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                 </select>
               </td>
-              <td className="muted">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : "nunca"}</td>
+              <td className="muted" data-label="Último acceso">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : "nunca"}</td>
               <td className="actions">
                 <button type="button" className="ghost" onClick={() => resetPassword(u)}>Contraseña</button>
                 {u.id !== me.id && (
