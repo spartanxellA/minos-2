@@ -5,7 +5,7 @@ Ejemplos: MINOS_DATABASE_URL, MINOS_NLP_URL, MINOS_CONNECTORS__X__BEARER_TOKEN, 
 from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -71,6 +71,8 @@ class IngestionSettings(BaseModel):
     max_mentions_per_run: int = 300
     # Ventana para descartar el mismo texto publicado de nuevo (retuits, notas replicadas).
     duplicate_window: Duration = timedelta(days=3)
+    # Vencimiento del candado por objetivo y fuente: si un worker muere a media consulta, otro la retoma después.
+    lock_ttl: Duration = timedelta(minutes=10)
 
 
 class RiskEngineSettings(BaseModel):
@@ -98,8 +100,10 @@ class Settings(BaseSettings):
     nlp_url: str = ""
     cors_origins: list[str] = ["http://localhost:3000"]
     surveys_path: Path = DATA_DIR / "surveys.json"
-    # Los workers corren dentro de la API; con False la API solo sirve datos (útil al escalar workers aparte).
-    run_workers: bool = True
+    # "all": API y workers en un proceso (desarrollo). "api": solo HTTP y WebSocket. Los workers (ingesta y motor de
+    # riesgo) corren aparte con "python -m minos.worker". Separarlos requiere Redis para pasarse eventos y trabajo.
+    role: Literal["all", "api"] = "all"
+    redis_url: str = ""
     # Crea las tablas desde los modelos al arrancar (pruebas con SQLite). En PostgreSQL se usan las migraciones.
     create_schema: bool = False
 

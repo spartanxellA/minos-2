@@ -16,10 +16,10 @@ def client(request, tmp_path):
         # PostgreSQL migrado con Alembic, como en producción (con TimescaleDB si está disponible).
         reset_postgres(POSTGRES_URL)
         migrate(POSTGRES_URL)
-        settings = Settings(env="development", database_url=POSTGRES_URL, run_workers=False)
+        settings = Settings(env="development", database_url=POSTGRES_URL, role="api")
     else:
         url = f"sqlite+aiosqlite:///{tmp_path / 'minos.db'}"
-        settings = Settings(env="development", database_url=url, run_workers=False, create_schema=True)
+        settings = Settings(env="development", database_url=url, role="api", create_schema=True)
     with TestClient(create_app(settings)) as c:
         yield c
 
@@ -69,10 +69,8 @@ def test_survey_response_is_scored_and_moves_the_index(client):
 def test_pipeline_ingests_analyzes_scores_and_pushes_live(client):
     t = create_target(client)
     app = client.app
-    queued = []
     worker = IngestionWorker(
-        app.state.db, [DemoConnector(DemoSettings(enabled=True))], LexiconAnalyzer(), app.state.hub,
-        IngestionSettings(), queued.append,
+        app.state.db, [DemoConnector(DemoSettings(enabled=True))], LexiconAnalyzer(), app.state.bus, IngestionSettings(),
     )
 
     with client.websocket_connect(f"/ws/targets/{t['id']}") as ws:
@@ -81,7 +79,9 @@ def test_pipeline_ingests_analyzes_scores_and_pushes_live(client):
         assert added["event"] == "mentionsAdded"
         assert added["data"][0]["sentiment"] in {"positive", "negative", "neutral"}
 
-        client.portal.call(app.state.risk_engine.recompute, queued[0])
+        [queued] = client.portal.call(app.state.bus.next_recompute, 1)
+        assert str(queued) == t["id"]
+        client.portal.call(app.state.risk_engine.recompute, queued)
         risk = ws.receive_json()
         assert risk["event"] == "riskUpdated"
         assert 0 <= risk["data"]["index"] <= 100

@@ -7,10 +7,10 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 
 from .. import db
+from ..bus import Bus
 from ..config import RiskEngineSettings
 from ..domain.mentions import Sentiment
 from ..domain.risk import IndexWeights, VolumeBaseline, evaluate_alerts, media_risk, reputation_index
-from ..realtime import RiskHub
 from ..schemas import AlertOut, RiskOut
 
 log = logging.getLogger(__name__)
@@ -30,32 +30,23 @@ class _Scored:
 
 
 class RiskEngine:
-    def __init__(self, database: db.Database, hub: RiskHub, settings: RiskEngineSettings) -> None:
+    def __init__(self, database: db.Database, bus: Bus, settings: RiskEngineSettings) -> None:
         self._db = database
-        self._hub = hub
+        self._bus = bus
         self._s = settings
-        self._queue: asyncio.Queue[uuid.UUID] = asyncio.Queue()
-
-    def enqueue(self, target_id: uuid.UUID) -> None:
-        """Pide recalcular un objetivo que recibió menciones nuevas."""
-        self._queue.put_nowait(target_id)
 
     async def run(self) -> None:
         next_full = datetime.min.replace(tzinfo=UTC)
         while True:
             try:
                 if datetime.now(UTC) >= next_full:
-                    await self.recompute_all()
+                    # Con varias réplicas, una sola hace el recálculo completo de cada periodo.
+                    period = self._s.full_recompute_every.total_seconds()
+                    if await self._bus.try_lock("risk-full", period * 0.9):
+                        await self.recompute_all()
                     next_full = datetime.now(UTC) + self._s.full_recompute_every
-                timeout = max((next_full - datetime.now(UTC)).total_seconds(), 0)
-                try:
-                    first = await asyncio.wait_for(self._queue.get(), timeout)
-                except TimeoutError:
-                    continue
-                pending = {first}
-                while not self._queue.empty():
-                    pending.add(self._queue.get_nowait())
-                for target_id in pending:
+                timeout = max((next_full - datetime.now(UTC)).total_seconds(), 0.05)
+                for target_id in await self._bus.next_recompute(timeout):
                     await self.recompute(target_id)
             except asyncio.CancelledError:
                 raise
@@ -138,7 +129,7 @@ class RiskEngine:
             )
             await session.commit()
 
-        await self._hub.publish(target_id, "riskUpdated", RiskOut.of(snapshot))
+        await self._bus.publish(target_id, "riskUpdated", RiskOut.of(snapshot))
         for a in alerts:
-            await self._hub.publish(target_id, "alertRaised", AlertOut.of_alert(a).model_copy(update={"at": now}))
+            await self._bus.publish(target_id, "alertRaised", AlertOut.of_alert(a).model_copy(update={"at": now}))
         return snapshot

@@ -1,23 +1,21 @@
-"""Aplicación FastAPI: API REST, WebSocket del tablero y workers de ingesta y riesgo en el mismo proceso.
+"""Aplicación FastAPI: API REST y WebSocket del tablero.
+
+Con MINOS_ROLE=all (por omisión) también corre los workers de ingesta y riesgo en el mismo proceso; con
+MINOS_ROLE=api solo sirve datos y los workers corren aparte (python -m minos.worker) comunicándose por Redis.
 
 Correr en local:  uvicorn minos.main:app --reload --port 5080
 """
-import asyncio
-import contextlib
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .analysis import NlpServiceAnalyzer
 from .api import router, ws_router
 from .auth import TokenValidator
 from .config import Settings, get_settings
-from .connectors import build_connectors, new_http_client
-from .db import Database
-from .pipeline import IngestionWorker, RiskEngine
 from .realtime import RiskHub
+from .runtime import Runtime
 from .surveys import SurveyCatalog
 
 log = logging.getLogger("minos")
@@ -30,38 +28,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        database = Database(settings.database_url)
-        if settings.create_schema:
-            await database.create_schema()
-        http = new_http_client()
+        runtime = await Runtime.start(settings)
         hub = RiskHub()
-        engine = RiskEngine(database, hub, settings.risk_engine)
-        app.state.db = database
+        app.state.runtime = runtime
+        app.state.db = runtime.db
+        app.state.bus = runtime.bus
         app.state.hub = hub
-        app.state.risk_engine = engine
-        app.state.connectors = build_connectors(settings, http)
-
-        tasks = []
-        if settings.run_workers:
-            analyzer = NlpServiceAnalyzer(http, settings.nlp_url)
-            ingestion = IngestionWorker(database, app.state.connectors, analyzer, hub, settings.ingestion, engine.enqueue)
-            app.state.ingestion = ingestion
-            tasks = [asyncio.create_task(ingestion.run(), name="ingestion"),
-                     asyncio.create_task(engine.run(), name="risk-engine")]
-        active = [c.source for c in app.state.connectors if c.is_configured]
-        log.info("minOS listo. Conectores activos: %s", ", ".join(active) or "ninguno")
+        app.state.risk_engine = runtime.engine
+        app.state.connectors = runtime.connectors
+        # Los eventos en vivo llegan por el bus, vengan de este proceso o de los workers.
+        runtime.spawn(runtime.bus.listen(hub.deliver), "live-events")
+        if settings.role == "all":
+            runtime.start_workers()
+        elif not settings.redis_url:
+            log.warning("MINOS_ROLE=api sin MINOS_REDIS_URL: el tablero no recibirá eventos de los workers.")
         if not settings.auth.authority:
             log.warning("Autenticación desactivada (development sin MINOS_AUTH__AUTHORITY).")
         try:
             yield
         finally:
-            for t in tasks:
-                t.cancel()
-            for t in tasks:
-                with contextlib.suppress(asyncio.CancelledError):
-                    await t
-            await http.aclose()
-            await database.dispose()
+            await runtime.stop()
 
     app = FastAPI(title="minOS API", version="2.0.0", lifespan=lifespan)
     app.state.settings = settings
