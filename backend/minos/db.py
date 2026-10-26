@@ -190,3 +190,31 @@ class Database:
 
     def session(self) -> AsyncSession:
         return self.sessions()
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # Siempre en minúsculas: es el nombre de usuario.
+    email: Mapped[str] = mapped_column(String(254), unique=True)
+    name: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(16))
+    password_hash: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(default=True)
+    failed_logins: Mapped[int] = mapped_column(default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+
+
+class UserSession(Base):
+    """Sesión iniciada. Solo se guarda el SHA-256 del token: una copia de la base no permite entrar."""
+
+    __tablename__ = "user_sessions"
+    __table_args__ = (Index("ix_user_sessions_user", "user_id"),)
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime)

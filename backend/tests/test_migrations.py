@@ -42,6 +42,14 @@ def test_migrations_build_the_same_schema_as_the_models():
     assert _diff() == []
 
 
+def _head() -> str:
+    from alembic.script import ScriptDirectory
+
+    from minos.migrate import config
+
+    return ScriptDirectory.from_config(config()).get_current_head()
+
+
 @needs_postgres
 def test_migrations_go_down_and_up_again():
     reset_postgres(POSTGRES_URL)
@@ -49,7 +57,7 @@ def test_migrations_go_down_and_up_again():
     migrate(POSTGRES_URL, "base", down=True)
     assert _query("SELECT to_regclass('public.targets')") == [(None,)]
     migrate(POSTGRES_URL)
-    assert _query("SELECT version_num FROM alembic_version") == [("0001",)]
+    assert _query("SELECT version_num FROM alembic_version") == [(_head(),)]
 
 
 @needs_postgres

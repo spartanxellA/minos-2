@@ -7,11 +7,12 @@ import { SurveyForm } from "./SurveyForm";
 const date = (iso: string) => new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 
 /** Resultado del último cuestionario de riesgo del objetivo; abre el formulario para contestarlo o actualizarlo. */
-export function SurveyCard({ targetId, targetName, surveyScore }: {
+export function SurveyCard({ targetId, targetName, surveyScore, canAnswer = true }: {
   targetId: string;
   targetName: string;
   /** Puntaje del cuestionario en el último cálculo del IRR; si cambia, alguien contestó desde otro lado. */
   surveyScore: number | null | undefined;
+  canAnswer?: boolean;
 }) {
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [history, setHistory] = useState<SurveyResponse[] | null>(null);
@@ -61,9 +62,11 @@ export function SurveyCard({ targetId, targetName, surveyScore }: {
           })}
         </>
       )}
-      <button type="button" disabled={!survey || history === null} onClick={() => setOpen(true)} style={{ marginTop: 8 }}>
-        {latest ? "Actualizar respuestas" : "Contestar cuestionario"}
-      </button>
+      {canAnswer && (
+        <button type="button" disabled={!survey || history === null} onClick={() => setOpen(true)} style={{ marginTop: 8 }}>
+          {latest ? "Actualizar respuestas" : "Contestar cuestionario"}
+        </button>
+      )}
       {open && survey && (
         <SurveyForm targetId={targetId} targetName={targetName} survey={survey} previous={latest}
           onClose={() => setOpen(false)}

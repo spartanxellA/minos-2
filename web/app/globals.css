@@ -108,3 +108,28 @@ dialog.survey .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 }
 .options label.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .options input { margin: 0; accent-color: var(--accent); }
+
+/* Inicio de sesión y cuentas */
+.login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login form { width: min(360px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 24px; }
+.login h1 { margin: 0; font-size: 22px; }
+.login h1 span, header.top h1 span { color: var(--accent); }
+.login p { margin: 0; }
+.login label, .stack label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.login input, .stack input { color: var(--ink); }
+.account { display: flex; align-items: center; gap: 6px; font-size: 13px; flex-wrap: wrap; }
+.ok { color: var(--pos); }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+dialog.modal {
+  width: min(420px, calc(100vw - 32px)); padding: 0; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+dialog.modal::backdrop { background: rgb(0 0 0 / .45); }
+dialog.modal header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+dialog.modal header h2 { font-size: 16px; margin: 0; }
+dialog.modal .body { padding: 16px; overflow-x: auto; }
+dialog.modal h3 { font-size: 14px; margin: 18px 0 8px; }
+dialog.modal .row { display: flex; gap: 8px; flex-wrap: wrap; }
+dialog.modal td.actions { white-space: nowrap; text-align: right; }
+.account button.ghost, td.actions button.ghost { border-color: transparent; }
+button.danger { color: var(--neg); }

@@ -121,11 +121,56 @@ export function riskLevel(score: number) {
   return { label: "Riesgo alto", color: "#d32f2f" };
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${res.status} ${path}`);
-  return res.json() as Promise<T>;
+export type Role = "viewer" | "analyst" | "admin";
+
+export interface User {
+  id: string | null;
+  email: string;
+  name: string;
+  role: Role;
+  roleLabel: string;
+  active: boolean;
+  lastLoginAt?: string | null;
 }
+
+export interface Me extends User {
+  authMode: "local" | "off";
+}
+
+export const ROLE_LABEL: Record<Role, string> = { viewer: "Lector", analyst: "Analista", admin: "Administrador" };
+const ROLE_RANK: Record<Role, number> = { viewer: 0, analyst: 1, admin: 2 };
+export const can = (user: Pick<User, "role">, role: Role) => ROLE_RANK[user.role] >= ROLE_RANK[role];
+
+/** La sesión venció o se cerró en otro lado: el tablero vuelve a la pantalla de inicio de sesión. */
+export const UNAUTHORIZED_EVENT = "minos:unauthorized";
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string, public body?: unknown) {
+    super(message);
+  }
+}
+
+/** Todas las llamadas llevan la cookie de sesión (HttpOnly; el JavaScript del tablero no la ve). */
+async function request<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+  const { json, ...rest } = init;
+  const res = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
+    credentials: "include",
+    ...rest,
+    headers: json === undefined ? rest.headers : { "content-type": "application/json", ...rest.headers },
+    body: json === undefined ? rest.body : JSON.stringify(json),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (res.status === 401 && !path.startsWith("/api/auth/")) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    const detail = body?.detail;
+    const message = typeof detail === "string" ? detail : detail?.message ?? `Error ${res.status}`;
+    throw new ApiError(res.status, message, body);
+  }
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+const get = <T,>(path: string) => request<T>(path);
 
 export const api = {
   targets: () => get<Target[]>("/api/targets"),
@@ -136,27 +181,22 @@ export const api = {
   survey: (surveyId: string) => get<Survey>(`/api/surveys/${surveyId}`),
   surveyResponses: (id: string, surveyId: string, limit = 10) =>
     get<SurveyResponse[]>(`/api/targets/${id}/survey-responses?surveyId=${surveyId}&limit=${limit}`),
-  submitSurvey: async (id: string, surveyId: string, answers: Record<string, string>) => {
-    const res = await fetch(`${API_URL}/api/targets/${id}/survey-responses`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ surveyId, answers }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.detail?.message ?? `No se pudo guardar (${res.status})`);
-    }
-    return (await res.json()) as SurveyResponse;
-  },
-  createTarget: async (input: Omit<Target, "id" | "enabled">) => {
-    const res = await fetch(`${API_URL}/api/targets`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) throw new Error(`No se pudo crear (${res.status})`);
-    return (await res.json()) as Target;
-  },
+  submitSurvey: (id: string, surveyId: string, answers: Record<string, string>) =>
+    request<SurveyResponse>(`/api/targets/${id}/survey-responses`, { method: "POST", json: { surveyId, answers } }),
+  createTarget: (input: Omit<Target, "id" | "enabled">) => request<Target>("/api/targets", { method: "POST", json: input }),
+
+  me: () => get<Me>("/api/auth/me"),
+  login: (email: string, password: string) => request<Me>("/api/auth/login", { method: "POST", json: { email, password } }),
+  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>("/api/auth/password", { method: "POST", json: { currentPassword, newPassword } }),
+
+  users: () => get<User[]>("/api/users"),
+  createUser: (input: { email: string; name: string; role: Role; password: string }) =>
+    request<User>("/api/users", { method: "POST", json: input }),
+  updateUser: (id: string, changes: Partial<{ name: string; role: Role; active: boolean; password: string }>) =>
+    request<User>(`/api/users/${id}`, { method: "PATCH", json: changes }),
+  deleteUser: (id: string) => request<void>(`/api/users/${id}`, { method: "DELETE" }),
 };
 
 export const KIND_LABEL: Record<TargetKind, string> = {

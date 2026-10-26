@@ -56,6 +56,29 @@ Facebook e Instagram no permiten buscar menciones públicas: solo se lee lo que 
 objetivo, con un token de Meta Business que tenga acceso a ellas. Esos comentarios cuentan aunque no nombren al
 objetivo. Las cuentas se guardan en `handles` del objetivo (`PUT /api/targets/{id}`).
 
+## Cuentas e inicio de sesión
+
+El tablero, la API y el WebSocket piden iniciar sesión con correo y contraseña. La sesión va en una cookie HttpOnly
+(el JavaScript del tablero no la ve), dura 7 días y se puede cerrar desde el tablero. Roles:
+
+| Rol | Puede |
+| --- | --- |
+| Lector | Ver el tablero, las menciones, las alertas y los cuestionarios contestados |
+| Analista | Además, agregar y editar objetivos y contestar el cuestionario |
+| Administrador | Además, borrar objetivos y administrar cuentas (botón "Usuarios") |
+
+El primer administrador se crea con `ADMIN_EMAIL` y `ADMIN_PASSWORD` en `.env` (solo si todavía no hay cuentas), o
+desde la terminal:
+
+```bash
+docker compose run --rm migrate python -m minos.users add tu@correo.com --role admin --name "Tu nombre"
+docker compose run --rm migrate python -m minos.users password tu@correo.com   # olvidó su contraseña o quedó bloqueada
+```
+
+Seguridad: contraseñas con scrypt y mínimo 10 caracteres; tras 5 intentos fallidos la cuenta se bloquea 15 minutos;
+desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
+WebSocket se rechazan si vienen de otro sitio. Con `AUTH_MODE=off` no se pide contraseña, solo en development.
+
 ## Avisos de alertas
 
 Las alertas se ven en vivo en el tablero. Además se avisan por los canales configurados (vacío = apagado):
@@ -128,8 +151,7 @@ hypertable particionada por semana; en un PostgreSQL sin la extensión queda com
 La configuración va en variables `MINOS_*` (secciones con `__`, duraciones en segundos). Por ejemplo
 `MINOS_DATABASE_URL`, `MINOS_CONNECTORS__X__BEARER_TOKEN` o `MINOS_INGESTION__TICK=30`; la lista completa está en
 `backend/minos/config.py`. Con `MINOS_DEMO__ENABLED=true` la fuente `demo` genera menciones sintéticas para ver el
-tablero moverse sin llaves de API. Fuera de `MINOS_ENV=development` la API exige `MINOS_AUTH__AUTHORITY` (OIDC) y
-no arranca sin él.
+tablero moverse sin llaves de API.
 
 ## Pruebas
 

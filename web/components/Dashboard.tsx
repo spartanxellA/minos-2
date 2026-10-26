@@ -2,7 +2,8 @@
 
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
-import { api, KIND_LABEL, type Alert, type Target } from "@/lib/api";
+import { api, can, KIND_LABEL, type Alert, type Me, type Target } from "@/lib/api";
+import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { useLiveTarget } from "@/lib/useLiveTarget";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
@@ -15,7 +16,8 @@ const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-di
 
 const NOTIFY_KEY = "minos.notify";
 
-export function Dashboard() {
+export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }) {
+  const [dialog, setDialog] = useState<"users" | "password" | null>(null);
   const [targets, setTargets] = useState<Target[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [notify, setNotify] = useState(false);
@@ -112,12 +114,26 @@ export function Dashboard() {
           {notify ? "Avisos activados" : "Activar avisos"}
         </button>
         <div style={{ flex: 1 }} />
-        <NewTargetForm onCreated={(t) => { setTargets((p) => [...p, t]); setSelected(t.id); }} />
+        {can(user, "analyst") && <NewTargetForm onCreated={(t) => { setTargets((p) => [...p, t]); setSelected(t.id); }} />}
+        {user.authMode === "local" && (
+          <div className="account">
+            <span title={user.email}>{user.name} · <span className="muted">{user.roleLabel}</span></span>
+            {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("users")}>Usuarios</button>}
+            <button type="button" className="ghost" onClick={() => setDialog("password")}>Contraseña</button>
+            <button type="button" className="ghost" onClick={onLogout}>Salir</button>
+          </div>
+        )}
       </header>
+      {dialog === "users" && <UsersDialog me={user} onClose={() => setDialog(null)} />}
+      {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
 
       <main>
         {!selectedTarget ? (
-          <div className="card empty">Agrega una persona, empresa, institución, área de gobierno o país para empezar a monitorear.</div>
+          <div className="card empty">
+            {can(user, "analyst")
+              ? "Agrega una persona, empresa, institución, área de gobierno o país para empezar a monitorear."
+              : "Todavía no hay objetivos. Un analista o administrador puede agregarlos."}
+          </div>
         ) : (
           <div className="grid">
             <section className="card span-3">
@@ -160,7 +176,7 @@ export function Dashboard() {
             </section>
 
             <SurveyCard key={selectedTarget.id} targetId={selectedTarget.id} targetName={selectedTarget.name}
-              surveyScore={latest?.surveyScore} />
+              surveyScore={latest?.surveyScore} canAnswer={can(user, "analyst")} />
 
             <section className="card span-3">
               <h2>Alertas</h2>

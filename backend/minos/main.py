@@ -12,7 +12,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router, ws_router
-from .auth import TokenValidator
+from .accounts import auth_router, users_router
+from .auth import bootstrap_admin
 from .config import Settings, get_settings
 from .realtime import RiskHub
 from .runtime import Runtime
@@ -23,8 +24,8 @@ log = logging.getLogger("minos")
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    if not settings.auth.authority and not settings.is_development:
-        raise RuntimeError("Configura MINOS_AUTH__AUTHORITY: la API no corre sin autenticación fuera de development.")
+    if settings.auth.mode == "off" and not settings.is_development:
+        raise RuntimeError("MINOS_AUTH__MODE=off solo se permite con MINOS_ENV=development.")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -42,8 +43,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             runtime.start_workers()
         elif not settings.redis_url:
             log.warning("MINOS_ROLE=api sin MINOS_REDIS_URL: el tablero no recibirá eventos de los workers.")
-        if not settings.auth.authority:
-            log.warning("Autenticación desactivada (development sin MINOS_AUTH__AUTHORITY).")
+        if settings.auth.mode == "off":
+            log.warning("Inicio de sesión apagado (MINOS_AUTH__MODE=off): cualquiera con acceso a la red entra como admin.")
+        elif await bootstrap_admin(runtime.db, settings):
+            log.info("Se creó la cuenta de administrador %s.", settings.auth.bootstrap_admin_email)
         try:
             yield
         finally:
@@ -51,7 +54,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="minOS API", version="2.0.0", lifespan=lifespan)
     app.state.settings = settings
-    app.state.auth = TokenValidator(settings.auth)
     app.state.surveys = SurveyCatalog(settings.surveys_path)
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
@@ -61,6 +63,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health() -> dict:
         return {"status": "ok"}
 
+    app.include_router(auth_router)
+    app.include_router(users_router)
     app.include_router(router)
     app.include_router(ws_router)
     return app

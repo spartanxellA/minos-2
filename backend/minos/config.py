@@ -163,9 +163,17 @@ class NotificationSettings(BaseModel):
 
 
 class AuthSettings(BaseModel):
-    # Emisor OIDC (Keycloak, Entra ID, Auth0...). Vacío solo se permite en development.
-    authority: str = ""
-    audience: str = "minos-api"
+    # "local": cuentas de minOS con correo y contraseña. "off": sin inicio de sesión, solo en development.
+    mode: Literal["local", "off"] = "local"
+    session_ttl: Duration = timedelta(days=7)
+    cookie_name: str = "minos_session"
+    # Intentos fallidos seguidos antes de bloquear la cuenta un rato.
+    max_failed_logins: int = 5
+    lockout: Duration = timedelta(minutes=15)
+    min_password_length: int = 10
+    # Primer administrador: se crea al arrancar si todavía no hay ninguna cuenta. Después se puede borrar del .env.
+    bootstrap_admin_email: str = ""
+    bootstrap_admin_password: str = ""
 
 
 class Settings(BaseSettings):
