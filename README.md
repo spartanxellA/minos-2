@@ -56,6 +56,22 @@ Facebook e Instagram no permiten buscar menciones públicas: solo se lee lo que 
 objetivo, con un token de Meta Business que tenga acceso a ellas. Esos comentarios cuentan aunque no nombren al
 objetivo. Las cuentas se guardan en `handles` del objetivo (`PUT /api/targets/{id}`).
 
+## Avisos de alertas
+
+Las alertas se ven en vivo en el tablero. Además se avisan por los canales configurados (vacío = apagado):
+
+| Canal | Variables | Notas |
+| --- | --- | --- |
+| Navegador | botón "Activar avisos" del tablero | Aviso del sistema para el objetivo que se está viendo, con la pestaña abierta. |
+| Correo | `ALERT_EMAIL_*` (SMTP) | STARTTLS en 587, TLS directo en 465. |
+| Webhook | `ALERT_WEBHOOK_URLS`, `ALERT_WEBHOOK_SECRET` | JSON con `text` (lo entienden los webhooks entrantes de Slack y Teams) y `alert` con los datos. Con secreto, firma `X-Minos-Signature: sha256=HMAC`. |
+| WhatsApp | `WHATSAPP_*` | WhatsApp Cloud API. Fuera de una conversación abierta Meta solo permite plantillas aprobadas: hay que crear la plantilla `minos_alerta` con tres variables, por ejemplo "Alerta minOS para {{1}}: {{2}}. {{3}}". |
+
+Cada aviso trae el objetivo, la alerta, el índice actual, el enlace a la mención si la hay y el enlace al tablero
+(`/?target=<id>`, con la dirección de `MINOS_NOTIFICATIONS__DASHBOARD_URL`). Un cambio de tendencia o un pico de
+negativas se registra y avisa una sola vez cada 6 horas por objetivo (`MINOS_RISK_ENGINE__ALERT_COOLDOWN`), aunque
+la condición siga activa en cada recálculo. Un canal que falla queda en el registro y no frena a los demás.
+
 ## Índice de Riesgo Reputacional (IRR, 0–100)
 
 - Medios: `M = 100 × (0.5 N + 0.3 S + 0.2 V)`. N es la negatividad ponderada por alcance, S las acusaciones graves
@@ -131,5 +147,6 @@ migrado. Las pruebas del bus usan fakeredis, o un Redis real con `MINOS_TEST_RED
 
 - Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
 - Editar las cuentas propias (`handles`) de un objetivo desde el tablero; hoy se hace por la API.
-- Cuestionario de perfil (PDSurvey) en el tablero, reportes PDF, notificaciones push/correo/WhatsApp, app móvil.
+- Cuestionario de perfil (PDSurvey) en el tablero, reportes PDF, app móvil con notificaciones push.
+- Destinatarios de avisos por objetivo; hoy son los mismos para todos.
 - Recuperar el scraper (Node.js/Python) y el esquema MySQL originales para comparar resultados con la versión anterior.

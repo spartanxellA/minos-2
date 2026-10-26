@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { WS_URL, api, type Alert, type Breakdown, type Mention, type Risk } from "./api";
 
 export type LiveStatus = "connecting" | "live" | "offline";
 
 /** Carga el historial de un objetivo y lo mantiene al día por WebSocket. */
-export function useLiveTarget(targetId: string | null) {
+export function useLiveTarget(targetId: string | null, onAlert?: (alert: Alert) => void) {
+  const alertHandler = useRef(onAlert);
+  alertHandler.current = onAlert;
   const [risk, setRisk] = useState<Risk[]>([]);
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
@@ -44,6 +46,7 @@ export function useLiveTarget(targetId: string | null) {
       } else if (event === "alertRaised") {
         const alert = data as Alert;
         setAlerts((prev) => [{ ...alert, at: alert.at ?? new Date().toISOString() }, ...prev].slice(0, 50));
+        alertHandler.current?.(alert);
       }
     };
 

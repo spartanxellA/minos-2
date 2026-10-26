@@ -2,7 +2,7 @@
 
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
-import { api, KIND_LABEL, type Target } from "@/lib/api";
+import { api, KIND_LABEL, type Alert, type Target } from "@/lib/api";
 import { useLiveTarget } from "@/lib/useLiveTarget";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
@@ -13,18 +13,45 @@ const SENT = { positive: { label: "Positivo", color: "#2e7d32" }, neutral: { lab
 const fmt = new Intl.NumberFormat("es-MX");
 const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
+const NOTIFY_KEY = "minos.notify";
+
 export function Dashboard() {
   const [targets, setTargets] = useState<Target[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const live = useLiveTarget(selected);
+  const [notify, setNotify] = useState(false);
+  const selectedName = targets.find((t) => t.id === selected)?.name ?? "";
+
+  const onAlert = (a: Alert) => {
+    if (!notify || typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    new Notification(`${a.title} · ${selectedName}`, { body: a.message, tag: a.id != null ? String(a.id) : undefined });
+  };
+  const live = useLiveTarget(selected, onAlert);
   const latest = live.latest;
 
   useEffect(() => {
+    try {
+      setNotify(localStorage.getItem(NOTIFY_KEY) === "1" && Notification.permission === "granted");
+    } catch {
+      /* sin almacenamiento o sin notificaciones */
+    }
+    // Los avisos por correo, webhook y WhatsApp enlazan a /?target=<id>.
+    const wanted = new URLSearchParams(window.location.search).get("target");
     api.targets().then((t) => {
       setTargets(t);
-      setSelected((s) => s ?? t[0]?.id ?? null);
+      setSelected((s) => s ?? t.find((x) => x.id === wanted)?.id ?? t[0]?.id ?? null);
     }).catch(() => {});
   }, []);
+
+  async function toggleNotify() {
+    if (typeof Notification === "undefined") return;
+    const next = !notify && (Notification.permission === "granted" || (await Notification.requestPermission()) === "granted");
+    setNotify(next);
+    try {
+      localStorage.setItem(NOTIFY_KEY, next ? "1" : "0");
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
 
   const trend: EChartsOption = useMemo(() => ({
     grid: { left: 40, right: 16, top: 16, bottom: 28 },
@@ -80,6 +107,10 @@ export function Dashboard() {
           {targets.map((t) => <option key={t.id} value={t.id}>{t.name} · {KIND_LABEL[t.kind]}</option>)}
         </select>
         <div className="status"><span className={`dot ${live.status}`} />{live.status === "live" ? "En vivo" : live.status === "connecting" ? "Conectando…" : "Sin conexión"}</div>
+        <button type="button" className={notify ? "" : "ghost"} onClick={toggleNotify} aria-pressed={notify}
+          title="Aviso del navegador cuando llegue una alerta del objetivo seleccionado">
+          {notify ? "Avisos activados" : "Activar avisos"}
+        </button>
         <div style={{ flex: 1 }} />
         <NewTargetForm onCreated={(t) => { setTargets((p) => [...p, t]); setSelected(t.id); }} />
       </header>
@@ -128,7 +159,8 @@ export function Dashboard() {
               <EChart option={bySource} height={260} />
             </section>
 
-            <SurveyCard key={selectedTarget.id} targetId={selectedTarget.id} targetName={selectedTarget.name} />
+            <SurveyCard key={selectedTarget.id} targetId={selectedTarget.id} targetName={selectedTarget.name}
+              surveyScore={latest?.surveyScore} />
 
             <section className="card span-3">
               <h2>Alertas</h2>
