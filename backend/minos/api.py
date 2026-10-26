@@ -11,8 +11,9 @@ from . import db
 from .auth import Role, current_user, require_role, websocket_user
 from .domain.mentions import Sentiment
 from .schemas import (
-    AlertOut, BreakdownOut, ConnectorStateOut, Influencer, MentionOut, RiskOut, SourceSentimentCount, SurveyResponseOut,
-    SurveySubmission, SurveySummary, TargetInput, TargetOut, TopicCount,
+    AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, Influencer, MentionOut, RiskOut, SourceError,
+    SourceSentimentCount, SourceStatus, SourcesOut, SurveyResponseOut, SurveySubmission, SurveySummary, TargetInput,
+    TargetOut, TopicCount,
 )
 from .surveys import SurveyCatalog, SurveyDefinition
 
@@ -171,6 +172,48 @@ async def list_alerts(target_id: uuid.UUID, session: Session):
 async def connector_states(target_id: uuid.UUID, session: Session):
     C = db.ConnectorState
     return (await session.scalars(select(C).where(C.target_id == target_id).order_by(C.source))).all()
+
+
+@router.get("/sources", response_model=SourcesOut)
+async def source_status(session: Session, request: Request):
+    """Estado de cada fuente y canal de avisos: si tiene llave, cuándo corrió, qué trajo y qué objetivos fallan."""
+    runtime = request.app.state.runtime
+    configured: dict[str, bool] = {}
+    for c in runtime.connectors:
+        if c.source != "demo" or c.is_configured:
+            configured[c.source] = c.is_configured
+        if c.source == "bluesky":
+            configured["bluesky-live"] = request.app.state.settings.connectors.jetstream.enabled
+
+    C, M, T = db.ConnectorState, db.Mention, db.Target
+    last_run = dict((await session.execute(select(C.source, func.max(C.last_run_at)).group_by(C.source))).all())
+    errors: dict[str, list[SourceError]] = {}
+    rows = await session.execute(
+        select(C.source, C.target_id, T.name, C.last_run_at, C.last_error)
+        .join(T, T.id == C.target_id).where(C.last_error.is_not(None)).order_by(T.name)
+    )
+    for source, target_id, name, at, error in rows:
+        errors.setdefault(source, []).append(SourceError(target_id=target_id, target_name=name, at=at, error=error))
+    since = datetime.now(UTC) - timedelta(hours=24)
+    mentions = {
+        source: (last, recent) for source, last, recent in await session.execute(
+            select(M.source, func.max(M.ingested_at), func.count().filter(M.ingested_at >= since)).group_by(M.source)
+        )
+    }
+
+    def status_of(source: str) -> SourceStatus:
+        # Bluesky en vivo guarda sus menciones como "bluesky", igual que la búsqueda.
+        key = "bluesky" if source == "bluesky-live" else source
+        last_mention, recent = mentions.get(key, (None, 0))
+        return SourceStatus(
+            source=source, configured=configured[source], last_run_at=last_run.get(source),
+            last_mention_at=last_mention, mentions_last_day=recent, errors=errors.get(source, []),
+        )
+
+    return SourcesOut(
+        sources=[status_of(s) for s in configured],
+        channels=[ChannelStatus(channel=n, configured=ok) for n, ok in runtime.notifier.status.items()],
+    )
 
 
 # --- Cuestionarios --------------------------------------------------------------------------------

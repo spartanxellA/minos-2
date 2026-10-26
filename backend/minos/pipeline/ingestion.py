@@ -11,7 +11,7 @@ from .. import db
 from ..analysis import MentionAnalyzer
 from ..bus import Bus
 from ..config import IngestionSettings
-from ..connectors import ConnectorCursor, MentionConnector
+from ..connectors import ConnectorCursor, MentionConnector, redact_secrets
 from ..domain.mentions import MentionDraft, fingerprint
 from ..domain.targets import MonitoredTarget, is_relevant
 from ..schemas import MentionOut
@@ -82,8 +82,8 @@ class IngestionWorker:
             except asyncio.CancelledError:
                 raise
             except Exception as ex:
-                error = str(ex)[:2000] or type(ex).__name__
-                log.warning("El conector %s falló para %s: %s", connector.source, target.name, ex)
+                error = redact_secrets(str(ex))[:2000] or type(ex).__name__
+                log.warning("El conector %s falló para %s: %s", connector.source, target.name, error)
 
         if error is not None:
             # Se descarta el lote incompleto y solo se registra el error; el cursor no avanza.

@@ -138,3 +138,11 @@ h1.brand .logo { display: inline-block; vertical-align: middle; margin: -4px 8px
 .login form > .logo { align-self: center; }
 .login form > .logo + h1 { text-align: center; }
 .login form > .logo + h1 + p { text-align: center; }
+.badge { display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--neg); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+table.sources { width: 100%; }
+table.sources td.error { color: var(--neg); font-weight: 600; }
+table.sources td.ok { color: var(--pos); font-weight: 600; }
+.source-error { font-size: 13px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.source-error code { display: block; margin-top: 4px; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--muted); }
+.pill-outline { display: inline-block; font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; }
+.pill-outline.ok { border-color: var(--pos); color: var(--pos); }
