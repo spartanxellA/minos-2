@@ -1,6 +1,7 @@
 """Ingesta: recorre objetivo × conector cuando toca, filtra homónimos, deduplica, analiza una vez y guarda."""
 import asyncio
 import logging
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
@@ -97,18 +98,26 @@ class IngestionWorker:
             return
 
         log.info("%s → %s: %s menciones nuevas", connector.source, target.name, len(added))
+        await self.announce(target.id, added)
+
+    async def announce(self, target_id: uuid.UUID, added: Sequence[db.Mention]) -> None:
+        """Pide el recálculo del objetivo y manda las menciones nuevas al tablero."""
         if added:
-            await self._bus.request_recompute(target.id)
+            await self._bus.request_recompute(target_id)
             latest = sorted(added, key=lambda m: m.published_at, reverse=True)[:20]
-            await self._bus.publish(target.id, "mentionsAdded", [MentionOut.of(m) for m in latest])
+            await self._bus.publish(target_id, "mentionsAdded", [MentionOut.of(m) for m in latest])
 
     async def _ingest(self, session, connector: MentionConnector, target: MonitoredTarget, cursor: ConnectorCursor) -> list[db.Mention]:
         drafts: list[MentionDraft] = []
         async for draft in connector.fetch(target, cursor):
-            if is_relevant(target, draft.text):
+            if (draft.own_channel and draft.text.strip()) or is_relevant(target, draft.text):
                 drafts.append(draft)
             if len(drafts) >= self._settings.max_mentions_per_run:
                 break
+        return await self.store(session, target, connector.source, drafts)
+
+    async def store(self, session, target: MonitoredTarget, source: str, drafts: Sequence[MentionDraft]) -> list[db.Mention]:
+        """Deduplica, analiza una sola vez y agrega a la sesión las menciones nuevas (sin confirmar)."""
         if not drafts:
             return []
 
@@ -116,7 +125,7 @@ class IngestionWorker:
         ids = [d.external_id for d in drafts]
         known_ids = set((await session.scalars(
             select(db.Mention.external_id).where(
-                db.Mention.target_id == target.id, db.Mention.source == connector.source, db.Mention.external_id.in_(ids)
+                db.Mention.target_id == target.id, db.Mention.source == source, db.Mention.external_id.in_(ids)
             )
         )).all())
         prints = [fingerprint(d.text) for d in drafts]

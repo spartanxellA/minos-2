@@ -78,6 +78,17 @@ async def test_locks_are_exclusive_and_only_the_owner_releases(redis):
     assert await b.try_lock("ingest:t:x", 5)
 
 
+async def test_only_the_owner_renews_a_lock(redis):
+    a, b = bus(redis, "a"), bus(redis, "b")
+    assert await a.try_lock("stream:jetstream", 0.2)
+    assert not await b.renew("stream:jetstream", 5)
+    assert await a.renew("stream:jetstream", 5)
+    await asyncio.sleep(0.3)
+    assert not await b.try_lock("stream:jetstream", 5)  # sigue siendo de "a" gracias a la renovación
+    await redis.delete("minos:lock:stream:jetstream")
+    assert not await a.renew("stream:jetstream", 5)  # vencido: hay que volver a tomarlo
+
+
 async def test_memory_bus_batches_pending_recomputes():
     memory = MemoryBus()
     t1, t2 = uuid.uuid4(), uuid.uuid4()

@@ -8,6 +8,10 @@ from pydantic import BaseModel
 from .domain.risk import SectionAnswers, SurveyRiskResult, survey_risk
 
 
+# Tipos de minOS 1.6 cuya respuesta es una sola de las opciones.
+SINGLE_CHOICE = {"RAD", "CBO", "YN"}
+
+
 class SurveyOption(BaseModel):
     value: str
     label: str
@@ -54,6 +58,22 @@ class SurveyCatalog:
 
     def find(self, survey_id: str) -> SurveyDefinition | None:
         return self._surveys.get(survey_id)
+
+    @staticmethod
+    def problems(survey: SurveyDefinition, answers: Mapping[str, str]) -> list[str]:
+        """Errores de un envío: preguntas que no existen, opciones inválidas y, si puntúa, obligatorias sin contestar.
+
+        En un cuestionario que puntúa, una pregunta sin contestar baja la sección por debajo de 0 (la fórmula divide
+        entre todas las preguntas), así que se exigen todas como en minOS 1.6."""
+        questions = {q.id: q for section in survey.sections for q in section.questions}
+        out = [f"{qid}: pregunta desconocida" for qid in answers if qid not in questions]
+        for qid, value in answers.items():
+            q = questions.get(qid)
+            if q is not None and q.type in SINGLE_CHOICE and q.options and value not in {o.value for o in q.options}:
+                out.append(f"{qid}: opción inválida {value!r}")
+        if survey.scored:
+            out += [f"{q.id}: falta la respuesta" for q in questions.values() if q.required and not answers.get(q.id)]
+        return out
 
     @staticmethod
     def score(survey: SurveyDefinition, answers: Mapping[str, str]) -> SurveyRiskResult | None:

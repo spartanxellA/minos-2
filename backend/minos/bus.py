@@ -57,6 +57,10 @@ class Bus(ABC):
     async def try_lock(self, key: str, ttl_seconds: float) -> bool:
         """Toma un candado con vencimiento; falso si otra réplica ya lo tiene."""
 
+    async def renew(self, key: str, ttl_seconds: float) -> bool:
+        """Extiende un candado propio; falso si ya venció o lo tomó otra réplica."""
+        return True
+
     async def release(self, key: str) -> None:
         return None
 
@@ -174,6 +178,22 @@ class RedisBus(Bus):
 
     async def try_lock(self, key: str, ttl_seconds: float) -> bool:
         return bool(await self._redis.set(f"minos:lock:{key}", self._consumer, nx=True, px=max(int(ttl_seconds * 1000), 1)))
+
+    async def renew(self, key: str, ttl_seconds: float) -> bool:
+        from redis.exceptions import WatchError
+
+        name = f"minos:lock:{key}"
+        async with self._redis.pipeline(transaction=True) as pipe:
+            try:
+                await pipe.watch(name)
+                if await pipe.get(name) != self._consumer:
+                    return False
+                pipe.multi()
+                pipe.pexpire(name, max(int(ttl_seconds * 1000), 1))
+                await pipe.execute()
+                return True
+            except WatchError:
+                return False
 
     async def release(self, key: str) -> None:
         # Solo se borra si el candado sigue siendo nuestro (WATCH: si cambia entre GET y DEL, no se borra).

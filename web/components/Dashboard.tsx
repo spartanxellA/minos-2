@@ -6,6 +6,7 @@ import { api, KIND_LABEL, type Target } from "@/lib/api";
 import { useLiveTarget } from "@/lib/useLiveTarget";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
+import { SurveyCard } from "./SurveyCard";
 
 const SOURCE_LABEL: Record<string, string> = { rss: "Noticias", x: "X", youtube: "YouTube", bluesky: "Bluesky", demo: "Demo" };
 const SENT = { positive: { label: "Positivo", color: "#2e7d32" }, neutral: { label: "Neutro", color: "#8a94a0" }, negative: { label: "Negativo", color: "#d32f2f" } } as const;
@@ -32,7 +33,7 @@ export function Dashboard() {
     yAxis: { type: "value", min: 0, max: 100, interval: 25 },
     visualMap: { show: false, dimension: 1, pieces: [{ lte: 25, color: "#2e7d32" }, { gt: 25, lte: 50, color: "#c9a800" }, { gt: 50, color: "#d32f2f" }] },
     series: [{
-      name: "Índice", type: "line", showSymbol: false, smooth: 0.2,
+      name: "Índice", type: "line", showSymbol: live.risk.length < 2, smooth: 0.2,
       data: live.risk.map((r) => [r.at, r.index]),
       markArea: { silent: true, itemStyle: { opacity: 0.06 }, data: [
         [{ yAxis: 0, itemStyle: { color: "#2e7d32" } }, { yAxis: 25 }],
@@ -47,7 +48,7 @@ export function Dashboard() {
     radar: { indicator: [
       { name: "Negatividad", max: 100 }, { name: "Acusaciones", max: 100 },
       { name: "Volumen anómalo", max: 100 }, { name: "Cuestionario", max: 100 },
-    ], radius: "65%" },
+    ], radius: "48%", axisName: { fontSize: 11 } },
     series: [{ type: "radar", areaStyle: { opacity: 0.2 }, data: [{
       name: "Factores", value: latest ? [latest.negativity * 100, latest.severity * 100, latest.volumeAnomaly * 100, latest.surveyScore ?? 0].map((v) => Math.round(v)) : [0, 0, 0, 0],
     }] }],
@@ -117,17 +118,19 @@ export function Dashboard() {
               {live.risk.length ? <EChart option={trend} height={300} /> : <div className="empty">Esperando el primer cálculo…</div>}
             </section>
 
-            <section className="card span-4">
+            <section className="card span-3">
               <h2>Factores de riesgo</h2>
               <EChart option={radar} height={260} />
             </section>
 
-            <section className="card span-4">
+            <section className="card span-3">
               <h2>Sentimiento por fuente (24 h)</h2>
               <EChart option={bySource} height={260} />
             </section>
 
-            <section className="card span-4">
+            <SurveyCard key={selectedTarget.id} targetId={selectedTarget.id} targetName={selectedTarget.name} />
+
+            <section className="card span-3">
               <h2>Alertas</h2>
               {live.alerts.length === 0 ? <div className="empty">Sin alertas</div> : (
                 <ul className="feed" style={{ maxHeight: 260 }}>

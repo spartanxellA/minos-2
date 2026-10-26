@@ -5,13 +5,16 @@ from ..config import Settings
 from .base import USER_AGENT, ConnectorCursor, ConnectorMode, MentionConnector
 from .bluesky import BlueskyConnector
 from .demo import DemoConnector
+from .meta import FacebookPageConnector, InstagramConnector
+from .reddit import RedditConnector
 from .rss import RssConnector
 from .x import XConnector
 from .youtube import YouTubeConnector
 
 __all__ = [
     "ConnectorCursor", "ConnectorMode", "MentionConnector", "build_connectors", "new_http_client",
-    "BlueskyConnector", "DemoConnector", "RssConnector", "XConnector", "YouTubeConnector",
+    "BlueskyConnector", "DemoConnector", "FacebookPageConnector", "InstagramConnector", "RedditConnector",
+    "RssConnector", "XConnector", "YouTubeConnector",
 ]
 
 
@@ -20,12 +23,15 @@ def new_http_client() -> httpx.AsyncClient:
 
 
 def build_connectors(settings: Settings, http: httpx.AsyncClient) -> list[MentionConnector]:
-    """Conectores de la fase 1, más el de demostración si está activado."""
+    """Conectores por consulta, más el de demostración si está activado. Bluesky en vivo (Jetstream) va aparte."""
     c = settings.connectors
     return [
         RssConnector(http, c.rss),
         XConnector(http, c.x),
         YouTubeConnector(http, c.youtube),
         BlueskyConnector(http, c.bluesky),
+        RedditConnector(http, c.reddit),
+        FacebookPageConnector(http, c.meta),
+        InstagramConnector(http, c.meta),
         DemoConnector(settings.demo),
     ]

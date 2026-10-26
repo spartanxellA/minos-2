@@ -53,11 +53,47 @@ class BlueskySettings(BaseModel):
     poll_interval: Duration = timedelta(minutes=5)
 
 
+class JetstreamSettings(BaseModel):
+    # Todas las publicaciones nuevas de Bluesky en tiempo real, filtradas aquí contra los objetivos. No requiere cuenta.
+    enabled: bool = False
+    url: str = "wss://jetstream2.us-east.bsky.network/subscribe"
+    # Perfil del autor (cuenta y seguidores) para las publicaciones que coinciden.
+    profile_api: str = "https://public.api.bsky.app"
+    # Al arrancar se retrocede este tiempo para no perder lo publicado mientras el worker estaba detenido.
+    replay: Duration = timedelta(minutes=5)
+    flush_every: Duration = timedelta(seconds=5)
+
+
+class RedditSettings(BaseModel):
+    # App "script" o "web" de https://www.reddit.com/prefs/apps (OAuth sin usuario).
+    client_id: str = ""
+    client_secret: str = ""
+    # Reddit exige un User-Agent propio que identifique la app y a su responsable, por ejemplo "minOS/2.0 (by u/cuenta)".
+    user_agent: str = "minOS/2.0"
+    # Subreddits donde buscar (sin "r/"); vacío busca en todo Reddit.
+    subreddits: list[str] = Field(default_factory=list)
+    poll_interval: Duration = timedelta(minutes=10)
+
+
+class MetaSettings(BaseModel):
+    # Token de usuario del sistema (Meta Business) o de página, con pages_read_engagement,
+    # pages_read_user_content e instagram_manage_comments. Las páginas se configuran por objetivo en sus cuentas:
+    # "facebook" → id de la página, "instagram" → id de la cuenta profesional de Instagram.
+    access_token: str = ""
+    graph_url: str = "https://graph.facebook.com/v23.0"
+    # Publicaciones recientes revisadas por ronda (y hasta 50 comentarios de cada una).
+    recent_posts: int = 25
+    poll_interval: Duration = timedelta(minutes=10)
+
+
 class ConnectorSettings(BaseModel):
     rss: RssSettings = RssSettings()
     x: XSettings = XSettings()
     youtube: YouTubeSettings = YouTubeSettings()
     bluesky: BlueskySettings = BlueskySettings()
+    jetstream: JetstreamSettings = JetstreamSettings()
+    reddit: RedditSettings = RedditSettings()
+    meta: MetaSettings = MetaSettings()
 
 
 class DemoSettings(BaseModel):

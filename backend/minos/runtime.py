@@ -12,6 +12,7 @@ from .config import Settings
 from .connectors import MentionConnector, build_connectors, new_http_client
 from .db import Database
 from .pipeline import IngestionWorker, RiskEngine
+from .pipeline.stream import JetstreamIngestion
 
 log = logging.getLogger("minos")
 
@@ -45,9 +46,15 @@ class Runtime:
 
     def start_workers(self) -> None:
         active = [c.source for c in self.connectors if c.is_configured]
+        if self.settings.connectors.jetstream.enabled:
+            active.append("bluesky en vivo (jetstream)")
         log.info("Workers en marcha. Conectores activos: %s", ", ".join(active) or "ninguno")
         self.spawn(self.ingestion.run(), "ingestion")
         self.spawn(self.engine.run(), "risk-engine")
+        jetstream = self.settings.connectors.jetstream
+        if jetstream.enabled:
+            stream = JetstreamIngestion(self.db, self.ingestion, self.bus, self.http, jetstream)
+            self.spawn(stream.run(), "jetstream")
 
     async def stop(self) -> None:
         for t in self._tasks:

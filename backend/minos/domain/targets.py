@@ -60,7 +60,11 @@ def is_relevant(target: MonitoredTarget, text: str) -> bool:
     """Debe contener el nombre, un alias o una cuenta oficial, y ninguno de los términos excluidos."""
     if not text or not text.strip():
         return False
-    haystack = normalize(text)
+    return is_relevant_normalized(target, normalize(text))
+
+
+def is_relevant_normalized(target: MonitoredTarget, haystack: str) -> bool:
+    """is_relevant con el texto ya pasado por normalize(), para revisar un texto contra muchos objetivos."""
     if any(_contains_term(haystack, t) for t in target.excluded_terms):
         return False
     return any(_contains_term(haystack, n) for n in target.search_names()) or any(

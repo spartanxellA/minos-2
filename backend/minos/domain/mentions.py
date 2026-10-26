@@ -46,6 +46,8 @@ class MentionDraft:
     text: str
     language: str | None = None
     engagement: Engagement = field(default_factory=Engagement)
+    # Comentario o publicación en un canal propio del objetivo (su página, su cuenta): habla de él aunque no lo nombre.
+    own_channel: bool = False
     raw: dict | None = None
 
 
