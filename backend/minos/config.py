@@ -100,6 +100,8 @@ class Settings(BaseSettings):
     surveys_path: Path = DATA_DIR / "surveys.json"
     # Los workers corren dentro de la API; con False la API solo sirve datos (útil al escalar workers aparte).
     run_workers: bool = True
+    # Crea las tablas desde los modelos al arrancar (pruebas con SQLite). En PostgreSQL se usan las migraciones.
+    create_schema: bool = False
 
     auth: AuthSettings = AuthSettings()
     demo: DemoSettings = DemoSettings()

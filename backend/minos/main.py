@@ -31,7 +31,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         database = Database(settings.database_url)
-        await database.create_schema()
+        if settings.create_schema:
+            await database.create_schema()
         http = new_http_client()
         hub = RiskHub()
         engine = RiskEngine(database, hub, settings.risk_engine)

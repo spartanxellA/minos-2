@@ -125,6 +125,8 @@ class ConnectorState(Base):
 
 
 class RiskSnapshot(Base):
+    # En PostgreSQL la llave primaria es (id, at) porque la tabla es hypertable de TimescaleDB (migración 0001);
+    # para el ORM basta con id, que es único.
     __tablename__ = "risk_snapshots"
     __table_args__ = (Index("ix_risk_target_at", "target_id", "at"),)
 
@@ -179,7 +181,7 @@ class Database:
         self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def create_schema(self) -> None:
-        # MVP: crea las tablas al arrancar. Antes de producción se pasa a migraciones con Alembic.
+        """Crea las tablas directo desde los modelos. Solo para pruebas; en serio se usa python -m minos.migrate."""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
