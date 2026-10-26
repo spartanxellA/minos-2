@@ -40,7 +40,11 @@ main { padding: 16px 20px 40px; max-width: 1400px; margin: 0 auto; }
 .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
 .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; } .span-5 { grid-column: span 5; }
 .span-7 { grid-column: span 7; } .span-9 { grid-column: span 9; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
-@media (max-width: 1000px) { .grid > * { grid-column: span 12 !important; } }
+/* Tableta: el índice a todo lo ancho y las tarjetas chicas de dos en dos. En teléfono, una columna (abajo). */
+@media (max-width: 1000px) {
+  .grid > * { grid-column: span 12 !important; }
+  .grid > .span-3:not(:first-child) { grid-column: span 6 !important; }
+}
 .kpi { font-size: 44px; font-weight: 700; line-height: 1; }
 .kpi small { font-size: 14px; color: var(--muted); font-weight: 500; }
 .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 600; font-size: 12px; color: #fff; }
@@ -70,6 +74,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 3px; }
 .bar > div { height: 100%; }
 form.new { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+form.new .actions { display: flex; gap: 8px; }
+.new-panel { background: var(--panel); border-bottom: 1px solid var(--line); padding: 12px 20px; }
+.new-panel form.new { max-width: 1400px; margin: 0 auto; }
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+header.top .spacer { flex: 1; }
+header.top select.target { max-width: 100%; text-overflow: ellipsis; }
 .empty { color: var(--muted); padding: 24px 0; text-align: center; }
 .muted { color: var(--muted); }
 button:disabled { opacity: .5; cursor: default; }
@@ -117,17 +127,31 @@ dialog.survey .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .login p { margin: 0; }
 .login label, .stack label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .login input, .stack input { color: var(--ink); }
-.account { display: flex; align-items: center; gap: 6px; font-size: 13px; flex-wrap: wrap; }
+.account { position: relative; font-size: 13px; }
+.account summary {
+  display: flex; align-items: center; gap: 4px; list-style: none; cursor: pointer; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+  max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.account summary::-webkit-details-marker { display: none; }
+.account summary::after { content: "▾"; color: var(--muted); }
+.account .menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 200px; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / .15);
+}
+.account .menu .who { padding: 6px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; overflow-wrap: anywhere; }
+.account .menu button { text-align: left; }
 .ok { color: var(--pos); }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 dialog.modal {
-  width: min(420px, calc(100vw - 32px)); padding: 0; color: var(--ink); background: var(--panel);
+  width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; color: var(--ink); background: var(--panel);
   border: 1px solid var(--line); border-radius: 12px;
 }
 dialog.modal::backdrop { background: rgb(0 0 0 / .45); }
 dialog.modal header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 dialog.modal header h2 { font-size: 16px; margin: 0; }
-dialog.modal .body { padding: 16px; overflow-x: auto; }
+dialog.modal[open] { display: flex; flex-direction: column; }
+dialog.modal header { flex-shrink: 0; }
+dialog.modal .body { padding: 16px; overflow: auto; min-height: 0; }
 dialog.modal h3 { font-size: 14px; margin: 18px 0 8px; }
 dialog.modal .row { display: flex; gap: 8px; flex-wrap: wrap; }
 dialog.modal td.actions { white-space: nowrap; text-align: right; }
@@ -146,3 +170,48 @@ table.sources td.ok { color: var(--pos); font-weight: 600; }
 .source-error code { display: block; margin-top: 4px; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--muted); }
 .pill-outline { display: inline-block; font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; }
 .pill-outline.ok { border-color: var(--pos); color: var(--pos); }
+
+/* Teléfono */
+@media (max-width: 640px) {
+  /* 16 px evita que iOS acerque la página al tocar un campo. */
+  select, input { font-size: 16px; }
+  button, select, input, .account summary { min-height: 40px; }
+  header.top { gap: 8px; padding: 10px 12px; }
+  header.top h1 { margin-right: auto; }
+  header.top .spacer { display: none; }
+  header.top .status { order: 1; }
+  header.top .account { order: 2; }
+  header.top select.target { order: 3; flex: 1 0 100%; }
+  header.top .notify, header.top .sources, header.top .add { order: 4; flex: 1; }
+  .account summary { max-width: 130px; }
+  .new-panel { padding: 12px; }
+  form.new { flex-direction: column; align-items: stretch; }
+  form.new .actions > * { flex: 1; }
+  main { padding: 12px 12px 32px; }
+  .grid { gap: 12px; }
+  .grid > .span-3:not(:first-child) { grid-column: span 12 !important; }
+  .card { padding: 12px; }
+  .kpi { font-size: 40px; }
+  .feed { max-height: 70vh; }
+  .options label { min-height: 40px; }
+
+  /* El cuestionario ocupa toda la pantalla. */
+  dialog.survey { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+  dialog.survey footer { flex-wrap: nowrap; }
+  dialog.survey footer .error { font-size: 12px; }
+  dialog.survey header, dialog.survey footer, .steps { padding-left: 12px; padding-right: 12px; }
+  dialog.survey .body { padding: 4px 12px 16px; }
+
+  /* Usuarios: cada cuenta como bloque en vez de fila de tabla. */
+  dialog.modal .body { padding: 12px; }
+  table.users thead { display: none; }
+  table.users, table.users tbody, table.users tr, table.users td { display: block; }
+  table.users tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  table.users td { border: 0; padding: 2px 0; }
+  table.users td.email { overflow-wrap: anywhere; color: var(--muted); }
+  table.users td.role select { width: 100%; margin: 4px 0; }
+  table.users td[data-label]::before { content: attr(data-label) ": "; }
+  table.users td.actions { text-align: left; white-space: normal; display: flex; flex-wrap: wrap; gap: 4px; }
+  table.users td.actions button { padding-left: 0; }
+  dialog.modal .row > * { flex: 1 1 100%; }
+}

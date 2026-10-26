@@ -6,6 +6,7 @@ import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Target } 
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
 import { useLiveTarget } from "@/lib/useLiveTarget";
+import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
 import { SurveyCard } from "./SurveyCard";
@@ -23,6 +24,8 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   const [targets, setTargets] = useState<Target[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [notify, setNotify] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const phone = useMediaQuery(PHONE);
   const selectedName = targets.find((t) => t.id === selected)?.name ?? "";
 
   const onAlert = (a: Alert) => {
@@ -66,9 +69,9 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   }
 
   const trend: EChartsOption = useMemo(() => ({
-    grid: { left: 40, right: 16, top: 16, bottom: 28 },
-    tooltip: { trigger: "axis", valueFormatter: (v) => `${Number(v).toFixed(1)}` },
-    xAxis: { type: "time" },
+    grid: { left: phone ? 32 : 40, right: phone ? 8 : 16, top: 16, bottom: 28 },
+    tooltip: { trigger: "axis", confine: true, valueFormatter: (v) => `${Number(v).toFixed(1)}` },
+    xAxis: { type: "time", splitNumber: phone ? 3 : undefined, axisLabel: { hideOverlap: true } },
     yAxis: { type: "value", min: 0, max: 100, interval: 25 },
     visualMap: { show: false, dimension: 1, pieces: [{ lte: 25, color: "#2e7d32" }, { gt: 25, lte: 50, color: "#c9a800" }, { gt: 50, color: "#d32f2f" }] },
     series: [{
@@ -80,18 +83,18 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
         [{ yAxis: 50, itemStyle: { color: "#d32f2f" } }, { yAxis: 100 }],
       ] },
     }],
-  }), [live.risk]);
+  }), [live.risk, phone]);
 
   const radar: EChartsOption = useMemo(() => ({
-    tooltip: {},
+    tooltip: { confine: true },
     radar: { indicator: [
       { name: "Negatividad", max: 100 }, { name: "Acusaciones", max: 100 },
       { name: "Volumen anómalo", max: 100 }, { name: "Cuestionario", max: 100 },
-    ], radius: "48%", axisName: { fontSize: 11 } },
+    ], radius: phone ? "58%" : "48%", axisName: { fontSize: 11 } },
     series: [{ type: "radar", areaStyle: { opacity: 0.2 }, data: [{
       name: "Factores", value: latest ? [latest.negativity * 100, latest.severity * 100, latest.volumeAnomaly * 100, latest.surveyScore ?? 0].map((v) => Math.round(v)) : [0, 0, 0, 0],
     }] }],
-  }), [latest]);
+  }), [latest, phone]);
 
   const bySource: EChartsOption = useMemo(() => {
     const rows = live.breakdown?.bySourceAndSentiment ?? [];
@@ -99,7 +102,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     return {
       grid: { left: 70, right: 16, top: 24, bottom: 24 },
       legend: { top: 0 },
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+      tooltip: { trigger: "axis", confine: true, axisPointer: { type: "shadow" } },
       xAxis: { type: "value" },
       yAxis: { type: "category", data: sources.map((s) => SOURCE_LABEL[s] ?? s) },
       series: (["positive", "neutral", "negative"] as const).map((k) => ({
@@ -115,29 +118,42 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     <>
       <header className="top">
         <h1 className="brand"><Logo />min<span>OS</span> 2.0</h1>
-        <select value={selected ?? ""} onChange={(e) => setSelected(e.target.value)} aria-label="Objetivo">
+        <select className="target" value={selected ?? ""} onChange={(e) => setSelected(e.target.value)} aria-label="Objetivo">
           {targets.map((t) => <option key={t.id} value={t.id}>{t.name} · {KIND_LABEL[t.kind]}</option>)}
         </select>
         <div className="status"><span className={`dot ${live.status}`} />{live.status === "live" ? "En vivo" : live.status === "connecting" ? "Conectando…" : "Sin conexión"}</div>
-        <button type="button" className={notify ? "" : "ghost"} onClick={toggleNotify} aria-pressed={notify}
+        <button type="button" className={`notify ${notify ? "" : "ghost"}`} onClick={toggleNotify} aria-pressed={notify}
           title="Aviso del navegador cuando llegue una alerta del objetivo seleccionado">
           {notify ? "Avisos activados" : "Activar avisos"}
         </button>
-        <button type="button" className="ghost" onClick={() => setDialog("sources")}
+        <button type="button" className="ghost sources" onClick={() => setDialog("sources")}
           title="Qué fuentes están activas, qué trajeron y cuáles fallan">
           Fuentes{sourceErrors > 0 && <span className="badge" aria-label={`${sourceErrors} con error`}>{sourceErrors}</span>}
         </button>
-        <div style={{ flex: 1 }} />
-        {can(user, "analyst") && <NewTargetForm onCreated={(t) => { setTargets((p) => [...p, t]); setSelected(t.id); }} />}
+        <div className="spacer" />
+        {can(user, "analyst") && (
+          <button type="button" className={`add ${adding ? "" : "ghost"}`} onClick={() => setAdding(!adding)} aria-expanded={adding}>
+            + Objetivo
+          </button>
+        )}
         {user.authMode === "local" && (
-          <div className="account">
-            <span title={user.email}>{user.name} · <span className="muted">{user.roleLabel}</span></span>
-            {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("users")}>Usuarios</button>}
-            <button type="button" className="ghost" onClick={() => setDialog("password")}>Contraseña</button>
-            <button type="button" className="ghost" onClick={onLogout}>Salir</button>
-          </div>
+          <details className="account">
+            <summary title={user.email}>{user.name}</summary>
+            <div className="menu" onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}>
+              <div className="who">{user.email}<br /><span className="muted">{user.roleLabel}</span></div>
+              {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("users")}>Usuarios</button>}
+              <button type="button" className="ghost" onClick={() => setDialog("password")}>Contraseña</button>
+              <button type="button" className="ghost" onClick={onLogout}>Salir</button>
+            </div>
+          </details>
         )}
       </header>
+      {adding && (
+        <div className="new-panel">
+          <NewTargetForm onCancel={() => setAdding(false)}
+            onCreated={(t) => { setTargets((p) => [...p, t]); setSelected(t.id); setAdding(false); }} />
+        </div>
+      )}
       {dialog === "users" && <UsersDialog me={user} onClose={() => setDialog(null)} />}
       {dialog === "sources" && <SourcesDialog onClose={() => setDialog(null)} onLoaded={setSourceErrors} />}
       {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
@@ -177,17 +193,17 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
 
             <section className="card span-9">
               <h2>Evolución del índice</h2>
-              {live.risk.length ? <EChart option={trend} height={300} /> : <div className="empty">Esperando el primer cálculo…</div>}
+              {live.risk.length ? <EChart option={trend} height={phone ? 220 : 300} /> : <div className="empty">Esperando el primer cálculo…</div>}
             </section>
 
             <section className="card span-3">
               <h2>Factores de riesgo</h2>
-              <EChart option={radar} height={260} />
+              <EChart option={radar} height={phone ? 240 : 260} />
             </section>
 
             <section className="card span-3">
               <h2>Sentimiento por fuente (24 h)</h2>
-              <EChart option={bySource} height={260} />
+              <EChart option={bySource} height={phone ? 200 : 260} />
             </section>
 
             <SurveyCard key={selectedTarget.id} targetId={selectedTarget.id} targetName={selectedTarget.name}
@@ -227,14 +243,14 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
 
             <section className="card span-5">
               <h2>Cuentas con mayor alcance (24 h)</h2>
-              <table>
+              <div className="scroll-x"><table>
                 <thead><tr><th>Cuenta</th><th className="num">Seguidores</th><th className="num">Menciones</th><th className="num">Negativas</th></tr></thead>
                 <tbody>
                   {(live.breakdown?.influencers ?? []).map((u) => (
                     <tr key={u.author}><td>{u.author}</td><td className="num">{fmt.format(u.followers)}</td><td className="num">{u.mentions}</td><td className="num" style={{ color: u.negative ? "var(--neg)" : undefined }}>{u.negative}</td></tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </section>
           </div>
         )}
