@@ -10,7 +10,8 @@ está en Python, igual que los scrapers y el análisis de texto, y el tablero en
 | --- | --- | --- |
 | `backend/minos/domain` | Objetivos, menciones, cálculo de riesgo (cuestionario, medios, IRR, alertas) | Python puro |
 | `backend/minos/connectors` | Conectores de fuentes (los scrapers): Noticias/RSS (Google Noticias + feeds), X (API v2), YouTube (Data API v3), Bluesky, demo | httpx, feedparser |
-| `backend/minos` | API REST, WebSocket del tablero (`/ws/targets/{id}`), ingesta y motor de riesgo como tareas en segundo plano | FastAPI, SQLAlchemy 2, PostgreSQL |
+| `backend/minos` | API REST y WebSocket del tablero (`/ws/targets/{id}`) | FastAPI, SQLAlchemy 2, PostgreSQL |
+| `backend/minos/worker.py` | Proceso aparte con la ingesta (conectores) y el motor de riesgo; escala con varias réplicas | asyncio, Redis |
 | `nlp/` | Servicio de análisis: sentimiento para todo, Claude solo para lo negativo o de alto alcance | FastAPI |
 | `web/` | Tablero en vivo | Next.js, ECharts |
 | `data/surveys.json` | Los 2 cuestionarios de minOS 1.6 (107 preguntas, opciones y pesos), migrados tal cual | JSON |
@@ -20,7 +21,21 @@ está en Python, igual que los scrapers y el análisis de texto, y el tablero en
 1. Cada conector trae lo nuevo desde su cursor (`connector_cursors`) cuando le toca según su intervalo.
 2. `is_relevant` descarta homónimos y términos excluidos; se deduplica por id externo y por huella del texto.
 3. El lote se analiza una sola vez (servicio `nlp`, o el mismo diccionario si no responde) y se guarda.
-4. El motor de riesgo recalcula el IRR del objetivo, guarda el punto de la serie, evalúa alertas y lo empuja por WebSocket.
+4. La ingesta pide el recálculo por la cola (Redis Stream `minos:recompute`, grupo `risk-engine`: cada pedido lo
+   atiende una sola réplica) y avisa de las menciones nuevas.
+5. El motor de riesgo recalcula el IRR del objetivo, guarda el punto de la serie y evalúa alertas.
+6. Los eventos `mentionsAdded`, `riskUpdated` y `alertRaised` salen por Redis pub/sub (`minos:live`); cada instancia
+   de la API los reenvía a sus WebSocket.
+
+Con varias réplicas de workers, un candado en Redis por objetivo y fuente evita consultar dos veces lo mismo, y otro
+evita que dos réplicas hagan el recálculo completo periódico a la vez.
+
+Modos (`MINOS_ROLE`):
+
+- `all` (por omisión): la API corre también la ingesta y el motor de riesgo. Sin `MINOS_REDIS_URL` todo va en memoria
+  dentro de un proceso; sirve para desarrollo y pruebas.
+- `api`: la API solo sirve datos y WebSocket. Los workers corren con `python -m minos.worker`, que exige
+  `MINOS_REDIS_URL`.
 
 ## Índice de Riesgo Reputacional (IRR, 0–100)
 
@@ -40,8 +55,9 @@ cp .env.example .env   # llena las llaves que tengas
 docker compose up --build -d
 ```
 
-Levanta cinco servicios: `db` (PostgreSQL 16 con TimescaleDB), `migrate` (aplica las migraciones pendientes y
-termina), `nlp`, `api` (arranca cuando `migrate` terminó bien) y `web`. El tablero queda en http://localhost:3000.
+Levanta siete servicios: `db` (PostgreSQL 16 con TimescaleDB), `redis`, `migrate` (aplica las migraciones
+pendientes y termina), `nlp`, `api` (`MINOS_ROLE=api`, arranca cuando `migrate` terminó bien), `worker`
+(conectores y motor de riesgo) y `web`. Para más réplicas de workers: `docker compose up -d --scale worker=3`. El tablero queda en http://localhost:3000.
 `NEXT_PUBLIC_API_URL` se fija al construir la imagen `web`: para un servidor, cámbiala en `docker-compose.yml` por
 la URL pública de la API.
 
@@ -87,13 +103,11 @@ cd web && npm run typecheck
 
 Con `MINOS_TEST_POSTGRES_URL=postgresql+asyncpg://...` (una base de prueba, se borra en cada corrida) también se
 prueban las migraciones (que coincidan con los modelos, que suban y bajen, la hypertable) y la API sobre PostgreSQL
-migrado. CI lo hace contra TimescaleDB y además construye las imágenes y levanta el stack con `docker compose`.
+migrado. Las pruebas del bus usan fakeredis, o un Redis real con `MINOS_TEST_REDIS_URL=redis://...`. CI lo hace contra TimescaleDB y Redis, y además construye las imágenes y levanta el stack con `docker compose`.
 
 ## Pendiente
 
 - Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
-- Redis (Streams para la cola y pub/sub para el WebSocket) para separar conectores y API en procesos distintos.
-  Hoy todo corre en un proceso y `MINOS_RUN_WORKERS=false` deja la API solo sirviendo datos.
 - Conectores fase 2: Reddit, páginas propias de Facebook/Instagram; Bluesky por Jetstream (stream).
 - Cuestionario en el tablero, reportes PDF, notificaciones push/correo/WhatsApp, app móvil.
 - Recuperar el scraper (Node.js/Python) y el esquema MySQL originales para comparar resultados con la versión anterior.

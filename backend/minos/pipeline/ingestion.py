@@ -1,18 +1,18 @@
 """Ingesta: recorre objetivo × conector cuando toca, filtra homónimos, deduplica, analiza una vez y guarda."""
 import asyncio
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import select
 
 from .. import db
 from ..analysis import MentionAnalyzer
+from ..bus import Bus
 from ..config import IngestionSettings
 from ..connectors import ConnectorCursor, MentionConnector
 from ..domain.mentions import MentionDraft, fingerprint
 from ..domain.targets import MonitoredTarget, is_relevant
-from ..realtime import RiskHub
 from ..schemas import MentionOut
 
 log = logging.getLogger(__name__)
@@ -24,16 +24,14 @@ class IngestionWorker:
         database: db.Database,
         connectors: Sequence[MentionConnector],
         analyzer: MentionAnalyzer,
-        hub: RiskHub,
+        bus: Bus,
         settings: IngestionSettings,
-        on_new_mentions: Callable[[object], None],
     ) -> None:
         self._db = database
         self._connectors = connectors
         self._analyzer = analyzer
-        self._hub = hub
+        self._bus = bus
         self._settings = settings
-        self._on_new_mentions = on_new_mentions
 
     async def run(self) -> None:
         while True:
@@ -53,47 +51,56 @@ class IngestionWorker:
         for target_row in targets:
             target = target_row.to_domain()
             for connector in connectors:
-                async with self._db.session() as session:
-                    state = await session.get(db.ConnectorState, (target.id, connector.source))
-                    if state is None:
-                        state = db.ConnectorState(target_id=target.id, source=connector.source)
-                        session.add(state)
-                    now = datetime.now(UTC)
-                    if state.last_run_at and now - state.last_run_at < connector.poll_interval:
-                        continue
-                    cursor = ConnectorCursor(state.value)
-                    added: list[db.Mention] = []
-                    error: str | None = None
-                    try:
-                        added = await self._ingest(session, connector, target, cursor)
-                        state.value = cursor.value
-                        state.last_error = None
-                        state.last_run_at = datetime.now(UTC)
-                        await session.commit()
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception as ex:
-                        error = str(ex)[:2000] or type(ex).__name__
-                        log.warning("El conector %s falló para %s: %s", connector.source, target.name, ex)
-
-                if error is not None:
-                    # Se descarta el lote incompleto y solo se registra el error; el cursor no avanza.
-                    added = []
-                    async with self._db.session() as session:
-                        state = await session.get(db.ConnectorState, (target.id, connector.source))
-                        if state is None:
-                            state = db.ConnectorState(target_id=target.id, source=connector.source)
-                            session.add(state)
-                        state.last_error = error
-                        state.last_run_at = datetime.now(UTC)
-                        await session.commit()
+                # Con varias réplicas de workers, solo una consulta cada fuente de cada objetivo a la vez.
+                lock = f"ingest:{target.id}:{connector.source}"
+                if not await self._bus.try_lock(lock, self._settings.lock_ttl.total_seconds()):
                     continue
+                try:
+                    await self._run_connector(target, connector)
+                finally:
+                    await self._bus.release(lock)
 
-                log.info("%s → %s: %s menciones nuevas", connector.source, target.name, len(added))
-                if added:
-                    self._on_new_mentions(target.id)
-                    latest = sorted(added, key=lambda m: m.published_at, reverse=True)[:20]
-                    await self._hub.publish(target.id, "mentionsAdded", [MentionOut.of(m) for m in latest])
+    async def _run_connector(self, target: MonitoredTarget, connector: MentionConnector) -> None:
+        async with self._db.session() as session:
+            state = await session.get(db.ConnectorState, (target.id, connector.source))
+            if state is None:
+                state = db.ConnectorState(target_id=target.id, source=connector.source)
+                session.add(state)
+            now = datetime.now(UTC)
+            if state.last_run_at and now - state.last_run_at < connector.poll_interval:
+                return
+            cursor = ConnectorCursor(state.value)
+            added: list[db.Mention] = []
+            error: str | None = None
+            try:
+                added = await self._ingest(session, connector, target, cursor)
+                state.value = cursor.value
+                state.last_error = None
+                state.last_run_at = datetime.now(UTC)
+                await session.commit()
+            except asyncio.CancelledError:
+                raise
+            except Exception as ex:
+                error = str(ex)[:2000] or type(ex).__name__
+                log.warning("El conector %s falló para %s: %s", connector.source, target.name, ex)
+
+        if error is not None:
+            # Se descarta el lote incompleto y solo se registra el error; el cursor no avanza.
+            async with self._db.session() as session:
+                state = await session.get(db.ConnectorState, (target.id, connector.source))
+                if state is None:
+                    state = db.ConnectorState(target_id=target.id, source=connector.source)
+                    session.add(state)
+                state.last_error = error
+                state.last_run_at = datetime.now(UTC)
+                await session.commit()
+            return
+
+        log.info("%s → %s: %s menciones nuevas", connector.source, target.name, len(added))
+        if added:
+            await self._bus.request_recompute(target.id)
+            latest = sorted(added, key=lambda m: m.published_at, reverse=True)[:20]
+            await self._bus.publish(target.id, "mentionsAdded", [MentionOut.of(m) for m in latest])
 
     async def _ingest(self, session, connector: MentionConnector, target: MonitoredTarget, cursor: ConnectorCursor) -> list[db.Mention]:
         drafts: list[MentionDraft] = []
