@@ -1,0 +1,11 @@
+node_modules/
+.next/
+__pycache__/
+*.egg-info/
+.venv/
+.env
+*.user
+.pytest_cache/
+*.db
+web/tsconfig.tsbuildinfo
+build/
