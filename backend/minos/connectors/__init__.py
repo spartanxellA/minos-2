@@ -2,7 +2,7 @@
 import httpx
 
 from ..config import Settings
-from .base import USER_AGENT, ConnectorCursor, ConnectorMode, MentionConnector
+from .base import USER_AGENT, ConnectorCursor, ConnectorMode, MentionConnector, redact_secrets
 from .bluesky import BlueskyConnector
 from .demo import DemoConnector
 from .meta import FacebookPageConnector, InstagramConnector
@@ -12,7 +12,7 @@ from .x import XConnector
 from .youtube import YouTubeConnector
 
 __all__ = [
-    "ConnectorCursor", "ConnectorMode", "MentionConnector", "build_connectors", "new_http_client",
+    "ConnectorCursor", "ConnectorMode", "MentionConnector", "build_connectors", "new_http_client", "redact_secrets",
     "BlueskyConnector", "DemoConnector", "FacebookPageConnector", "InstagramConnector", "RedditConnector",
     "RssConnector", "XConnector", "YouTubeConnector",
 ]

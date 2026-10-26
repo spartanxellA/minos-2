@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ROLE_LABEL, type Me, type Role, type User } from "@/lib/api";
 
-function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); }, []);
   return (

@@ -114,5 +114,5 @@ minos start api worker
   443 estén abiertos en `ufw` y en el firewall del proveedor. `minos logs caddy` dice qué pasó con Let's Encrypt.
 - **Olvidaste la contraseña o la cuenta quedó bloqueada:**
   `minos run --rm migrate python -m minos.users password tu@correo.com`
-- **Una fuente no trae menciones:** en el tablero no se ve todavía; `minos logs worker | grep -i error` muestra el
-  último error de cada conector.
+- **Una fuente no trae menciones:** en el tablero, el botón "Fuentes" muestra si cada una tiene llave, cuándo
+  consultó y su último error por objetivo. En el servidor, `minos logs --since 10m worker | grep -i error`.

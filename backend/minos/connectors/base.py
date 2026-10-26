@@ -1,4 +1,5 @@
 """Contrato de una fuente. El conector solo trae y normaliza datos; el análisis ocurre después, una sola vez."""
+import re
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -9,6 +10,15 @@ from ..domain.mentions import MentionDraft
 from ..domain.targets import MonitoredTarget
 
 USER_AGENT = "minOS/2.0 (+monitoreo de reputacion)"  # los encabezados HTTP solo admiten ASCII
+
+
+# Meta y YouTube llevan la llave en la URL, y httpx copia la URL al mensaje de error.
+_SECRET_PARAM = re.compile(r"((?:access_token|api_key|key|token|client_secret)=)[^&\s'\"]+", re.IGNORECASE)
+
+
+def redact_secrets(text: str) -> str:
+    """Quita llaves y tokens de un mensaje de error antes de guardarlo o mostrarlo."""
+    return _SECRET_PARAM.sub(r"\1***", text)
 
 
 class ConnectorMode(StrEnum):

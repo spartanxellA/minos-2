@@ -2,15 +2,15 @@
 
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
-import { api, can, KIND_LABEL, type Alert, type Me, type Target } from "@/lib/api";
+import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Target } from "@/lib/api";
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
+import { SourcesDialog } from "./SourcesDialog";
 import { useLiveTarget } from "@/lib/useLiveTarget";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
 import { SurveyCard } from "./SurveyCard";
 import { Logo } from "./Logo";
 
-const SOURCE_LABEL: Record<string, string> = { rss: "Noticias", x: "X", youtube: "YouTube", bluesky: "Bluesky", demo: "Demo" };
 const SENT = { positive: { label: "Positivo", color: "#2e7d32" }, neutral: { label: "Neutro", color: "#8a94a0" }, negative: { label: "Negativo", color: "#d32f2f" } } as const;
 const fmt = new Intl.NumberFormat("es-MX");
 const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -18,7 +18,8 @@ const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-di
 const NOTIFY_KEY = "minos.notify";
 
 export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }) {
-  const [dialog, setDialog] = useState<"users" | "password" | null>(null);
+  const [dialog, setDialog] = useState<"users" | "password" | "sources" | null>(null);
+  const [sourceErrors, setSourceErrors] = useState(0);
   const [targets, setTargets] = useState<Target[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [notify, setNotify] = useState(false);
@@ -30,6 +31,14 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   };
   const live = useLiveTarget(selected, onAlert);
   const latest = live.latest;
+
+  // Cuántas fuentes tienen algún objetivo con error, para avisar en el botón "Fuentes".
+  useEffect(() => {
+    const load = () => api.sources().then((s) => setSourceErrors(s.sources.filter((x) => x.errors.length).length)).catch(() => {});
+    load();
+    const timer = setInterval(load, 5 * 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     try {
@@ -114,6 +123,10 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
           title="Aviso del navegador cuando llegue una alerta del objetivo seleccionado">
           {notify ? "Avisos activados" : "Activar avisos"}
         </button>
+        <button type="button" className="ghost" onClick={() => setDialog("sources")}
+          title="Qué fuentes están activas, qué trajeron y cuáles fallan">
+          Fuentes{sourceErrors > 0 && <span className="badge" aria-label={`${sourceErrors} con error`}>{sourceErrors}</span>}
+        </button>
         <div style={{ flex: 1 }} />
         {can(user, "analyst") && <NewTargetForm onCreated={(t) => { setTargets((p) => [...p, t]); setSelected(t.id); }} />}
         {user.authMode === "local" && (
@@ -126,6 +139,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
         )}
       </header>
       {dialog === "users" && <UsersDialog me={user} onClose={() => setDialog(null)} />}
+      {dialog === "sources" && <SourcesDialog onClose={() => setDialog(null)} onLoaded={setSourceErrors} />}
       {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
 
       <main>
