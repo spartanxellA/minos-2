@@ -62,6 +62,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Cuenta de administrador para la prueba
         run: printf 'ADMIN_EMAIL=ci@minos.test\nADMIN_PASSWORD=clave-de-prueba-ci\n' > .env
+      - name: Revisar la configuración del servidor (docker-compose.prod.yml)
+        run: DOMAIN=minos.example.com ACME_EMAIL=ci@example.com docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
       - name: Construir las imágenes de docker-compose
         run: docker compose build
       - name: Levantar el stack y esperar a que la API responda
