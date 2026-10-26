@@ -149,6 +149,7 @@ class SurveyResponseOut(Camel):
     score: float | None
     level: str | None
     section_values: dict[str, int]
+    answers: dict[str, str]
 
 
 class SurveySummary(Camel):
