@@ -1,0 +1,52 @@
+# Entorno local completo: docker compose up --build
+# Tablero: http://localhost:3000 · API: http://localhost:5080 · NLP: http://localhost:8000/health
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: minos
+      POSTGRES_USER: minos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-minos}
+    volumes: [dbdata:/var/lib/postgresql/data]
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U minos"]
+      interval: 5s
+      retries: 10
+
+  nlp:
+    build: ./nlp
+    environment:
+      MINOS_CLAUDE_ENABLED: ${MINOS_CLAUDE_ENABLED:-0}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports: ["8000:8000"]
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      MINOS_ENV: ${MINOS_ENV:-development}
+      MINOS_DATABASE_URL: postgresql+asyncpg://minos:${POSTGRES_PASSWORD:-minos}@db:5432/minos
+      MINOS_NLP_URL: http://nlp:8000
+      MINOS_DEMO__ENABLED: ${DEMO_ENABLED:-true}
+      MINOS_CORS_ORIGINS: '["http://localhost:3000"]'
+      MINOS_AUTH__AUTHORITY: ${AUTH_AUTHORITY:-}
+      MINOS_CONNECTORS__X__BEARER_TOKEN: ${X_BEARER_TOKEN:-}
+      MINOS_CONNECTORS__YOUTUBE__API_KEY: ${YOUTUBE_API_KEY:-}
+      MINOS_CONNECTORS__BLUESKY__IDENTIFIER: ${BLUESKY_IDENTIFIER:-}
+      MINOS_CONNECTORS__BLUESKY__APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
+    ports: ["5080:8080"]
+
+  web:
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5080
+    depends_on: [api]
+    ports: ["3000:3000"]
+
+volumes:
+  dbdata:

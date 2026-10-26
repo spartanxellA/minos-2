@@ -1,0 +1,5305 @@
+{
+  "source": "minOS 1.6.0 app-config.ts (2018-04-25)",
+  "questionTypes": [
+    {
+      "Alias": "RAD",
+      "Type": "Radio group",
+      "Description": "Multiple option with single answer",
+      "TypeOrder": "1"
+    },
+    {
+      "Alias": "TXT",
+      "Type": "Text",
+      "Description": "Simple text",
+      "TypeOrder": "2"
+    },
+    {
+      "Alias": "LTXT",
+      "Type": "Long text",
+      "Description": "Long text",
+      "TypeOrder": "3"
+    },
+    {
+      "Alias": "CBO",
+      "Type": "Combobox",
+      "Description": "List with single answer",
+      "TypeOrder": "4"
+    },
+    {
+      "Alias": "CHK",
+      "Type": "Checkbox",
+      "Description": "Multiple option with multipe answers",
+      "TypeOrder": "5"
+    },
+    {
+      "Alias": "CHKMDL",
+      "Type": "Checkbox modal",
+      "Description": "Multiple option with multipe answers (modal)",
+      "TypeOrder": "6"
+    },
+    {
+      "Alias": "CAL",
+      "Type": "Calendar",
+      "Description": "Calendar",
+      "TypeOrder": "7"
+    },
+    {
+      "Alias": "YN",
+      "Type": "Yes/No",
+      "Description": "Yes/No or True/False question",
+      "TypeOrder": "8"
+    },
+    {
+      "Alias": "ABDetA",
+      "Type": "A or B with details (A)",
+      "Description": "A or B options with details on A answer",
+      "TypeOrder": "9"
+    },
+    {
+      "Alias": "ABDetB",
+      "Type": "A or B with details (B)",
+      "Description": "A or B options with details on B answer",
+      "TypeOrder": "10"
+    },
+    {
+      "Alias": "TXTLst",
+      "Type": "Text List",
+      "Description": "Question that allows add multiple lines of text",
+      "TypeOrder": "11"
+    },
+    {
+      "Alias": "NAME",
+      "Type": "Full name",
+      "Description": "Full name separated on tokens",
+      "TypeOrder": "12"
+    },
+    {
+      "Alias": "NMLIST",
+      "Type": "Full name list",
+      "Description": "List of full names separated on tokens",
+      "TypeOrder": "13"
+    }
+  ],
+  "surveys": [
+    {
+      "id": "RASurvey",
+      "name": "Risk Assessment Survey",
+      "description": "Risk assessment survey for minOS",
+      "scored": true,
+      "sections": [
+        {
+          "id": "FamFac",
+          "name": "Familia",
+          "theme": "familyFactor",
+          "color": "#EA428A",
+          "weight": 0.2,
+          "order": 1,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted la reputación de sus familiares, en factores ascendencia y descendencia.",
+          "questions": [
+            {
+              "id": "RSFFQ001",
+              "number": 1,
+              "text": "1. En general, ¿cómo calificaría la reputación de sus padres o tutores?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular / Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Buena",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ002",
+              "number": 2,
+              "text": "2. En general, ¿cómo calificaría la reputación de sus hermanos, primos, tíos y sobrinos en primera línea?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Buena",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ003",
+              "number": 3,
+              "text": "3. ¿Alguno de sus padres o abuelos cometió algún acto ilícito por el cual no fue juzgado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ004",
+              "number": 4,
+              "text": "4. ¿Alguno de sus hermanos, primos, tíos o sobrinos en primera línea cometió algún acto ilícito por el cual no fue juzgado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ005",
+              "number": 5,
+              "text": "5. ¿Algún familiar en primera línea cometió algún/nos acto ilícitos y no fue juzgado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ006",
+              "number": 6,
+              "text": "6. En general, ¿cómo calificaría la reputación de sus hijos y cónyuge?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Buena",
+                  "weight": 1.0
+                },
+                {
+                  "value": "D",
+                  "label": "No aplica",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ007",
+              "number": 7,
+              "text": "7. Si ha tenido otros matrimonios, ¿cómo calificaría la reputación de sus exparejas?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No he tenido otros matrimonios",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ008",
+              "number": 8,
+              "text": "8. En general, ¿cómo calificaría la reputación de sus yernos, nueras, primos políticos y/o suegros?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Buena",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ009",
+              "number": 9,
+              "text": "9. ¿Alguno de sus hijos o cónyuge cometió algún acto ilícito por el cual no fue juzgado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ010",
+              "number": 10,
+              "text": "10. ¿Alguno de sus familiares políticos cometió algún acto ilícito por el cual no fue juzgado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ011",
+              "number": 11,
+              "text": "11. ¿Tiene hijos que no ha reconocido?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSFFQ012",
+              "number": 12,
+              "text": "12. ¿Tiene hijo/s fuera de su matrimonio actual?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "EduFac",
+          "name": "Educación",
+          "theme": "educationFactor",
+          "color": "#8BCB30",
+          "weight": 0.15,
+          "order": 2,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted aquellos factores relacionados con su preparación y vida académica, la reputación de las instituciones en las que ha estudiado, acreditaciones con las que cuenta, conducta o participación en determinados grupos de interés.",
+          "questions": [
+            {
+              "id": "RSEFQ013",
+              "number": 13,
+              "text": "13. En general, ¿cómo calificaría la reputación de las instituciones educativas a las que asistió o asiste?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Buena",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSEFQ014",
+              "number": 14,
+              "text": "14. Último grado de estudios",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Básica",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Media superior",
+                  "weight": 3.0
+                },
+                {
+                  "value": "C",
+                  "label": "Licenciatura",
+                  "weight": 2.0
+                },
+                {
+                  "value": "D",
+                  "label": "Maestría",
+                  "weight": 1.0
+                },
+                {
+                  "value": "E",
+                  "label": "Doctorado",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSEFQ015",
+              "number": 15,
+              "text": "15. ¿Cuenta actualmente con estudios además de la universidad?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "No",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Cursos y especializaciones",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Postgrado",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSEFQ016",
+              "number": 16,
+              "text": "16. ¿Alguna vez realizo un acto ilícito en la escuela para verse beneficiado de alguna manera?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "No recuerdo",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSEFQ017",
+              "number": 17,
+              "text": "17. ¿Cuál fue su promedio general en su trayectoria educativa?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Entre 6 y 7.9",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Entre 8 y 8.9",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Entre 9 y 10",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSEFQ018",
+              "number": 18,
+              "text": "18. ¿Tuvo problemas de conducta en su trayectoria educativa?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "No recuerdo",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSEFQ019",
+              "number": 19,
+              "text": "19. ¿Cometió o estuvo involucrado en actos no éticos en su trayectoria educativa?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "No recuerdo",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ProFac",
+          "name": "Profesional",
+          "theme": "professionalFactor",
+          "color": "#EED500",
+          "weight": 0.15,
+          "order": 3,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted la reputación de las empresas en las que ha laborado, incluyendo la actual, así como las decisiones que haya tomado o responsabilidades que haya tenido y que puedan ser suceptibles a la exposición de su reputación personal.",
+          "questions": [
+            {
+              "id": "RSPFQ020",
+              "number": 20,
+              "text": "20. ¿Cómo considera que fue la remuneración percibida en puestos anteriores en comparación al desempeño realizado en sus funciones?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Excesiva",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Justa",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Suficiente",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ021",
+              "number": 21,
+              "text": "21. ¿Cómo considera que es la remuneración que percibe actualmente en comparación al desempeño de sus funciones?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Excesiva",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Justa",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Insuficiente / No trabajo actualmente",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ022",
+              "number": 22,
+              "text": "22. ¿Tiene ingresos adicionales a su fuente primaria de ingresos?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí, pero no comprobables",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Sí, comprobables",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ023",
+              "number": 23,
+              "text": "23. ¿Qué porcentaje de sus ingresos representan sus deudas actuales?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Más del 60%",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Entre el 30% y el 59%",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Menos del 30%",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ024",
+              "number": 24,
+              "text": "24. ¿Tiene forma de comprobar que su patrimonio fue adquirido de forma lícita?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "No",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "La mayor parte",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Sí",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ025",
+              "number": 25,
+              "text": "25. ¿Paga los impuestos que le corresponden de acuerdo con sus ingresos?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "No, evado impuestos",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo realiza un tercero",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Sí",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ026",
+              "number": 26,
+              "text": "26. ¿Cuenta con alguna propiedad u objeto que haya sido obtenido de manera ilícita?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "No recuerdo",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ027",
+              "number": 27,
+              "text": "27. En general, ¿cómo calificaría la reputación de las empresas en las que ha laborado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular / Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Buena",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ028",
+              "number": 28,
+              "text": "28. ¿Considera que sus capacidades, experiencia y conocimientos estuvieron de acuerdo con los puestos que ha desempeñado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "No",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Sí",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ029",
+              "number": 29,
+              "text": "29. Durante el desempeño sus actividades profesionales, ¿obtuvo un mayor número de proyectos fracasados o exitosos?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Proyectos fracasados",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Equilibrado",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Proyectos exitosos",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ030",
+              "number": 30,
+              "text": "30. Durante el desempeño de sus actividades profesionales, ¿ha participado en actos de corrupción o no éticos?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí, de forma directa",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Sí, de forma indirecta",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ031",
+              "number": 31,
+              "text": "31. Los puestos que ha ocupado, así como el actual, ¿fueron conseguidos por mérito propio, o fue beneficiado por terceras personas?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Fui beneficiado",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Equilibrado",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Por mérito propio",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPFQ032",
+              "number": 32,
+              "text": "32. ¿Se ha beneficiado de los puestos que ha ocupado para obtener algún beneficio personal, para cometer actos ilícitos o que se consideren no éticos?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "No recuerdo",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "SocFac",
+          "name": "Social",
+          "theme": "socialFactor",
+          "color": "#F5A70D",
+          "weight": 0.2,
+          "order": 4,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted la forma en la que estableció y ha mantenido sus  relaciones sociales durante toda su vida asimilados a amigos, conocidos, grupos e instituciones en donde ha colaborado.",
+          "questions": [
+            {
+              "id": "RSSFQ033",
+              "number": 33,
+              "text": "33. Entre las personas que conoce y que lo conocen, ¿hay individuos cuyo comportamiento sea ilegal o no ético?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSSFQ034",
+              "number": 34,
+              "text": "34. Entre las personas que conoce y que lo conocen, ¿hay individuos que cometieron algún acto ilícito por el cual no hayan sido juzgados?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSSFQ035",
+              "number": 35,
+              "text": "35. Entre las personas que son de su confianza, ¿hay individuos cuyo comportamiento sea ilegal o no ético?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSSFQ036",
+              "number": 36,
+              "text": "36. Entre las personas que son de su confianza, ¿hay individuos que cometieron algún acto ilícito por el cual no hayan sido juzgados?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSSFQ037",
+              "number": 37,
+              "text": "37. De manera general, ¿cómo calificaría la reputación de las personas que son de su confianza?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mala",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Regular / Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Buena",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSSFQ038",
+              "number": 38,
+              "text": "38. Entre las personas que conoce y que lo conocen, ¿hay individuos cuyo rol laboral se le considere como persona políticamente expuesta?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSSFQ039",
+              "number": 39,
+              "text": "39. Entre las personas que conoce y que lo conocen ¿hay individuos que tengan implicaciones políticas?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "PerFac",
+          "name": "Personal",
+          "theme": "personalFactor",
+          "color": "#00AEEF",
+          "weight": 0.3,
+          "order": 5,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted, sus gustos personales, antecedentes, patrimonio, así como su comportamiento en general.",
+          "questions": [
+            {
+              "id": "RSPeFQ040",
+              "number": 40,
+              "text": "40. Durante su vida adulta, ¿se ha conducido de forma ética, profesionalismo, respeto y sencillez?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Nunca o casi nunca",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "La mayor parte de mi vida",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Siempre o casi siempre",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPeFQ041",
+              "number": 41,
+              "text": "41. Durante su vida adulta, ¿se ha conducido de acuerdo con lo establecido por las leyes que rigen a su estado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Nunca o casi nunca",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "La mayor parte de mi vida",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Siempre o casi siempre",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPeFQ042",
+              "number": 42,
+              "text": "42. ¿Ha cometido algún acto ilícito por el que no haya sido juzgado?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "No recuerdo",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPeFQ043",
+              "number": 43,
+              "text": "43. ¿Tiene alguna preferencia marcada por algún partido político?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Estoy afiliado a uno",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPeFQ044",
+              "number": 44,
+              "text": "44. ¿Tiene preferencias, hábitos personales y/o hábitos de consumo que puedan ser considerados como desagradables, de mal gusto o contrario a la moral o a las normas cívicas?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "Lo desconozco",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPeFQ045",
+              "number": 45,
+              "text": "45. ¿El contenido que crea, comenta, comparte y/o recomienda en redes sociales, sitios y/o blogs está apegado a las normas cívicas y morales?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Nunca o casi nunca",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "La mayor parte de mi vida",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "Siempre o casi siempre",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "RSPeFQ046",
+              "number": 46,
+              "text": "46. ¿Tiene propiedades en el extranjero?",
+              "subtext": "Responda desde un punto de vista objetivo",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 3.0
+                },
+                {
+                  "value": "B",
+                  "label": "No están a mi nombre",
+                  "weight": 2.0
+                },
+                {
+                  "value": "C",
+                  "label": "No",
+                  "weight": 1.0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PDSurvey",
+      "name": "Personal Data Survey",
+      "description": "Personal data collection survey for minos",
+      "scored": false,
+      "sections": [
+        {
+          "id": "PDSFamFac",
+          "name": "Familia",
+          "theme": "familyFactor",
+          "color": "#EA428A",
+          "weight": 0.2,
+          "order": 1,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted la reputación de sus familiares, en factores ascendencia y descendencia.",
+          "questions": [
+            {
+              "id": "PDSFamFacQ001",
+              "number": 1,
+              "text": "Familiares en primer grado",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSFamFacQ002",
+              "number": 2,
+              "text": "Familiares en segundo grado que puedan representar un riesgo",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSFamFacQ003",
+              "number": 3,
+              "text": "Familiares en tercer grado que puedan representar un riesgo",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSFamFacQ004",
+              "number": 4,
+              "text": "Relaciones adicionales actuales que puedan representar un riesgo",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSFamFacQ005",
+              "number": 5,
+              "text": "Relaciones adicionales anteriores que puedan representar un riesgo",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSFamFacQ006",
+              "number": 6,
+              "text": "Ancestros importantes de mencionar que puedan representar un riesgo",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSFamFacQ007",
+              "number": 7,
+              "text": "Familiares importantes de primer y segundo nivel sin contacto que puedan representar un riesgo",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": false,
+              "options": []
+            }
+          ]
+        },
+        {
+          "id": "PDSProFac",
+          "name": "Profesional",
+          "theme": "professionalFactor",
+          "color": "#EED500",
+          "weight": 0.15,
+          "order": 2,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted la reputación de las empresas en las que ha laborado, incluyendo la actual, así como las decisiones que haya tomado o responsabilidades que haya tenido y que puedan ser suceptibles a la exposición de su reputación personal.",
+          "questions": [
+            {
+              "id": "PDSProFacQ008",
+              "number": 8,
+              "text": "Profesión",
+              "subtext": "Actividad principal",
+              "type": "TXT",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSProFacQ009",
+              "number": 9,
+              "text": "Ultimo grado de estudios",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Básica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "Media superior",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "Licenciatura",
+                  "weight": 1.0
+                },
+                {
+                  "value": "D",
+                  "label": "Maestría",
+                  "weight": 1.0
+                },
+                {
+                  "value": "E",
+                  "label": "Doctorado",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSProFacQ010",
+              "number": 10,
+              "text": "Nombre de la institución donde cursó su último grado de estudios",
+              "subtext": null,
+              "type": "TXT",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSProFacQ011",
+              "number": 11,
+              "text": "Nombre completo del empleador actual",
+              "subtext": "Actividad principal",
+              "type": "NAME",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSProFacQ012",
+              "number": 12,
+              "text": "Posición actual en el empleo",
+              "subtext": "Actividad principal",
+              "type": "TXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSProFacQ013",
+              "number": 13,
+              "text": "Nombre de las personas con las que se relacione y que considere puedan implicar un riesgo",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "NMLIST",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSProFacQ014",
+              "number": 14,
+              "text": "Nombre completo de empleador anterior",
+              "subtext": "Actividad principal",
+              "type": "NAME",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSProFacQ015",
+              "number": 15,
+              "text": "Ultima posición ocupada en el empleo anterior",
+              "subtext": "Actividad principal",
+              "type": "TXT",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSProFacQ016",
+              "number": 16,
+              "text": "Reconocimientos profesionales",
+              "subtext": "Actividad principal",
+              "type": "TXT",
+              "required": false,
+              "options": []
+            }
+          ]
+        },
+        {
+          "id": "PDSSocFac",
+          "name": "Social",
+          "theme": "socialFactor",
+          "color": "#F5A70D",
+          "weight": 0.2,
+          "order": 3,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted la forma en la que estableció y ha mantenido sus relaciones sociales durante toda su vida asimilados a amigos, conocidos, grupos e instituciones en donde ha colaborado.",
+          "questions": [
+            {
+              "id": "PDSSocFacQ017",
+              "number": 17,
+              "text": "Redes sociales donde interactúa",
+              "subtext": "Seleccione al menos una",
+              "type": "CHK",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Facebook",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "Twitter",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "Instagram",
+                  "weight": 1.0
+                },
+                {
+                  "value": "D",
+                  "label": "G+",
+                  "weight": 1.0
+                },
+                {
+                  "value": "E",
+                  "label": "LinkedIn",
+                  "weight": 1.0
+                },
+                {
+                  "value": "F",
+                  "label": "SnapChat",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSSocFacQ018",
+              "number": 18,
+              "text": "Nombre de usuario de cada red social seleccionada. Separe cada cuenta con comas",
+              "subtext": "Separe las cuentas con coma (,)",
+              "type": "LTXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSSocFacQ019",
+              "number": 19,
+              "text": "Páginas para adultos en las que se encuentre suscrito",
+              "subtext": "Separe las páginas con coma (,)",
+              "type": "LTXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSSocFacQ020",
+              "number": 20,
+              "text": "¿Pertenece a algún sindicato?",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "LTXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSSocFacQ021",
+              "number": 21,
+              "text": "Afiliación politica",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "Lo desconozco",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSSocFacQ022",
+              "number": 22,
+              "text": "¿Pertenece a algún partido político?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "PAN",
+                  "label": "Partido Accion Nacional",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRI",
+                  "label": "Partido Revolucionario Institucional",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRD",
+                  "label": "Partido de la Revolucion Democratica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VERDE",
+                  "label": "Partido Verde Ecologista de México",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PT",
+                  "label": "Partido del Trabajo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PANAL",
+                  "label": "Partido Nueva Alianza",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MC",
+                  "label": "Movimiento Ciudadano",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MORENA",
+                  "label": "Morena",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ES",
+                  "label": "Encuentro Social",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSSocFacQ023",
+              "number": 23,
+              "text": "¿Es miembro de algún grupo o asociación civil o social?",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "LTXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSSocFacQ024",
+              "number": 24,
+              "text": "Lugares de alta exposición al riesgo que frecuenta (Casinos, Tables Dance, etc.)",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "LTXT",
+              "required": false,
+              "options": []
+            }
+          ]
+        },
+        {
+          "id": "PDSGenFac",
+          "name": "General",
+          "theme": "personalFactor",
+          "color": "#00AEEF",
+          "weight": 0.3,
+          "order": 4,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información, nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted, sus gustos personales, antecedentes, así como su comportamiento en general.",
+          "questions": [
+            {
+              "id": "PDSGenFacQ025",
+              "number": 25,
+              "text": "Nombre completo",
+              "subtext": "Nombres y apellidos",
+              "type": "NAME",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSGenFacQ026",
+              "number": 26,
+              "text": "Sobrenombre principal",
+              "subtext": null,
+              "type": "TXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSGenFacQ027",
+              "number": 27,
+              "text": "Género",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mujer",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "Hombre",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ028",
+              "number": 28,
+              "text": "Preferencia sexual",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Heterosexual",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "Homosexual",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "Lesbica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "D",
+                  "label": "Bisexual",
+                  "weight": 1.0
+                },
+                {
+                  "value": "E",
+                  "label": "Asexual",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ029",
+              "number": 29,
+              "text": "Estado general de salud",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Bueno",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "Malo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "Padecimiento enfermedad cronica",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ030",
+              "number": 30,
+              "text": "Fecha de nacimiento",
+              "subtext": "DD/MM/AAAA",
+              "type": "CAL",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSGenFacQ031",
+              "number": 31,
+              "text": "Entidad federativa de nacimiento",
+              "subtext": "Seleccione una opción",
+              "type": "CBO",
+              "required": true,
+              "options": [
+                {
+                  "value": "AS",
+                  "label": "Aguascalientes",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BC",
+                  "label": "Baja California",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BS",
+                  "label": "Baja California Sur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CC",
+                  "label": "Campeche",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CL",
+                  "label": "Coahuila",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CM",
+                  "label": "Colima",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CS",
+                  "label": "Chiapas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CH",
+                  "label": "Chihuahua",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DF",
+                  "label": "Ciudad de México",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DG",
+                  "label": "Durango",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GT",
+                  "label": "Guanajuato",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GR",
+                  "label": "Guerrero",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HG",
+                  "label": "Hidalgo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JC",
+                  "label": "Jalisco",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MC",
+                  "label": "México",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MN",
+                  "label": "Michoacan",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MS",
+                  "label": "Morelos",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NT",
+                  "label": "Nayarit",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NL",
+                  "label": "Nuevo León",
+                  "weight": 1.0
+                },
+                {
+                  "value": "OC",
+                  "label": "Oaxaca",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PL",
+                  "label": "Puebla",
+                  "weight": 1.0
+                },
+                {
+                  "value": "QT",
+                  "label": "Queretari",
+                  "weight": 1.0
+                },
+                {
+                  "value": "QR",
+                  "label": "Quintana Roo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SP",
+                  "label": "San Luis Potosí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SL",
+                  "label": "Sinaloa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SR",
+                  "label": "Sonora",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TC",
+                  "label": "Tabasco",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TS",
+                  "label": "Tamaulipas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TL",
+                  "label": "Tlaxcala",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VZ",
+                  "label": "Veracruz",
+                  "weight": 1.0
+                },
+                {
+                  "value": "YN",
+                  "label": "Yucatan",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZS",
+                  "label": "Zacatecas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "EUM",
+                  "label": "ESTADOS UNIDOS MEXICANOS",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NA",
+                  "label": "NO APLICA",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SI",
+                  "label": "SE IGNORA",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NE",
+                  "label": "NO ESPECIFICADO",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ032",
+              "number": 32,
+              "text": "País de nacimiento",
+              "subtext": "Seleccione una opción",
+              "type": "CBO",
+              "required": true,
+              "options": [
+                {
+                  "value": "AFG",
+                  "label": "Afganistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ALA",
+                  "label": "Islas Åland",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ALB",
+                  "label": "Albania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DEU",
+                  "label": "Alemania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AND",
+                  "label": "Andorra",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AGO",
+                  "label": "Angola",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AIA",
+                  "label": "Anguila",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ATA",
+                  "label": "Antártida",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ATG",
+                  "label": "Antigua y Barbuda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SAU",
+                  "label": "Arabia Saudita",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DZA",
+                  "label": "Argelia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ARG",
+                  "label": "Argentina",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ARM",
+                  "label": "Armenia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ABW",
+                  "label": "Aruba",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AUS",
+                  "label": "Australia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AUT",
+                  "label": "Austria",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AZE",
+                  "label": "Azerbaiyán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BHS",
+                  "label": "Bahamas (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BGD",
+                  "label": "Bangladés",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BRB",
+                  "label": "Barbados",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BHR",
+                  "label": "Baréin",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BEL",
+                  "label": "Bélgica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BLZ",
+                  "label": "Belice",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BEN",
+                  "label": "Benín",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BMU",
+                  "label": "Bermudas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BLR",
+                  "label": "Bielorrusia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MMR",
+                  "label": "Myanmar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BOL",
+                  "label": "Bolivia, Estado Plurinacional de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BIH",
+                  "label": "Bosnia y Herzegovina",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BWA",
+                  "label": "Botsuana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BRA",
+                  "label": "Brasil",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BRN",
+                  "label": "Brunéi Darussalam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BGR",
+                  "label": "Bulgaria",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BFA",
+                  "label": "Burkina Faso",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BDI",
+                  "label": "Burundi",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BTN",
+                  "label": "Bután",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CPV",
+                  "label": "Cabo Verde",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KHM",
+                  "label": "Camboya",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CMR",
+                  "label": "Camerún",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CAN",
+                  "label": "Canadá",
+                  "weight": 1.0
+                },
+                {
+                  "value": "QAT",
+                  "label": "Catar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BES",
+                  "label": "Bonaire, San Eustaquio y Saba",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TCD",
+                  "label": "Chad",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CHL",
+                  "label": "Chile",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CHN",
+                  "label": "China",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CYP",
+                  "label": "Chipre",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COL",
+                  "label": "Colombia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COM",
+                  "label": "Comoras",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRK",
+                  "label": "Corea (la República Democrática Popular de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KOR",
+                  "label": "Corea (la República de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CIV",
+                  "label": "Côte dIvoire",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CRI",
+                  "label": "Costa Rica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HRV",
+                  "label": "Croacia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CUB",
+                  "label": "Cuba",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CUW",
+                  "label": "Curaçao",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DNK",
+                  "label": "Dinamarca",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DMA",
+                  "label": "Dominica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ECU",
+                  "label": "Ecuador",
+                  "weight": 1.0
+                },
+                {
+                  "value": "EGY",
+                  "label": "Egipto",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SLV",
+                  "label": "El Salvador",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ARE",
+                  "label": "Emiratos Árabes Unidos (Los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ERI",
+                  "label": "Eritrea",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SVK",
+                  "label": "Eslovaquia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SVN",
+                  "label": "Eslovenia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ESP",
+                  "label": "España",
+                  "weight": 1.0
+                },
+                {
+                  "value": "USA",
+                  "label": "Estados Unidos (los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "EST",
+                  "label": "Estonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ETH",
+                  "label": "Etiopía",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PHL",
+                  "label": "Filipinas (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FIN",
+                  "label": "Finlandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FJI",
+                  "label": "Fiyi",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FRA",
+                  "label": "Francia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GAB",
+                  "label": "Gabón",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GMB",
+                  "label": "Gambia (La)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GEO",
+                  "label": "Georgia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GHA",
+                  "label": "Ghana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GIB",
+                  "label": "Gibraltar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GRD",
+                  "label": "Granada",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GRC",
+                  "label": "Grecia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GRL",
+                  "label": "Groenlandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GLP",
+                  "label": "Guadalupe",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GUM",
+                  "label": "Guam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GTM",
+                  "label": "Guatemala",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GUF",
+                  "label": "Guayana Francesa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GGY",
+                  "label": "Guernsey",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GIN",
+                  "label": "Guinea",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GNB",
+                  "label": "Guinea-Bisáu",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GNQ",
+                  "label": "Guinea Ecuatorial",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GUY",
+                  "label": "Guyana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HTI",
+                  "label": "Haití",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HND",
+                  "label": "Honduras",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HKG",
+                  "label": "Hong Kong",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HUN",
+                  "label": "Hungría",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IND",
+                  "label": "India",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IDN",
+                  "label": "Indonesia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IRQ",
+                  "label": "Irak",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IRN",
+                  "label": "Irán (la República Islámica de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IRL",
+                  "label": "Irlanda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BVT",
+                  "label": "Isla Bouvet",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IMN",
+                  "label": "Isla de Man",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CXR",
+                  "label": "Isla de Navidad",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NFK",
+                  "label": "Isla Norfolk",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ISL",
+                  "label": "Islandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CYM",
+                  "label": "Islas Caimán (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CCK",
+                  "label": "Islas Cocos (Keeling)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COK",
+                  "label": "Islas Cook (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FRO",
+                  "label": "Islas Feroe (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SGS",
+                  "label": "Georgia del sur y las islas sandwich del sur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HMD",
+                  "label": "Isla Heard e Islas McDonald",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FLK",
+                  "label": "Islas Malvinas [Falkland] (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MNP",
+                  "label": "Islas Marianas del Norte (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MHL",
+                  "label": "Islas Marshall (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PCN",
+                  "label": "Pitcairn",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SLB",
+                  "label": "Islas Salomón (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TCA",
+                  "label": "Islas Turcas y Caicos (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UMI",
+                  "label": "Islas de Ultramar Menores de Estados Unidos (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VGB",
+                  "label": "Islas Vírgenes (Británicas)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VIR",
+                  "label": "Islas Vírgenes (EE.UU.)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ISR",
+                  "label": "Israel",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ITA",
+                  "label": "Italia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JAM",
+                  "label": "Jamaica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JPN",
+                  "label": "Japón",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JEY",
+                  "label": "Jersey",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JOR",
+                  "label": "Jordania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KAZ",
+                  "label": "Kazajistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KEN",
+                  "label": "Kenia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KGZ",
+                  "label": "Kirguistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KIR",
+                  "label": "Kiribati",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KWT",
+                  "label": "Kuwait",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LAO",
+                  "label": "Lao, (la) República Democrática Popular",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LSO",
+                  "label": "Lesoto",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LVA",
+                  "label": "Letonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LBN",
+                  "label": "Líbano",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LBR",
+                  "label": "Liberia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LBY",
+                  "label": "Libia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LIE",
+                  "label": "Liechtenstein",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LTU",
+                  "label": "Lituania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LUX",
+                  "label": "Luxemburgo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MAC",
+                  "label": "Macao",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MDG",
+                  "label": "Madagascar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MYS",
+                  "label": "Malasia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MWI",
+                  "label": "Malaui",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MDV",
+                  "label": "Maldivas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MLI",
+                  "label": "Malí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MLT",
+                  "label": "Malta",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MAR",
+                  "label": "Marruecos",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MTQ",
+                  "label": "Martinica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MUS",
+                  "label": "Mauricio",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MRT",
+                  "label": "Mauritania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MYT",
+                  "label": "Mayotte",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MEX",
+                  "label": "México",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FSM",
+                  "label": "Micronesia (los Estados Federados de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MDA",
+                  "label": "Moldavia (la República de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MCO",
+                  "label": "Mónaco",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MNG",
+                  "label": "Mongolia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MNE",
+                  "label": "Montenegro",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MSR",
+                  "label": "Montserrat",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MOZ",
+                  "label": "Mozambique",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NAM",
+                  "label": "Namibia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NRU",
+                  "label": "Nauru",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NPL",
+                  "label": "Nepal",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NIC",
+                  "label": "Nicaragua",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NER",
+                  "label": "Níger (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NGA",
+                  "label": "Nigeria",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NIU",
+                  "label": "Niue",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NOR",
+                  "label": "Noruega",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NCL",
+                  "label": "Nueva Caledonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NZL",
+                  "label": "Nueva Zelanda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "OMN",
+                  "label": "Omán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NLD",
+                  "label": "Países Bajos (los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PAK",
+                  "label": "Pakistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PLW",
+                  "label": "Palaos",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PSE",
+                  "label": "Palestina, Estado de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PAN",
+                  "label": "Panamá",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PNG",
+                  "label": "Papúa Nueva Guinea",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRY",
+                  "label": "Paraguay",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PER",
+                  "label": "Perú",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PYF",
+                  "label": "Polinesia Francesa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "POL",
+                  "label": "Polonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRT",
+                  "label": "Portugal",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRI",
+                  "label": "Puerto Rico",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GBR",
+                  "label": "Reino Unido (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CAF",
+                  "label": "República Centroafricana (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CZE",
+                  "label": "República Checa (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MKD",
+                  "label": "Macedonia (la antigua República Yugoslava de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COG",
+                  "label": "Congo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COD",
+                  "label": "Congo (la República Democrática del)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DOM",
+                  "label": "República Dominicana (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "REU",
+                  "label": "Reunión",
+                  "weight": 1.0
+                },
+                {
+                  "value": "RWA",
+                  "label": "Ruanda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ROU",
+                  "label": "Rumania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "RUS",
+                  "label": "Rusia, (la) Federación de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ESH",
+                  "label": "Sahara Occidental",
+                  "weight": 1.0
+                },
+                {
+                  "value": "WSM",
+                  "label": "Samoa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ASM",
+                  "label": "Samoa Americana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BLM",
+                  "label": "San Bartolomé",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KNA",
+                  "label": "San Cristóbal y Nieves",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SMR",
+                  "label": "San Marino",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MAF",
+                  "label": "San Martín (parte francesa)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SPM",
+                  "label": "San Pedro y Miquelón",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VCT",
+                  "label": "San Vicente y las Granadinas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SHN",
+                  "label": "Santa Helena, Ascensión y Tristán de Acuña",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LCA",
+                  "label": "Santa Lucía",
+                  "weight": 1.0
+                },
+                {
+                  "value": "STP",
+                  "label": "Santo Tomé y Príncipe",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SEN",
+                  "label": "Senegal",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SRB",
+                  "label": "Serbia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SYC",
+                  "label": "Seychelles",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SLE",
+                  "label": "Sierra leona",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SGP",
+                  "label": "Singapur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SXM",
+                  "label": "Sint Maarten (parte holandesa)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SYR",
+                  "label": "Siria, (la) República Árabe",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SOM",
+                  "label": "Somalia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LKA",
+                  "label": "Sri Lanka",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SWZ",
+                  "label": "Suazilandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZAF",
+                  "label": "Sudáfrica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SDN",
+                  "label": "Sudán (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SSD",
+                  "label": "Sudán del Sur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SWE",
+                  "label": "Suecia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CHE",
+                  "label": "Suiza",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SUR",
+                  "label": "Surinam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SJM",
+                  "label": "Svalbard y Jan Mayen",
+                  "weight": 1.0
+                },
+                {
+                  "value": "THA",
+                  "label": "Tailandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TWN",
+                  "label": "Taiwán (Provincia de China)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TZA",
+                  "label": "Tanzania, República Unida de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TJK",
+                  "label": "Tayikistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IOT",
+                  "label": "Territorio Británico del Océano Índico (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ATF",
+                  "label": "Territorios Australes Franceses (los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TLS",
+                  "label": "Timor-Leste",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TGO",
+                  "label": "Togo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TKL",
+                  "label": "Tokelau",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TON",
+                  "label": "Tonga",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TTO",
+                  "label": "Trinidad y Tobago",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TUN",
+                  "label": "Túnez",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TKM",
+                  "label": "Turkmenistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TUR",
+                  "label": "Turquía",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TUV",
+                  "label": "Tuvalu",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UKR",
+                  "label": "Ucrania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UGA",
+                  "label": "Uganda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "URY",
+                  "label": "Uruguay",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UZB",
+                  "label": "Uzbekistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VUT",
+                  "label": "Vanuatu",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VAT",
+                  "label": "Santa Sede[Estado de la Ciudad del Vaticano] (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VEN",
+                  "label": "Venezuela, República Bolivariana de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VNM",
+                  "label": "Viet Nam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "WLF",
+                  "label": "Wallis y Futuna",
+                  "weight": 1.0
+                },
+                {
+                  "value": "YEM",
+                  "label": "Yemen",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DJI",
+                  "label": "Yibuti",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZMB",
+                  "label": "Zambia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZWE",
+                  "label": "Zimbabue",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZZZ",
+                  "label": "Países no declarados",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ033",
+              "number": 33,
+              "text": "Nacionalidad",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Mexicana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "Extranjera",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ034",
+              "number": 34,
+              "text": "País de nacionalidad",
+              "subtext": "Seleccione una opción",
+              "type": "CBO",
+              "required": true,
+              "options": [
+                {
+                  "value": "AFG",
+                  "label": "Afganistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ALA",
+                  "label": "Islas Åland",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ALB",
+                  "label": "Albania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DEU",
+                  "label": "Alemania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AND",
+                  "label": "Andorra",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AGO",
+                  "label": "Angola",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AIA",
+                  "label": "Anguila",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ATA",
+                  "label": "Antártida",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ATG",
+                  "label": "Antigua y Barbuda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SAU",
+                  "label": "Arabia Saudita",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DZA",
+                  "label": "Argelia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ARG",
+                  "label": "Argentina",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ARM",
+                  "label": "Armenia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ABW",
+                  "label": "Aruba",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AUS",
+                  "label": "Australia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AUT",
+                  "label": "Austria",
+                  "weight": 1.0
+                },
+                {
+                  "value": "AZE",
+                  "label": "Azerbaiyán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BHS",
+                  "label": "Bahamas (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BGD",
+                  "label": "Bangladés",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BRB",
+                  "label": "Barbados",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BHR",
+                  "label": "Baréin",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BEL",
+                  "label": "Bélgica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BLZ",
+                  "label": "Belice",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BEN",
+                  "label": "Benín",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BMU",
+                  "label": "Bermudas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BLR",
+                  "label": "Bielorrusia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MMR",
+                  "label": "Myanmar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BOL",
+                  "label": "Bolivia, Estado Plurinacional de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BIH",
+                  "label": "Bosnia y Herzegovina",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BWA",
+                  "label": "Botsuana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BRA",
+                  "label": "Brasil",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BRN",
+                  "label": "Brunéi Darussalam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BGR",
+                  "label": "Bulgaria",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BFA",
+                  "label": "Burkina Faso",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BDI",
+                  "label": "Burundi",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BTN",
+                  "label": "Bután",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CPV",
+                  "label": "Cabo Verde",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KHM",
+                  "label": "Camboya",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CMR",
+                  "label": "Camerún",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CAN",
+                  "label": "Canadá",
+                  "weight": 1.0
+                },
+                {
+                  "value": "QAT",
+                  "label": "Catar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BES",
+                  "label": "Bonaire, San Eustaquio y Saba",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TCD",
+                  "label": "Chad",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CHL",
+                  "label": "Chile",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CHN",
+                  "label": "China",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CYP",
+                  "label": "Chipre",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COL",
+                  "label": "Colombia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COM",
+                  "label": "Comoras",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRK",
+                  "label": "Corea (la República Democrática Popular de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KOR",
+                  "label": "Corea (la República de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CIV",
+                  "label": "Côte dIvoire",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CRI",
+                  "label": "Costa Rica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HRV",
+                  "label": "Croacia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CUB",
+                  "label": "Cuba",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CUW",
+                  "label": "Curaçao",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DNK",
+                  "label": "Dinamarca",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DMA",
+                  "label": "Dominica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ECU",
+                  "label": "Ecuador",
+                  "weight": 1.0
+                },
+                {
+                  "value": "EGY",
+                  "label": "Egipto",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SLV",
+                  "label": "El Salvador",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ARE",
+                  "label": "Emiratos Árabes Unidos (Los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ERI",
+                  "label": "Eritrea",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SVK",
+                  "label": "Eslovaquia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SVN",
+                  "label": "Eslovenia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ESP",
+                  "label": "España",
+                  "weight": 1.0
+                },
+                {
+                  "value": "USA",
+                  "label": "Estados Unidos (los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "EST",
+                  "label": "Estonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ETH",
+                  "label": "Etiopía",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PHL",
+                  "label": "Filipinas (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FIN",
+                  "label": "Finlandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FJI",
+                  "label": "Fiyi",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FRA",
+                  "label": "Francia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GAB",
+                  "label": "Gabón",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GMB",
+                  "label": "Gambia (La)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GEO",
+                  "label": "Georgia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GHA",
+                  "label": "Ghana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GIB",
+                  "label": "Gibraltar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GRD",
+                  "label": "Granada",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GRC",
+                  "label": "Grecia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GRL",
+                  "label": "Groenlandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GLP",
+                  "label": "Guadalupe",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GUM",
+                  "label": "Guam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GTM",
+                  "label": "Guatemala",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GUF",
+                  "label": "Guayana Francesa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GGY",
+                  "label": "Guernsey",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GIN",
+                  "label": "Guinea",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GNB",
+                  "label": "Guinea-Bisáu",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GNQ",
+                  "label": "Guinea Ecuatorial",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GUY",
+                  "label": "Guyana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HTI",
+                  "label": "Haití",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HND",
+                  "label": "Honduras",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HKG",
+                  "label": "Hong Kong",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HUN",
+                  "label": "Hungría",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IND",
+                  "label": "India",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IDN",
+                  "label": "Indonesia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IRQ",
+                  "label": "Irak",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IRN",
+                  "label": "Irán (la República Islámica de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IRL",
+                  "label": "Irlanda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BVT",
+                  "label": "Isla Bouvet",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IMN",
+                  "label": "Isla de Man",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CXR",
+                  "label": "Isla de Navidad",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NFK",
+                  "label": "Isla Norfolk",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ISL",
+                  "label": "Islandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CYM",
+                  "label": "Islas Caimán (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CCK",
+                  "label": "Islas Cocos (Keeling)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COK",
+                  "label": "Islas Cook (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FRO",
+                  "label": "Islas Feroe (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SGS",
+                  "label": "Georgia del sur y las islas sandwich del sur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HMD",
+                  "label": "Isla Heard e Islas McDonald",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FLK",
+                  "label": "Islas Malvinas [Falkland] (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MNP",
+                  "label": "Islas Marianas del Norte (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MHL",
+                  "label": "Islas Marshall (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PCN",
+                  "label": "Pitcairn",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SLB",
+                  "label": "Islas Salomón (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TCA",
+                  "label": "Islas Turcas y Caicos (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UMI",
+                  "label": "Islas de Ultramar Menores de Estados Unidos (las)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VGB",
+                  "label": "Islas Vírgenes (Británicas)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VIR",
+                  "label": "Islas Vírgenes (EE.UU.)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ISR",
+                  "label": "Israel",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ITA",
+                  "label": "Italia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JAM",
+                  "label": "Jamaica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JPN",
+                  "label": "Japón",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JEY",
+                  "label": "Jersey",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JOR",
+                  "label": "Jordania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KAZ",
+                  "label": "Kazajistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KEN",
+                  "label": "Kenia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KGZ",
+                  "label": "Kirguistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KIR",
+                  "label": "Kiribati",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KWT",
+                  "label": "Kuwait",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LAO",
+                  "label": "Lao, (la) República Democrática Popular",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LSO",
+                  "label": "Lesoto",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LVA",
+                  "label": "Letonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LBN",
+                  "label": "Líbano",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LBR",
+                  "label": "Liberia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LBY",
+                  "label": "Libia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LIE",
+                  "label": "Liechtenstein",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LTU",
+                  "label": "Lituania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LUX",
+                  "label": "Luxemburgo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MAC",
+                  "label": "Macao",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MDG",
+                  "label": "Madagascar",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MYS",
+                  "label": "Malasia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MWI",
+                  "label": "Malaui",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MDV",
+                  "label": "Maldivas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MLI",
+                  "label": "Malí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MLT",
+                  "label": "Malta",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MAR",
+                  "label": "Marruecos",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MTQ",
+                  "label": "Martinica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MUS",
+                  "label": "Mauricio",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MRT",
+                  "label": "Mauritania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MYT",
+                  "label": "Mayotte",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MEX",
+                  "label": "México",
+                  "weight": 1.0
+                },
+                {
+                  "value": "FSM",
+                  "label": "Micronesia (los Estados Federados de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MDA",
+                  "label": "Moldavia (la República de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MCO",
+                  "label": "Mónaco",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MNG",
+                  "label": "Mongolia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MNE",
+                  "label": "Montenegro",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MSR",
+                  "label": "Montserrat",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MOZ",
+                  "label": "Mozambique",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NAM",
+                  "label": "Namibia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NRU",
+                  "label": "Nauru",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NPL",
+                  "label": "Nepal",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NIC",
+                  "label": "Nicaragua",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NER",
+                  "label": "Níger (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NGA",
+                  "label": "Nigeria",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NIU",
+                  "label": "Niue",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NOR",
+                  "label": "Noruega",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NCL",
+                  "label": "Nueva Caledonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NZL",
+                  "label": "Nueva Zelanda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "OMN",
+                  "label": "Omán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NLD",
+                  "label": "Países Bajos (los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PAK",
+                  "label": "Pakistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PLW",
+                  "label": "Palaos",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PSE",
+                  "label": "Palestina, Estado de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PAN",
+                  "label": "Panamá",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PNG",
+                  "label": "Papúa Nueva Guinea",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRY",
+                  "label": "Paraguay",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PER",
+                  "label": "Perú",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PYF",
+                  "label": "Polinesia Francesa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "POL",
+                  "label": "Polonia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRT",
+                  "label": "Portugal",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PRI",
+                  "label": "Puerto Rico",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GBR",
+                  "label": "Reino Unido (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CAF",
+                  "label": "República Centroafricana (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CZE",
+                  "label": "República Checa (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MKD",
+                  "label": "Macedonia (la antigua República Yugoslava de)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COG",
+                  "label": "Congo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "COD",
+                  "label": "Congo (la República Democrática del)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DOM",
+                  "label": "República Dominicana (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "REU",
+                  "label": "Reunión",
+                  "weight": 1.0
+                },
+                {
+                  "value": "RWA",
+                  "label": "Ruanda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ROU",
+                  "label": "Rumania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "RUS",
+                  "label": "Rusia, (la) Federación de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ESH",
+                  "label": "Sahara Occidental",
+                  "weight": 1.0
+                },
+                {
+                  "value": "WSM",
+                  "label": "Samoa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ASM",
+                  "label": "Samoa Americana",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BLM",
+                  "label": "San Bartolomé",
+                  "weight": 1.0
+                },
+                {
+                  "value": "KNA",
+                  "label": "San Cristóbal y Nieves",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SMR",
+                  "label": "San Marino",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MAF",
+                  "label": "San Martín (parte francesa)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SPM",
+                  "label": "San Pedro y Miquelón",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VCT",
+                  "label": "San Vicente y las Granadinas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SHN",
+                  "label": "Santa Helena, Ascensión y Tristán de Acuña",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LCA",
+                  "label": "Santa Lucía",
+                  "weight": 1.0
+                },
+                {
+                  "value": "STP",
+                  "label": "Santo Tomé y Príncipe",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SEN",
+                  "label": "Senegal",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SRB",
+                  "label": "Serbia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SYC",
+                  "label": "Seychelles",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SLE",
+                  "label": "Sierra leona",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SGP",
+                  "label": "Singapur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SXM",
+                  "label": "Sint Maarten (parte holandesa)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SYR",
+                  "label": "Siria, (la) República Árabe",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SOM",
+                  "label": "Somalia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "LKA",
+                  "label": "Sri Lanka",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SWZ",
+                  "label": "Suazilandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZAF",
+                  "label": "Sudáfrica",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SDN",
+                  "label": "Sudán (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SSD",
+                  "label": "Sudán del Sur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SWE",
+                  "label": "Suecia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CHE",
+                  "label": "Suiza",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SUR",
+                  "label": "Surinam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SJM",
+                  "label": "Svalbard y Jan Mayen",
+                  "weight": 1.0
+                },
+                {
+                  "value": "THA",
+                  "label": "Tailandia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TWN",
+                  "label": "Taiwán (Provincia de China)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TZA",
+                  "label": "Tanzania, República Unida de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TJK",
+                  "label": "Tayikistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "IOT",
+                  "label": "Territorio Británico del Océano Índico (el)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ATF",
+                  "label": "Territorios Australes Franceses (los)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TLS",
+                  "label": "Timor-Leste",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TGO",
+                  "label": "Togo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TKL",
+                  "label": "Tokelau",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TON",
+                  "label": "Tonga",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TTO",
+                  "label": "Trinidad y Tobago",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TUN",
+                  "label": "Túnez",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TKM",
+                  "label": "Turkmenistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TUR",
+                  "label": "Turquía",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TUV",
+                  "label": "Tuvalu",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UKR",
+                  "label": "Ucrania",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UGA",
+                  "label": "Uganda",
+                  "weight": 1.0
+                },
+                {
+                  "value": "URY",
+                  "label": "Uruguay",
+                  "weight": 1.0
+                },
+                {
+                  "value": "UZB",
+                  "label": "Uzbekistán",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VUT",
+                  "label": "Vanuatu",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VAT",
+                  "label": "Santa Sede[Estado de la Ciudad del Vaticano] (la)",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VEN",
+                  "label": "Venezuela, República Bolivariana de",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VNM",
+                  "label": "Viet Nam",
+                  "weight": 1.0
+                },
+                {
+                  "value": "WLF",
+                  "label": "Wallis y Futuna",
+                  "weight": 1.0
+                },
+                {
+                  "value": "YEM",
+                  "label": "Yemen",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DJI",
+                  "label": "Yibuti",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZMB",
+                  "label": "Zambia",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZWE",
+                  "label": "Zimbabue",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZZZ",
+                  "label": "Países no declarados",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ035",
+              "number": 35,
+              "text": "RFC (con homoclave) o TAX ID (extranjeros)",
+              "subtext": null,
+              "type": "TXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSGenFacQ036",
+              "number": 36,
+              "text": "Ciudad de residencia",
+              "subtext": null,
+              "type": "TXT",
+              "required": true,
+              "options": []
+            },
+            {
+              "id": "PDSGenFacQ037",
+              "number": 37,
+              "text": "Estado de residencia",
+              "subtext": "Seleccione una opción",
+              "type": "CBO",
+              "required": true,
+              "options": [
+                {
+                  "value": "AS",
+                  "label": "Aguascalientes",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BC",
+                  "label": "Baja California",
+                  "weight": 1.0
+                },
+                {
+                  "value": "BS",
+                  "label": "Baja California Sur",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CC",
+                  "label": "Campeche",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CL",
+                  "label": "Coahuila",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CM",
+                  "label": "Colima",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CS",
+                  "label": "Chiapas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "CH",
+                  "label": "Chihuahua",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DF",
+                  "label": "Ciudad de México",
+                  "weight": 1.0
+                },
+                {
+                  "value": "DG",
+                  "label": "Durango",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GT",
+                  "label": "Guanajuato",
+                  "weight": 1.0
+                },
+                {
+                  "value": "GR",
+                  "label": "Guerrero",
+                  "weight": 1.0
+                },
+                {
+                  "value": "HG",
+                  "label": "Hidalgo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "JC",
+                  "label": "Jalisco",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MC",
+                  "label": "México",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MN",
+                  "label": "Michoacan",
+                  "weight": 1.0
+                },
+                {
+                  "value": "MS",
+                  "label": "Morelos",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NT",
+                  "label": "Nayarit",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NL",
+                  "label": "Nuevo León",
+                  "weight": 1.0
+                },
+                {
+                  "value": "OC",
+                  "label": "Oaxaca",
+                  "weight": 1.0
+                },
+                {
+                  "value": "PL",
+                  "label": "Puebla",
+                  "weight": 1.0
+                },
+                {
+                  "value": "QT",
+                  "label": "Queretari",
+                  "weight": 1.0
+                },
+                {
+                  "value": "QR",
+                  "label": "Quintana Roo",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SP",
+                  "label": "San Luis Potosi",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SL",
+                  "label": "Sinaloa",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SR",
+                  "label": "Sonora",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TC",
+                  "label": "Tabasco",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TS",
+                  "label": "Tamaulipas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "TL",
+                  "label": "Tlaxcala",
+                  "weight": 1.0
+                },
+                {
+                  "value": "VZ",
+                  "label": "Veracruz",
+                  "weight": 1.0
+                },
+                {
+                  "value": "YN",
+                  "label": "Yucatan",
+                  "weight": 1.0
+                },
+                {
+                  "value": "ZS",
+                  "label": "Zacatecas",
+                  "weight": 1.0
+                },
+                {
+                  "value": "EUM",
+                  "label": "ESTADOS UNIDOS MEXICANOS",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NA",
+                  "label": "NO APLICA",
+                  "weight": 1.0
+                },
+                {
+                  "value": "SI",
+                  "label": "SE IGNORA",
+                  "weight": 1.0
+                },
+                {
+                  "value": "NE",
+                  "label": "NO ESPECIFICADO",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ038",
+              "number": 38,
+              "text": "Religión o culto profesado",
+              "subtext": null,
+              "type": "TXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSGenFacQ039",
+              "number": 39,
+              "text": "Adicciones",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "TXT",
+              "required": false,
+              "options": []
+            },
+            {
+              "id": "PDSGenFacQ040",
+              "number": 40,
+              "text": "¿Existe alguna exposición legal en curso en su contra?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "Lo desconozco",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSGenFacQ041",
+              "number": 41,
+              "text": "¿Alguna vez fue sentenciado, ha estado en prisión o ha sido inculpado en juicios por daño patrimonial, penales o civiles?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "Lo desconozco",
+                  "weight": 1.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "PDSHeriFac",
+          "name": "Patrimonio",
+          "theme": "heritageFactor",
+          "color": "#1AB394",
+          "weight": 0.1,
+          "order": 5,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted a partir de datos generales sobre su estilo de vida enfocado al patrimonio formado por usted.",
+          "questions": [
+            {
+              "id": "PDSHeriFacQ042",
+              "number": 42,
+              "text": "¿Tiene bienes inmuebles en territorio nacional?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ043",
+              "number": 43,
+              "text": "¿Tiene bienes inmuebles en el extranjero?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ044",
+              "number": 44,
+              "text": "¿Tiene  inversiones en acciones, obligaciones, criptomonedas, mercado de dinero, etc.?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ045",
+              "number": 45,
+              "text": "¿Tiene autos, aviones, equipo de transporte, etc.?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ046",
+              "number": 46,
+              "text": "¿Tiene cuentas bancarias en el extranjero?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ047",
+              "number": 47,
+              "text": "¿Tiene obras de arte?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ048",
+              "number": 48,
+              "text": "¿Ha recibio alguna herencia?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ049",
+              "number": 49,
+              "text": "¿Tiene deudas?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": false,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ050",
+              "number": 50,
+              "text": "¿Mantiene un estilo de vida ostentoso? (Vestimenta, lugares frecuentados, servicios, etc.)",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ051",
+              "number": 51,
+              "text": "¿Mantiene alguna participación en fideicomisos?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ052",
+              "number": 52,
+              "text": "¿Mantiene alguna participación en fundaciones o sociedades sin fines de lucro?",
+              "subtext": "Seleccione una opción",
+              "type": "RAD",
+              "required": true,
+              "options": [
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            },
+            {
+              "id": "PDSHeriFacQ053",
+              "number": 53,
+              "text": "¿Es accionista de alguna empresa?",
+              "subtext": "Separe los nombres con coma (,)",
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                },
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "C",
+                  "label": "No proporciono",
+                  "weight": 1.0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "PDSNCtrFac",
+          "name": "Sin Control",
+          "theme": "outOfControlFactor",
+          "color": "#FF0000",
+          "weight": 0.05,
+          "order": 6,
+          "description": "A continuación se presentarán una serie de preguntas, las cuales le pedimos responda honestamente. A partir de esta información nos permitirá ayudarle a identificar el nivel de riesgo que pueda representar hacia usted temas generales que no estén bajo su control, sin embargo pueden ser ligados hacia a usted de alguna manera.",
+          "questions": [
+            {
+              "id": "PDSNCtrFacQ054",
+              "number": 54,
+              "text": "Involucrado en accidentes?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            },
+            {
+              "id": "PDSNCtrFacQ055",
+              "number": 55,
+              "text": "Involucrado en actos de protesta?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            },
+            {
+              "id": "PDSNCtrFacQ056",
+              "number": 56,
+              "text": "Involucrado en algún escandalo profesional?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            },
+            {
+              "id": "PDSNCtrFacQ057",
+              "number": 57,
+              "text": "Innvolucrado en algún escandalo familiar?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            },
+            {
+              "id": "PDSNCtrFacQ058",
+              "number": 58,
+              "text": "Involucrado en escandalos de la web?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            },
+            {
+              "id": "PDSNCtrFacQ059",
+              "number": 59,
+              "text": "Involucrado en escandalos sexuales?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            },
+            {
+              "id": "PDSNCtrFacQ060",
+              "number": 60,
+              "text": "Involucrado en algún escandalo de fraude?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            },
+            {
+              "id": "PDSNCtrFacQ061",
+              "number": 61,
+              "text": "Involucrado en escandalos criminales?",
+              "subtext": null,
+              "type": "ABDetA",
+              "required": true,
+              "options": [
+                {
+                  "value": "B",
+                  "label": "No",
+                  "weight": 1.0
+                },
+                {
+                  "value": "A",
+                  "label": "Sí",
+                  "weight": 2.0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
