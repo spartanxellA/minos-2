@@ -179,13 +179,18 @@ async def end_sessions(session: AsyncSession, user_id: uuid.UUID, keep: str | No
 
 async def bootstrap_admin(database: db.Database, settings: Settings) -> bool:
     """Crea el primer administrador desde la configuración si todavía no hay cuentas."""
+    from . import audit  # audit importa este módulo
+
     a = settings.auth
     if a.mode != "local" or not (a.bootstrap_admin_email and a.bootstrap_admin_password):
         return False
     async with database.session() as session:
         if await session.scalar(select(db.User.id).limit(1)) is not None:
             return False
-        await create_user(session, a.bootstrap_admin_email, "Administrador", Role.ADMIN, a.bootstrap_admin_password)
+        user = await create_user(session, a.bootstrap_admin_email, "Administrador", Role.ADMIN, a.bootstrap_admin_password)
+        audit.record(session, None, "user.created", audit.SYSTEM, entity_type="user", entity_id=user.id,
+                     entity_label=user.email, changes=audit.diff({}, audit.user_snapshot(user)),
+                     detail={"via": "MINOS_AUTH__BOOTSTRAP_ADMIN_EMAIL"})
         try:
             await session.commit()
         except IntegrityError:  # otra réplica de la API lo creó al mismo tiempo

@@ -79,6 +79,19 @@ Seguridad: contraseñas con scrypt y mínimo 10 caracteres; tras 5 intentos fall
 desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
 WebSocket se rechazan si vienen de otro sitio. Con `AUTH_MODE=off` no se pide contraseña, solo en development.
 
+### Auditoría
+
+Cada acción queda en la bitácora `audit_events` con quién, cuándo, desde qué IP y navegador, y los valores de antes y
+después: inicios y cierres de sesión (también los fallidos, con el motivo, y los bloqueos), cambios de contraseña,
+altas, cambios de rol, desactivaciones y bajas de cuentas, altas, cambios y bajas de objetivos, y cuestionarios
+contestados. Las cuentas creadas desde la terminal o al arrancar aparecen como "sistema". Nunca se guardan
+contraseñas ni tokens.
+
+Solo los administradores la ven (menú de la cuenta → "Auditoría"), con filtros por acción, usuario, fechas, objeto o
+IP y solo fallidos, y la pueden descargar en CSV. La API no tiene forma de modificar ni borrar eventos, y el registro
+sobrevive aunque se borre la cuenta o el objetivo. API: `GET /api/audit` (paginada con `?before=`) y
+`GET /api/audit/export.csv`.
+
 ## Avisos de alertas
 
 Las alertas se ven en vivo en el tablero. Además se avisan por los canales configurados (vacío = apagado):

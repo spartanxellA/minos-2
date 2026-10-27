@@ -156,6 +156,52 @@ export interface Me extends User {
   authMode: "local" | "off";
 }
 
+export interface AuditEvent {
+  id: number;
+  at: string;
+  actorId: string | null;
+  actorEmail: string | null;
+  actorRole: Role | null;
+  action: string;
+  actionLabel: string;
+  success: boolean;
+  entityType: "user" | "target" | null;
+  entityId: string | null;
+  entityLabel: string | null;
+  /** Campo → [antes, después]. */
+  changes: Record<string, [unknown, unknown]> | null;
+  detail: Record<string, unknown> | null;
+  ip: string | null;
+  userAgent: string | null;
+}
+
+export interface AuditPage {
+  events: AuditEvent[];
+  nextBefore: number | null;
+  actions: Record<string, string>;
+}
+
+export interface AuditFilters {
+  action?: string;
+  actor?: string;
+  entityType?: string;
+  entityId?: string;
+  success?: boolean;
+  since?: string;
+  until?: string;
+  q?: string;
+}
+
+export function auditQuery(filters: AuditFilters, extra: Record<string, string | number | undefined> = {}) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries({ ...filters, ...extra })) {
+    if (v !== undefined && v !== "") params.set(k, String(v));
+  }
+  return params.toString();
+}
+
+export const auditCsvUrl = (filters: AuditFilters) => `${API_URL}/api/audit/export.csv?${auditQuery(filters)}`;
+
 export const ROLE_LABEL: Record<Role, string> = { viewer: "Lector", analyst: "Analista", admin: "Administrador" };
 const ROLE_RANK: Record<Role, number> = { viewer: 0, analyst: 1, admin: 2 };
 export const can = (user: Pick<User, "role">, role: Role) => ROLE_RANK[user.role] >= ROLE_RANK[role];
@@ -217,6 +263,9 @@ export const api = {
   updateUser: (id: string, changes: Partial<{ name: string; role: Role; active: boolean; password: string }>) =>
     request<User>(`/api/users/${id}`, { method: "PATCH", json: changes }),
   deleteUser: (id: string) => request<void>(`/api/users/${id}`, { method: "DELETE" }),
+
+  audit: (filters: AuditFilters, before?: number, limit = 100) =>
+    get<AuditPage>(`/api/audit?${auditQuery(filters, { before, limit })}`),
 };
 
 export const KIND_LABEL: Record<TargetKind, string> = {

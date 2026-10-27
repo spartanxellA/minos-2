@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from . import db
-from .auth import Role, current_user, require_role, websocket_user
+from . import audit, db
+from .auth import CurrentUser, Role, current_user, require_role, websocket_user
 from .domain.mentions import Sentiment
 from .schemas import (
     AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, Influencer, MentionOut, RiskOut, SourceError,
@@ -27,6 +27,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 Analyst = [Depends(require_role(Role.ANALYST))]
 Admin = [Depends(require_role(Role.ADMIN))]
+Me = Annotated[CurrentUser, Depends(current_user)]
 
 
 def _clean(values: list[str]) -> list[str]:
@@ -70,28 +71,37 @@ async def get_target(target_id: uuid.UUID, session: Session):
 
 
 @router.post("/targets", response_model=TargetOut, status_code=status.HTTP_201_CREATED, dependencies=Analyst)
-async def create_target(body: TargetInput, session: Session, response: Response):
+async def create_target(body: TargetInput, session: Session, response: Response, request: Request, me: Me):
     if not body.name.strip():
         raise HTTPException(422, "El nombre es obligatorio.")
     target = db.Target(id=uuid.uuid4(), created_at=datetime.now(UTC))
     _apply(target, body)
     session.add(target)
+    audit.record(session, request, "target.created", me, entity_type="target", entity_id=target.id,
+                 entity_label=target.name, changes=audit.diff({}, audit.target_snapshot(target)))
     await session.commit()
     response.headers["Location"] = f"/api/targets/{target.id}"
     return target
 
 
 @router.put("/targets/{target_id}", response_model=TargetOut, dependencies=Analyst)
-async def update_target(target_id: uuid.UUID, body: TargetInput, session: Session):
+async def update_target(target_id: uuid.UUID, body: TargetInput, session: Session, request: Request, me: Me):
     target = await _target_or_404(session, target_id)
+    before = audit.target_snapshot(target)
     _apply(target, body)
+    changes = audit.diff(before, audit.target_snapshot(target))
+    if changes:
+        audit.record(session, request, "target.updated", me, entity_type="target", entity_id=target.id,
+                     entity_label=target.name, changes=changes)
     await session.commit()
     return target
 
 
 @router.delete("/targets/{target_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=Admin)
-async def delete_target(target_id: uuid.UUID, session: Session):
-    await _target_or_404(session, target_id)
+async def delete_target(target_id: uuid.UUID, session: Session, request: Request, me: Me):
+    target = await _target_or_404(session, target_id)
+    audit.record(session, request, "target.deleted", me, entity_type="target", entity_id=target.id,
+                 entity_label=target.name, changes=audit.diff(audit.target_snapshot(target), {}))
     # Se borra en orden para no depender de ON DELETE CASCADE (SQLite en pruebas no lo aplica por defecto).
     for model in (db.Mention, db.ConnectorState, db.RiskSnapshot, db.SurveyResponse, db.AlertRecord):
         await session.execute(delete(model).where(model.target_id == target_id))
@@ -224,8 +234,8 @@ def _catalog(request: Request) -> SurveyCatalog:
 
 
 @router.post("/targets/{target_id}/survey-responses", response_model=SurveyResponseOut, dependencies=Analyst)
-async def submit_survey(target_id: uuid.UUID, body: SurveySubmission, session: Session, request: Request):
-    await _target_or_404(session, target_id)
+async def submit_survey(target_id: uuid.UUID, body: SurveySubmission, session: Session, request: Request, me: Me):
+    target = await _target_or_404(session, target_id)
     catalog = _catalog(request)
     survey = catalog.find(body.survey_id)
     if survey is None:
@@ -241,6 +251,11 @@ async def submit_survey(target_id: uuid.UUID, body: SurveySubmission, session: S
         section_values={} if result is None else {s.section_id: s.value for s in result.sections},
     )
     session.add(row)
+    audit.record(session, request, "survey.submitted", me, entity_type="target", entity_id=target_id,
+                 entity_label=target.name, detail={
+                     "surveyId": survey.id, "survey": survey.name, "responseId": str(row.id),
+                     "score": row.score, "level": row.level, "answered": len(body.answers),
+                 })
     await session.commit()
     if result is not None:
         await request.app.state.risk_engine.recompute(target_id)
