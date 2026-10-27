@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from . import db
+from . import audit, db
 from .auth import (
     _DUMMY_HASH, ROLE_LABEL, CurrentUser, Role, create_user, current_user, end_sessions, hash_password,
     new_session_token, normalize_email, require_role, token_hash, verify_password,
@@ -25,6 +25,7 @@ async def get_session(request: Request):
 Session = Annotated[AsyncSession, Depends(get_session)]
 auth_router = APIRouter(prefix="/api/auth")
 users_router = APIRouter(prefix="/api/users", dependencies=[Depends(require_role(Role.ADMIN))])
+Admin = Annotated[CurrentUser, Depends(require_role(Role.ADMIN))]
 
 
 class LoginInput(Camel):
@@ -96,18 +97,30 @@ async def login(body: LoginInput, request: Request, response: Response, session:
     if a.mode == "off":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "El inicio de sesión está apagado.")
     now = datetime.now(UTC)
-    user = await session.scalar(select(db.User).where(db.User.email == normalize_email(body.email)))
+    email = normalize_email(body.email)
+    user = await session.scalar(select(db.User).where(db.User.email == email))
+
+    def failed(reason: str) -> None:
+        # Sin sesión no se sabe quién es: se anota el correo que escribió, no la cuenta como autora.
+        audit.record(session, request, "auth.login_failed", actor_email=email, success=False,
+                     entity_type="user", entity_id=user and user.id, entity_label=email, detail={"reason": reason})
+
     if user is not None and user.locked_until and user.locked_until > now:
+        failed("locked")
+        await session.commit()
         minutes = max(int((user.locked_until - now).total_seconds() // 60) + 1, 1)
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Demasiados intentos. Vuelve a intentar en {minutes} min.")
     ok = verify_password(body.password, user.password_hash if user else _DUMMY_HASH)
     if user is None or not ok or not user.active:
+        failed("unknown_account" if user is None else "wrong_password" if not ok else "inactive")
         if user is not None and not ok:
             user.failed_logins += 1
             if user.failed_logins >= a.max_failed_logins:
                 user.locked_until = now + a.lockout
                 user.failed_logins = 0
-            await session.commit()
+                audit.record(session, request, "auth.locked", actor_email=email, success=False, entity_type="user", entity_id=user.id,
+                             entity_label=user.email, detail={"until": user.locked_until.isoformat()})
+        await session.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Correo o contraseña incorrectos.")
 
     user.failed_logins = 0
@@ -116,6 +129,7 @@ async def login(body: LoginInput, request: Request, response: Response, session:
     token = new_session_token()
     session.add(db.UserSession(token_hash=token_hash(token), user_id=user.id, created_at=now, expires_at=now + a.session_ttl))
     await session.execute(delete(db.UserSession).where(db.UserSession.expires_at <= now))
+    audit.record(session, request, "auth.login", _actor(user), entity_type="user", entity_id=user.id, entity_label=user.email)
     await session.commit()
     response.set_cookie(
         a.cookie_name, token, max_age=int(a.session_ttl.total_seconds()), httponly=True, samesite="lax",
@@ -129,7 +143,14 @@ async def logout(request: Request, response: Response, session: Session):
     a = request.app.state.settings.auth
     token = request.cookies.get(a.cookie_name)
     if token:
-        await session.execute(delete(db.UserSession).where(db.UserSession.token_hash == token_hash(token)))
+        user = await session.scalar(
+            select(db.User).join(db.UserSession, db.UserSession.user_id == db.User.id)
+            .where(db.UserSession.token_hash == token_hash(token))
+        )
+        result = await session.execute(delete(db.UserSession).where(db.UserSession.token_hash == token_hash(token)))
+        if user is not None and result.rowcount:
+            audit.record(session, request, "auth.logout", _actor(user), entity_type="user", entity_id=user.id,
+                         entity_label=user.email)
         await session.commit()
     response.delete_cookie(a.cookie_name, path="/")
 
@@ -150,10 +171,15 @@ async def change_password(body: PasswordChange, request: Request, session: Sessi
     # Cierra las demás sesiones abiertas con la contraseña anterior.
     token = request.cookies.get(request.app.state.settings.auth.cookie_name)
     await end_sessions(session, row.id, keep=token_hash(token) if token else None)
+    audit.record(session, request, "auth.password_changed", user, entity_type="user", entity_id=row.id, entity_label=row.email)
     await session.commit()
 
 
 # --- Cuentas (solo administradores) ---------------------------------------------------------------
+
+
+def _actor(user: db.User | None) -> CurrentUser | None:
+    return None if user is None else CurrentUser(user.id, user.email, user.name, Role(user.role))
 
 
 async def _user_or_404(session: AsyncSession, user_id: uuid.UUID) -> db.User:
@@ -176,10 +202,12 @@ async def list_users(session: Session):
 
 
 @users_router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-async def add_user(body: UserCreate, request: Request, session: Session):
+async def add_user(body: UserCreate, request: Request, session: Session, me: Admin):
     email = _check_email(body.email)
     _check_password(request, body.password)
     user = await create_user(session, email, body.name, body.role, body.password)
+    audit.record(session, request, "user.created", me, entity_type="user", entity_id=user.id, entity_label=user.email,
+                 changes=audit.diff({}, audit.user_snapshot(user)))
     try:
         await session.commit()
     except IntegrityError:
@@ -188,8 +216,9 @@ async def add_user(body: UserCreate, request: Request, session: Session):
 
 
 @users_router.patch("/{user_id}", response_model=UserOut)
-async def update_user(user_id: uuid.UUID, body: UserUpdate, request: Request, session: Session):
+async def update_user(user_id: uuid.UUID, body: UserUpdate, request: Request, session: Session, me: Admin):
     user = await _user_or_404(session, user_id)
+    before = audit.user_snapshot(user)
     losing_admin = (body.role is not None and body.role != Role.ADMIN) or body.active is False
     if losing_admin and user.role == Role.ADMIN.value and not await _other_active_admins(session, user.id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Debe quedar al menos un administrador activo.")
@@ -206,17 +235,24 @@ async def update_user(user_id: uuid.UUID, body: UserUpdate, request: Request, se
         user.locked_until = None
     if body.active is False or body.password:
         await end_sessions(session, user.id)  # el rol se lee en cada petición; esto cierra sus sesiones abiertas
+    changes = audit.diff(before, audit.user_snapshot(user))
+    if changes or body.password:
+        # La contraseña nunca se guarda, ni cifrada: solo que se cambió.
+        audit.record(session, request, "user.updated", me, entity_type="user", entity_id=user.id, entity_label=user.email,
+                     changes=changes, detail={"passwordReset": True} if body.password else None)
     await session.commit()
     return UserOut.of(user)
 
 
 @users_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: uuid.UUID, session: Session, me: Annotated[CurrentUser, Depends(current_user)]):
+async def delete_user(user_id: uuid.UUID, request: Request, session: Session, me: Admin):
     user = await _user_or_404(session, user_id)
     if user.id == me.id:
         raise HTTPException(status.HTTP_409_CONFLICT, "No puedes borrar tu propia cuenta.")
     if user.role == Role.ADMIN.value and not await _other_active_admins(session, user.id):
         raise HTTPException(status.HTTP_409_CONFLICT, "Debe quedar al menos un administrador activo.")
     await end_sessions(session, user.id)
+    audit.record(session, request, "user.deleted", me, entity_type="user", entity_id=user.id, entity_label=user.email,
+                 changes=audit.diff(audit.user_snapshot(user), {}))
     await session.delete(user)
     await session.commit()

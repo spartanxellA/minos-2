@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router, ws_router
 from .accounts import auth_router, users_router
+from .audit import audit_router
 from .auth import bootstrap_admin
 from .config import Settings, get_settings
 from .realtime import RiskHub
@@ -65,6 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(users_router)
+    app.include_router(audit_router)
     app.include_router(router)
     app.include_router(ws_router)
     return app

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Target } from "@/lib/api";
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
+import { AuditDialog } from "./AuditDialog";
 import { useLiveTarget } from "@/lib/useLiveTarget";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
@@ -19,7 +20,7 @@ const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-di
 const NOTIFY_KEY = "minos.notify";
 
 export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }) {
-  const [dialog, setDialog] = useState<"users" | "password" | "sources" | null>(null);
+  const [dialog, setDialog] = useState<"users" | "password" | "sources" | "audit" | null>(null);
   const [sourceErrors, setSourceErrors] = useState(0);
   const [targets, setTargets] = useState<Target[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -142,6 +143,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
             <div className="menu" onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}>
               <div className="who">{user.email}<br /><span className="muted">{user.roleLabel}</span></div>
               {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("users")}>Usuarios</button>}
+              {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("audit")}>Auditoría</button>}
               <button type="button" className="ghost" onClick={() => setDialog("password")}>Contraseña</button>
               <button type="button" className="ghost" onClick={onLogout}>Salir</button>
             </div>
@@ -157,6 +159,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       {dialog === "users" && <UsersDialog me={user} onClose={() => setDialog(null)} />}
       {dialog === "sources" && <SourcesDialog onClose={() => setDialog(null)} onLoaded={setSourceErrors} />}
       {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
+      {dialog === "audit" && <AuditDialog onClose={() => setDialog(null)} />}
 
       <main>
         {!selectedTarget ? (

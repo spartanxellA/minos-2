@@ -218,3 +218,34 @@ class UserSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class AuditEvent(Base):
+    """Bitácora de auditoría: quién hizo qué, cuándo y desde dónde. Solo se agregan filas; la API no las cambia ni
+    las borra. No tiene llaves foráneas a propósito: el registro sobrevive aunque se borre la cuenta o el objetivo,
+    y guarda una copia del correo, el rol y el nombre de lo afectado tal como eran en ese momento."""
+
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_at", "at"),
+        Index("ix_audit_actor_at", "actor_id", "at"),
+        Index("ix_audit_entity", "entity_type", "entity_id"),
+        Index("ix_audit_action_at", "action", "at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column()
+    actor_email: Mapped[str | None] = mapped_column(String(254))
+    actor_role: Mapped[str | None] = mapped_column(String(16))
+    # Por ejemplo auth.login, user.updated, target.deleted (lista en minos.audit.ACTIONS).
+    action: Mapped[str] = mapped_column(String(64))
+    success: Mapped[bool] = mapped_column(default=True)
+    entity_type: Mapped[str | None] = mapped_column(String(32))
+    entity_id: Mapped[str | None] = mapped_column(String(64))
+    entity_label: Mapped[str | None] = mapped_column(String(254))
+    # Campo → [antes, después].
+    changes: Mapped[dict | None] = mapped_column(Json)
+    detail: Mapped[dict | None] = mapped_column(Json)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(300))

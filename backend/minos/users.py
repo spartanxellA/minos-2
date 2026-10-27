@@ -14,9 +14,12 @@ import sys
 
 from sqlalchemy import select
 
-from . import db
+from . import audit, db
 from .auth import Role, create_user, end_sessions, hash_password, normalize_email
 from .config import get_settings
+
+
+TERMINAL = {"via": "terminal del servidor (python -m minos.users)"}
 
 
 def _ask_password(minimum: int) -> str:
@@ -55,17 +58,23 @@ async def main(argv: list[str] | None = None) -> None:
             if args.command == "add":
                 if existing is not None:
                     sys.exit(f"Ya existe una cuenta con {email}.")
-                await create_user(session, email, args.name, Role(args.role), _ask_password(settings.auth.min_password_length))
+                user = await create_user(session, email, args.name, Role(args.role), _ask_password(settings.auth.min_password_length))
+                audit.record(session, None, "user.created", audit.SYSTEM, entity_type="user", entity_id=user.id,
+                             entity_label=user.email, changes=audit.diff({}, audit.user_snapshot(user)), detail=TERMINAL)
                 await session.commit()
                 print(f"Cuenta creada: {email} ({args.role})")
             else:
                 if existing is None:
                     sys.exit(f"No hay cuenta con {email}.")
+                before = audit.user_snapshot(existing)
                 existing.password_hash = hash_password(_ask_password(settings.auth.min_password_length))
                 existing.active = True
                 existing.failed_logins = 0
                 existing.locked_until = None
                 await end_sessions(session, existing.id)
+                audit.record(session, None, "user.updated", audit.SYSTEM, entity_type="user", entity_id=existing.id,
+                             entity_label=existing.email, changes=audit.diff(before, audit.user_snapshot(existing)),
+                             detail={**TERMINAL, "passwordReset": True})
                 await session.commit()
                 print(f"Contraseña cambiada: {email}")
     finally:
