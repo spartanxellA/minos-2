@@ -153,6 +153,8 @@ def test_watchlist_adjust():
     assert watchlist_adjust(20, [WatchlistHit("tax", "Presunto")]) == 30
     assert watchlist_adjust(20, [WatchlistHit("pep"), WatchlistHit("pep")]) == 30  # la mayor por tipo, no la suma
     assert watchlist_adjust(20, [WatchlistHit("pep"), WatchlistHit("tax")]) == 50
+    assert watchlist_adjust(20, [WatchlistHit("pep", "Inactivo")]) == 25  # ya no ocupa el cargo
+    assert watchlist_adjust(20, [WatchlistHit("pep", "Activo")]) == 30
 
 
 @pytest.fixture
