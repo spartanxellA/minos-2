@@ -137,8 +137,8 @@ Cada objetivo (persona, empresa, institución o área de gobierno) se revisa con
 - Toda coincidencia nace pendiente y avisa como alerta. Un analista la confirma o la descarta con nota obligatoria
   (queda en la auditoría). Una descartada no vuelve a avisar salvo que el registro cambie en la lista.
 - Efecto en el IRR (solo las confirmadas y vigentes): una sanción deja el índice en 85 como mínimo; fiscal,
-  inhabilitación u otra suman 20; PEP suma 10 (ser PEP no es negativo, solo expone más); un "Presunto" del SAT pesa la
-  mitad. Se toma la mayor de cada tipo de lista. La gráfica marca el momento de cada confirmación.
+  inhabilitación u otra suman 20; PEP suma 10 (ser PEP no es negativo, solo expone más); un "Presunto" del SAT y un PEP
+  "Inactivo" pesan la mitad. Se toma la mayor de cada tipo de lista. La gráfica marca el momento de cada confirmación.
 - Rutas: `GET /api/targets/{id}/screening`, `GET /api/screening/matches?status=pending`,
   `POST /api/screening/matches/{id}/review`, `GET /api/watchlists`, `POST/DELETE /api/watchlists/custom`.
 - Aviso legal: una coincidencia de nombre no prueba identidad; el tablero lo dice siempre. Se tratan datos personales,

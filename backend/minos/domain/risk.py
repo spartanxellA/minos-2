@@ -250,8 +250,9 @@ def evaluate_alerts(
 SANCTIONS_FLOOR = 85
 # Puntos que suma una coincidencia confirmada de cada tipo de lista. Ser PEP no es negativo, solo expone más.
 WATCHLIST_POINTS = {"sanctions": 20, "tax": 20, "debarment": 20, "other": 20, "pep": 10}
-# Situaciones que aún no son definitivas (SAT 69-B "Presunto"): pesan la mitad.
-TENTATIVE_STATUS = ("presunto",)
+# Pesan la mitad: situaciones que aún no son definitivas (SAT 69-B "Presunto") y PEP que ya no ocupan el cargo
+# ("Inactivo"). Se compara el inicio del estatus, en minúsculas.
+TENTATIVE_STATUS = ("presunto", "inactiv", "inactive", "former", "ex ")
 
 
 @dataclass(frozen=True)
