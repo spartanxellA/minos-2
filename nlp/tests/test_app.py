@@ -28,3 +28,19 @@ def test_analyze_endpoint_returns_one_result_per_item_with_camel_case():
 
 def test_health_reports_engines():
     assert client.get("/health").json()["sentiment"] == "lexicon"
+
+
+def test_ambiguous_items_go_to_deep_analysis(monkeypatch):
+    from minos_nlp import app as app_module
+
+    seen: list[list[str]] = []
+
+    async def fake_analyze(target, texts):
+        seen.append(texts)
+        return [None] * len(texts)
+
+    monkeypatch.setattr(app_module.deep, "analyze", fake_analyze)
+    body = {"target": "Lula", "items": [{"text": "Lula viaja a China"},
+                                        {"text": "Lula no es malo, solo le falta apoyo en el congreso"}]}
+    assert client.post("/v1/analyze", json=body).status_code == 200
+    assert seen == [["Lula no es malo, solo le falta apoyo en el congreso"]]

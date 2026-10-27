@@ -12,7 +12,7 @@ está en Python, igual que los scrapers y el análisis de texto, y el tablero en
 | `backend/minos/connectors` | Conectores de fuentes (los scrapers): Noticias/RSS (Google Noticias + feeds), X (API v2), YouTube (Data API v3), Bluesky (búsqueda y en vivo por Jetstream), Reddit, páginas propias de Facebook e Instagram, demo | httpx, feedparser, websockets |
 | `backend/minos` | API REST y WebSocket del tablero (`/ws/targets/{id}`) | FastAPI, SQLAlchemy 2, PostgreSQL |
 | `backend/minos/worker.py` | Proceso aparte con la ingesta (conectores) y el motor de riesgo; escala con varias réplicas | asyncio, Redis |
-| `nlp/` | Servicio de análisis: sentimiento para todo, Claude solo para lo negativo o de alto alcance | FastAPI |
+| `nlp/` | Servicio de análisis: sentimiento para todo, Claude solo para lo negativo, lo dudoso o de alto alcance | FastAPI |
 | `web/` | Tablero en vivo y cuestionario de riesgo | Next.js, ECharts |
 | `data/surveys.json` | Los 2 cuestionarios de minOS 1.6 (107 preguntas, opciones y pesos), migrados tal cual | JSON |
 
@@ -21,6 +21,7 @@ está en Python, igual que los scrapers y el análisis de texto, y el tablero en
 1. Cada conector trae lo nuevo desde su cursor (`connector_cursors`) cuando le toca según su intervalo.
 2. `is_relevant` descarta homónimos y términos excluidos; se deduplica por id externo y por huella del texto.
 3. El lote se analiza una sola vez (servicio `nlp`, o el mismo diccionario si no responde) y se guarda.
+   El diccionario (`nlp/minos_nlp/lexicon.py`) pesa cada palabra y aplica reglas de contexto: negación, intensificadores, "pero", frases hechas, emojis y hashtags. Para agregar palabras basta con editar los diccionarios de ese archivo.
 4. La ingesta pide el recálculo por la cola (Redis Stream `minos:recompute`, grupo `risk-engine`: cada pedido lo
    atiende una sola réplica) y avisa de las menciones nuevas.
 5. El motor de riesgo recalcula el IRR del objetivo, guarda el punto de la serie y evalúa alertas.
