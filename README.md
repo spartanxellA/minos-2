@@ -127,8 +127,10 @@ Cada objetivo (persona, empresa, institución o área de gobierno) se revisa con
   falla se conserva la versión anterior y el error aparece en el tablero (botón "Listas" → pestaña "Listas").
 - Las listas propias se suben desde el tablero (solo administradores), en CSV o JSON. La única columna obligatoria es
   el nombre (`name`/`nombre`, o `nombre(s)` + apellidos). Se usan también `alias`, `birth_date`, `nationality`, `rfc`,
-  `curp`, `id_num`, `list`, `position`, `department`, `program`, `publication_date`, `status` y `location`. Una lista
-  con el mismo nombre se reemplaza.
+  `curp`, `id_num`, `list`, `position`, `department`, `program`, `publication_date`, `status` y `location`. También
+  acepta el archivo PEP separado por `|` y sin encabezado, en el orden nombre | cargo | dependencia | RFC | fecha de
+  nacimiento | país | estatus. En una lista PEP los registros sin tipo se toman como personas. Una
+  lista con el mismo nombre se reemplaza.
 - Coincidencia (`minos.domain.screening`): nombres sin acentos, títulos ni formas jurídicas, en cualquier orden, con
   tolerancia a errores de ortografía (Jaro-Winkler y una clave fonética para el español) y a un segundo apellido
   ausente. Se muestran las de 80 % o más. Un RFC, CURP o pasaporte igual da 100 %; un RFC distinto resta 30, una fecha

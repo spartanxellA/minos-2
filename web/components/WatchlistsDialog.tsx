@@ -100,6 +100,16 @@ export function WatchlistsDialog({ canReview, isAdmin, onClose, onChanged }: {
   );
 }
 
+/** Los archivos que salen de Excel o de sistemas viejos suelen venir en Windows-1252, no en UTF-8. */
+async function readText(file: File) {
+  const bytes = await file.arrayBuffer();
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
 function UploadForm({ onUploaded }: { onUploaded: () => void }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("pep");
@@ -112,7 +122,7 @@ function UploadForm({ onUploaded }: { onUploaded: () => void }) {
     if (!file || !name.trim()) return;
     setBusy(true);
     try {
-      const r = await api.uploadWatchlist(name.trim(), category, await file.text());
+      const r = await api.uploadWatchlist(name.trim(), category, await readText(file));
       setMessage({ ok: true, text: `${fmt.format(r.entries)} registros (${r.added} nuevos, ${r.changed} cambiados, ${r.removed} retirados).` });
       onUploaded();
     } catch (err) {
@@ -127,7 +137,8 @@ function UploadForm({ onUploaded }: { onUploaded: () => void }) {
       <h3>Cargar lista propia</h3>
       <p className="muted" style={{ fontSize: 12, margin: 0 }}>
         CSV o JSON con una columna de nombre (name o nombre). También se usan: alias, birth_date, nationality, rfc, curp,
-        id_num, list, position, department, program, publication_date, status y location. Si ya existe una lista con el
+        id_num, list, position, department, program, publication_date, status y location. También acepta el archivo PEP
+        separado por &quot;|&quot; sin encabezado (nombre|cargo|dependencia|rfc|fecha de nacimiento|país|estatus). Si ya existe una lista con el
         mismo nombre, se reemplaza.
       </p>
       <label>Nombre de la lista<input required value={name} onChange={(e) => setName(e.target.value)} placeholder="PEP México" /></label>
@@ -136,7 +147,7 @@ function UploadForm({ onUploaded }: { onUploaded: () => void }) {
           {Object.entries(WATCHLIST_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </label>
-      <label>Archivo<input type="file" required accept=".csv,.json,.txt,text/csv,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+      <label>Archivo<input type="file" required accept=".csv,.json,.txt,.psv,.dat,text/csv,text/plain,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
       {message && <p className={message.ok ? "ok" : "error"} role="status">{message.text}</p>}
       <button type="submit" disabled={busy}>{busy ? "Cargando…" : "Cargar"}</button>
     </form>
