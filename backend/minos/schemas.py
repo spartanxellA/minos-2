@@ -23,6 +23,11 @@ class TargetInput(Camel):
     excluded_terms: list[str] = Field(default_factory=list)
     handles: dict[str, str] = Field(default_factory=dict)
     enabled: bool = True
+    # Para la revisión en listas negras: fecha de nacimiento (AAAA-MM-DD o AAAA), nacionalidad y documentos.
+    birth_date: str | None = Field(default=None, pattern=r"^\d{4}(-\d{2}-\d{2})?$")
+    nationality: str | None = Field(default=None, max_length=64)
+    # "rfc", "curp", "pasaporte" → valor.
+    identifiers: dict[str, str] = Field(default_factory=dict)
 
 
 class TargetOut(Camel):
@@ -35,6 +40,11 @@ class TargetOut(Camel):
     handles: dict[str, str]
     enabled: bool
     created_at: datetime
+    birth_date: str | None = None
+    nationality: str | None = None
+    identifiers: dict[str, str] = Field(default_factory=dict)
+
+    _no_null = field_validator("identifiers", mode="before")(lambda v: v or {})
 
 
 class MentionOut(Camel):
@@ -80,6 +90,8 @@ class RiskOut(Camel):
     negative: int
     neutral: int
     top_drivers: list[uuid.UUID]
+    # Puntos que sumaron las coincidencias confirmadas en listas negras.
+    watchlist_impact: float = 0
 
     @classmethod
     def of(cls, s: db.RiskSnapshot) -> "RiskOut":
@@ -89,7 +101,7 @@ class RiskOut(Camel):
             color=LEVEL_COLOR[level], media_score=s.media_score, survey_score=s.survey_score,
             negativity=s.negativity, severity=s.severity, volume_anomaly=s.volume_anomaly, mentions=s.mention_count,
             positive=s.positive, negative=s.negative, neutral=s.neutral,
-            top_drivers=[uuid.UUID(str(d)) for d in s.top_drivers or []],
+            top_drivers=[uuid.UUID(str(d)) for d in s.top_drivers or []], watchlist_impact=s.watchlist_impact or 0,
         )
 
 

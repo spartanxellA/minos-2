@@ -11,7 +11,8 @@ from ..bus import Bus
 from ..config import RiskEngineSettings
 from ..domain.mentions import Sentiment
 from ..domain.risk import (
-    LEVEL_LABEL, AlertKind, IndexWeights, VolumeBaseline, evaluate_alerts, media_risk, reputation_index,
+    LEVEL_LABEL, AlertKind, IndexWeights, VolumeBaseline, WatchlistHit, evaluate_alerts, level_for, media_risk,
+    reputation_index, watchlist_adjust,
 )
 from ..notifications import AlertNotice, Notifier
 from ..schemas import AlertOut, RiskOut
@@ -107,9 +108,18 @@ class RiskEngine:
                 .limit(1)
             )
             index = reputation_index(media.score, survey, IndexWeights(self._s.media_weight, self._s.survey_weight))
+            # Coincidencias confirmadas y vigentes en listas negras.
+            S = db.ScreeningMatch
+            hits = [
+                WatchlistHit(category, (entry or {}).get("status")) for category, entry in (await session.execute(
+                    select(S.category, S.entry).where(S.target_id == target_id, S.status == "confirmed", S.active.is_(True))
+                )).all()
+            ]
+            score = watchlist_adjust(index.score, hits)
+            level = level_for(score)
 
             snapshot = db.RiskSnapshot(
-                target_id=target_id, at=now, index=index.score, level=index.level.value,
+                target_id=target_id, at=now, index=score, level=level.value, watchlist_impact=round(score - index.score, 2),
                 media_score=round(media.score, 2), survey_score=survey,
                 negativity=round(media.negativity, 4), severity=round(media.severity, 4),
                 volume_anomaly=round(media.volume_anomaly, 4), mention_count=media.mention_count,
@@ -128,7 +138,7 @@ class RiskEngine:
                 last_run = last_run.replace(tzinfo=UTC)
             new_mentions = [m for m in scored if last_run is None or m.ingested_at > last_run]
 
-            alerts = evaluate_alerts(day_ago, index.score, media, new_mentions)
+            alerts = evaluate_alerts(day_ago, score, media, new_mentions)
             if any(a.kind in LASTING_ALERTS for a in alerts):
                 A = db.AlertRecord
                 recent = set((await session.scalars(
@@ -153,7 +163,7 @@ class RiskEngine:
             self._notifier.dispatch([
                 AlertNotice(
                     target_id=target_id, target_name=target_name, at=now, kind=a.kind.value, title=a.title,
-                    message=a.message, index=index.score, level_label=LEVEL_LABEL[index.level],
+                    message=a.message, index=score, level_label=LEVEL_LABEL[level],
                     dashboard_url=self._notifier.dashboard_link(target_id), mention_url=urls.get(a.mention_id),
                 )
                 for a in alerts

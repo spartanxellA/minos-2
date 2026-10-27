@@ -14,6 +14,7 @@ from .db import Database
 from .notifications import Notifier
 from .pipeline import IngestionWorker, RiskEngine
 from .pipeline.stream import JetstreamIngestion
+from .watchlists import Screener, WatchlistSync
 
 log = logging.getLogger("minos")
 
@@ -28,6 +29,8 @@ class Runtime:
     engine: RiskEngine
     ingestion: IngestionWorker
     notifier: Notifier
+    watchlists: WatchlistSync
+    screener: Screener
     _tasks: list[asyncio.Task] = field(default_factory=list)
 
     @classmethod
@@ -42,7 +45,9 @@ class Runtime:
         engine = RiskEngine(database, bus, settings.risk_engine, notifier)
         analyzer = NlpServiceAnalyzer(http, settings.nlp_url)
         ingestion = IngestionWorker(database, connectors, analyzer, bus, settings.ingestion)
-        return cls(settings, database, bus, http, connectors, engine, ingestion, notifier)
+        watchlists = WatchlistSync(database, bus, http, settings.watchlists)
+        screener = Screener(database, bus, settings.watchlists, notifier, engine)
+        return cls(settings, database, bus, http, connectors, engine, ingestion, notifier, watchlists, screener)
 
     def spawn(self, coro, name: str) -> None:
         self._tasks.append(asyncio.create_task(coro, name=name))
@@ -55,6 +60,10 @@ class Runtime:
         log.info("Avisos de alertas por: %s", ", ".join(self.notifier.channels) or "solo el tablero")
         self.spawn(self.ingestion.run(), "ingestion")
         self.spawn(self.engine.run(), "risk-engine")
+        if self.settings.watchlists.enabled:
+            log.info("Listas negras: %s", ", ".join(s.slug for s in self.watchlists.sources) or "solo las propias")
+            self.spawn(self.watchlists.run(), "watchlists")
+            self.spawn(self.screener.run(), "screening")
         jetstream = self.settings.connectors.jetstream
         if jetstream.enabled:
             stream = JetstreamIngestion(self.db, self.ingestion, self.bus, self.http, jetstream)

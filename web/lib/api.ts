@@ -12,6 +12,11 @@ export interface Target {
   excludedTerms: string[];
   handles: Record<string, string>;
   enabled: boolean;
+  /** AAAA-MM-DD o AAAA; afina la revisión en listas negras. */
+  birthDate?: string | null;
+  nationality?: string | null;
+  /** "rfc", "curp", "pasaporte" → valor. */
+  identifiers?: Record<string, string>;
 }
 
 export interface Risk {
@@ -31,6 +36,8 @@ export interface Risk {
   negative: number;
   neutral: number;
   topDrivers: string[];
+  /** Puntos que sumaron las coincidencias confirmadas en listas negras. */
+  watchlistImpact: number;
 }
 
 export interface Mention {
@@ -135,6 +142,68 @@ export interface SourcesStatus {
   channels: { channel: string; configured: boolean }[];
 }
 
+export type MatchStatus = "pending" | "confirmed" | "dismissed";
+
+export interface ScreeningMatch {
+  id: number;
+  targetId: string;
+  targetName: string | null;
+  source: string;
+  sourceName: string;
+  category: string;
+  categoryLabel: string;
+  listedName: string;
+  matchedName: string;
+  score: number;
+  strength: "possible" | "strong";
+  reasons: string[];
+  entry: {
+    kind?: string; name?: string; aliases?: string[]; birthDates?: string[]; nationalities?: string[];
+    identifiers?: string[]; programs?: string[]; listedOn?: string | null; status?: string | null;
+    url?: string | null; notes?: string | null;
+  };
+  status: MatchStatus;
+  active: boolean;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  reviewedAt: string | null;
+  reviewedByEmail: string | null;
+  reviewNote: string | null;
+}
+
+export interface Screening {
+  targetId: string;
+  status: "not_screened" | "clear" | "possible" | "confirmed";
+  screenedAt: string | null;
+  pending: number;
+  confirmed: number;
+  matches: ScreeningMatch[];
+  lists: number;
+  disclaimer: string;
+}
+
+export interface Watchlist {
+  slug: string;
+  name: string;
+  publisher: string | null;
+  category: string;
+  categoryLabel: string;
+  custom: boolean;
+  enabled: boolean;
+  configured: boolean;
+  infoUrl: string | null;
+  license: string | null;
+  entryCount: number;
+  lastCheckedAt: string | null;
+  lastChangedAt: string | null;
+  lastError: string | null;
+  uploadedBy: string | null;
+}
+
+export const WATCHLIST_CATEGORIES: Record<string, string> = {
+  pep: "Persona políticamente expuesta", sanctions: "Sanciones", tax: "Fiscal (SAT)", debarment: "Inhabilitación", other: "Otra",
+};
+
 export const SOURCE_LABEL: Record<string, string> = {
   rss: "Noticias", x: "X", youtube: "YouTube", bluesky: "Bluesky", "bluesky-live": "Bluesky en vivo", reddit: "Reddit",
   facebook: "Facebook", instagram: "Instagram", demo: "Demo",
@@ -165,7 +234,7 @@ export interface AuditEvent {
   action: string;
   actionLabel: string;
   success: boolean;
-  entityType: "user" | "target" | null;
+  entityType: "user" | "target" | "watchlist" | null;
   entityId: string | null;
   entityLabel: string | null;
   /** Campo → [antes, después]. */
@@ -250,6 +319,17 @@ export const api = {
     request<SurveyResponse>(`/api/targets/${id}/survey-responses`, { method: "POST", json: { surveyId, answers } }),
   sources: () => get<SourcesStatus>("/api/sources"),
   createTarget: (input: Omit<Target, "id" | "enabled">) => request<Target>("/api/targets", { method: "POST", json: input }),
+  updateTarget: (t: Target) => request<Target>(`/api/targets/${t.id}`, { method: "PUT", json: t }),
+
+  screening: (id: string) => get<Screening>(`/api/targets/${id}/screening`),
+  matches: (status: MatchStatus = "pending") => get<ScreeningMatch[]>(`/api/screening/matches?status=${status}`),
+  reviewMatch: (id: number, decision: MatchStatus, note: string) =>
+    request<ScreeningMatch>(`/api/screening/matches/${id}/review`, { method: "POST", json: { decision, note } }),
+  watchlists: () => get<Watchlist[]>("/api/watchlists"),
+  uploadWatchlist: (name: string, category: string, csv: string) =>
+    request<{ slug: string; entries: number; added: number; changed: number; removed: number }>(
+      "/api/watchlists/custom", { method: "POST", json: { name, category, csv } }),
+  deleteWatchlist: (slug: string) => request<void>(`/api/watchlists/custom/${slug}`, { method: "DELETE" }),
 
   me: () => get<Me>("/api/auth/me"),
   login: (email: string, password: string) => request<Me>("/api/auth/login", { method: "POST", json: { email, password } }),

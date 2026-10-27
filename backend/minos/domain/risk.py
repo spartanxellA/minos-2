@@ -242,3 +242,36 @@ def evaluate_alerts(
                 m.id,
             ))
     return alerts
+
+
+# --- Listas negras --------------------------------------------------------------------------------
+
+# Una sanción confirmada (OFAC, ONU, UE, Reino Unido) deja el índice en riesgo alto sin importar lo que digan las redes.
+SANCTIONS_FLOOR = 85
+# Puntos que suma una coincidencia confirmada de cada tipo de lista. Ser PEP no es negativo, solo expone más.
+WATCHLIST_POINTS = {"sanctions": 20, "tax": 20, "debarment": 20, "other": 20, "pep": 10}
+# Situaciones que aún no son definitivas (SAT 69-B "Presunto"): pesan la mitad.
+TENTATIVE_STATUS = ("presunto",)
+
+
+@dataclass(frozen=True)
+class WatchlistHit:
+    category: str
+    status: str | None = None
+
+
+def watchlist_adjust(score: float, hits: Iterable[WatchlistHit]) -> float:
+    """Índice después de sumar las coincidencias confirmadas: la mayor de cada tipo de lista, con piso por sanciones."""
+    best: dict[str, float] = {}
+    sanctioned = False
+    for h in hits:
+        points = WATCHLIST_POINTS.get(h.category, WATCHLIST_POINTS["other"])
+        if h.status and h.status.strip().lower().startswith(TENTATIVE_STATUS):
+            points /= 2
+        else:
+            sanctioned = sanctioned or h.category == "sanctions"
+        best[h.category] = max(best.get(h.category, 0), points)
+    adjusted = min(score + sum(best.values()), 100)
+    if sanctioned:
+        adjusted = max(adjusted, SANCTIONS_FLOOR)
+    return round(adjusted, 2)

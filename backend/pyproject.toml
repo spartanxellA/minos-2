@@ -18,6 +18,8 @@ dependencies = [
     "alembic>=1.13",
     "redis>=5.0",
     "websockets>=13",
+    # Comparación de nombres para las listas negras.
+    "rapidfuzz>=3.9",
 ]
 
 [project.optional-dependencies]

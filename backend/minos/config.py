@@ -162,6 +162,25 @@ class NotificationSettings(BaseModel):
     whatsapp: WhatsAppSettings = WhatsAppSettings()
 
 
+class WatchlistSettings(BaseModel):
+    # Descarga de las listas oficiales y revisión de los objetivos contra ellas (en el proceso de workers).
+    enabled: bool = True
+    # Listas oficiales activas (ver minos.watchlists.sources): ofac-sdn, ofac-cons, un-sc, eu-fsf, uk-fcdo, sat-69b,
+    # worldbank. Las listas propias (PEP, UIF…) se suben desde el tablero y no dependen de esto.
+    sources: list[str] = Field(default_factory=lambda: [
+        "ofac-sdn", "ofac-cons", "un-sc", "eu-fsf", "uk-fcdo", "sat-69b", "worldbank",
+    ])
+    # Para cambiar la dirección de descarga de una lista: {"uk-fcdo": "https://…"}.
+    urls: dict[str, str] = Field(default_factory=dict)
+    # Llave de la API de empresas inhabilitadas del Banco Mundial; sin ella esa lista no se descarga.
+    worldbank_api_key: str = ""
+    # Si una descarga falla, se reintenta después de este lapso (y no en cada vuelta).
+    retry_after: Duration = timedelta(hours=1)
+    download_timeout: Duration = timedelta(minutes=3)
+    # Cada cuánto se buscan objetivos nuevos o cambiados para revisarlos.
+    screen_every: Duration = timedelta(seconds=30)
+
+
 class AuthSettings(BaseModel):
     # "local": cuentas de minOS con correo y contraseña. "off": sin inicio de sesión, solo en development.
     mode: Literal["local", "off"] = "local"
@@ -197,6 +216,7 @@ class Settings(BaseSettings):
     risk_engine: RiskEngineSettings = RiskEngineSettings()
     connectors: ConnectorSettings = ConnectorSettings()
     notifications: NotificationSettings = NotificationSettings()
+    watchlists: WatchlistSettings = WatchlistSettings()
 
     @property
     def is_development(self) -> bool:
