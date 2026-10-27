@@ -52,9 +52,11 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     texts = [i.text for i in req.items]
     base = sentiment_model.analyze(texts)
 
-    # Solo lo que importa pasa por Claude: negativas, posibles acusaciones o de alto alcance.
+    # Solo lo que importa pasa por Claude: negativas, posibles acusaciones, dudosas (señales mezcladas o débiles,
+    # donde el diccionario más se equivoca) o de alto alcance.
     picked = [i for i, (item, b) in enumerate(zip(req.items, base))
-              if b["sentiment"] == "negative" or b["severe_accusation"] or item.reach >= HIGH_REACH]
+              if b["sentiment"] == "negative" or b["severe_accusation"] or b.get("ambiguous")
+              or item.reach >= HIGH_REACH]
     deep_results = await deep.analyze(req.target, [texts[i] for i in picked])
     for i, d in zip(picked, deep_results):
         if d is None:
