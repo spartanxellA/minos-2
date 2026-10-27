@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .domain.mentions import MentionAnalysis, MentionDraft, fingerprint
+from .domain.screening import EntryKind, WatchlistRecord
 from .domain.targets import MonitoredTarget, TargetKind
 
 Json = JSON().with_variant(JSONB(), "postgresql")
@@ -50,6 +51,11 @@ class Target(Base):
     handles: Mapped[dict[str, str]] = mapped_column(Json, default=dict)
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    # Datos opcionales que afinan la revisión en listas negras.
+    birth_date: Mapped[str | None] = mapped_column(String(10))
+    nationality: Mapped[str | None] = mapped_column(String(64))
+    # "rfc", "curp", "pasaporte" → valor.
+    identifiers: Mapped[dict[str, str]] = mapped_column(Json, default=dict)
 
     def to_domain(self) -> MonitoredTarget:
         return MonitoredTarget(
@@ -145,6 +151,8 @@ class RiskSnapshot(Base):
     negative: Mapped[int] = mapped_column(default=0)
     neutral: Mapped[int] = mapped_column(default=0)
     top_drivers: Mapped[list[str]] = mapped_column(Json, default=list)
+    # Puntos que sumaron las coincidencias confirmadas en listas negras (0 si no hay).
+    watchlist_impact: Mapped[float] = mapped_column(Float, default=0, server_default="0")
 
 
 class SurveyResponse(Base):
@@ -249,3 +257,97 @@ class AuditEvent(Base):
     detail: Mapped[dict | None] = mapped_column(Json)
     ip: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(300))
+
+
+class WatchlistSource(Base):
+    """Una lista negra: oficial (se descarga sola) o propia (la sube un administrador desde un archivo)."""
+
+    __tablename__ = "watchlist_sources"
+
+    slug: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    # sanctions, pep, tax, debarment u other: decide cuánto pesa una coincidencia confirmada en el índice.
+    category: Mapped[str] = mapped_column(String(32))
+    custom: Mapped[bool] = mapped_column(default=False)
+    # Huella del último archivo: si no cambió, no se vuelve a procesar.
+    version: Mapped[str | None] = mapped_column(String(64))
+    entry_count: Mapped[int] = mapped_column(default=0)
+    last_checked_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    last_changed_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    uploaded_by: Mapped[str | None] = mapped_column(String(254))
+
+
+class WatchlistEntry(Base):
+    __tablename__ = "watchlist_entries"
+    __table_args__ = (Index("ux_watchlist_entries_source_external", "source", "external_id", unique=True),)
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(ForeignKey("watchlist_sources.slug", ondelete="CASCADE"))
+    external_id: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(500))
+    aliases: Mapped[list[str]] = mapped_column(Json, default=list)
+    birth_dates: Mapped[list[str]] = mapped_column(Json, default=list)
+    nationalities: Mapped[list[str]] = mapped_column(Json, default=list)
+    identifiers: Mapped[list[str]] = mapped_column(Json, default=list)
+    programs: Mapped[list[str]] = mapped_column(Json, default=list)
+    listed_on: Mapped[str | None] = mapped_column(String(32))
+    status: Mapped[str | None] = mapped_column(String(64))
+    url: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+
+    def to_record(self) -> WatchlistRecord:
+        return WatchlistRecord(
+            source=self.source, external_id=self.external_id, kind=EntryKind(self.kind), name=self.name,
+            aliases=tuple(self.aliases or ()), birth_dates=tuple(self.birth_dates or ()),
+            nationalities=tuple(self.nationalities or ()), identifiers=tuple(self.identifiers or ()),
+            programs=tuple(self.programs or ()), listed_on=self.listed_on, status=self.status, url=self.url,
+            notes=self.notes,
+        )
+
+
+class ScreeningMatch(Base):
+    """Posible coincidencia de un objetivo con un registro de una lista. Guarda una copia del registro tal como
+    estaba, porque la lista puede cambiar o retirarlo. Solo las confirmadas y vigentes (active) suben el riesgo."""
+
+    __tablename__ = "screening_matches"
+    __table_args__ = (
+        Index("ux_screening_target_entry", "target_id", "source", "external_id", unique=True),
+        Index("ix_screening_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    target_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("targets.id", ondelete="CASCADE"))
+    source: Mapped[str] = mapped_column(String(64))
+    external_id: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(32))
+    source_name: Mapped[str] = mapped_column(String(200))
+    listed_name: Mapped[str] = mapped_column(String(500))
+    matched_name: Mapped[str] = mapped_column(String(500))
+    score: Mapped[float] = mapped_column(Float)
+    strength: Mapped[str] = mapped_column(String(16))
+    reasons: Mapped[list[str]] = mapped_column(Json, default=list)
+    entry: Mapped[dict] = mapped_column(Json, default=dict)
+    entry_fingerprint: Mapped[str] = mapped_column(String(64))
+    # pending, confirmed o dismissed.
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    # Falso cuando el registro salió de la lista o el objetivo cambió y ya no coincide.
+    active: Mapped[bool] = mapped_column(default=True)
+    first_seen_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column()
+    reviewed_by_email: Mapped[str | None] = mapped_column(String(254))
+    review_note: Mapped[str | None] = mapped_column(Text)
+
+
+class ScreeningState(Base):
+    """Última revisión de cada objetivo: la llave cambia si cambian sus datos o alguna lista."""
+
+    __tablename__ = "screening_state"
+
+    target_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("targets.id", ondelete="CASCADE"), primary_key=True)
+    key: Mapped[str] = mapped_column(String(64))
+    screened_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)

@@ -48,6 +48,11 @@ def _apply(target: db.Target, body: TargetInput) -> None:
     target.excluded_terms = _clean(body.excluded_terms)
     target.handles = {k.strip(): v.strip() for k, v in body.handles.items() if k.strip() and v.strip()}
     target.enabled = body.enabled
+    target.birth_date = body.birth_date or None
+    target.nationality = (body.nationality or "").strip() or None
+    target.identifiers = {
+        k.strip().lower(): v.strip().upper() for k, v in body.identifiers.items() if k.strip() and v.strip()
+    }
 
 
 async def _target_or_404(session: AsyncSession, target_id: uuid.UUID) -> db.Target:
@@ -103,7 +108,8 @@ async def delete_target(target_id: uuid.UUID, session: Session, request: Request
     audit.record(session, request, "target.deleted", me, entity_type="target", entity_id=target.id,
                  entity_label=target.name, changes=audit.diff(audit.target_snapshot(target), {}))
     # Se borra en orden para no depender de ON DELETE CASCADE (SQLite en pruebas no lo aplica por defecto).
-    for model in (db.Mention, db.ConnectorState, db.RiskSnapshot, db.SurveyResponse, db.AlertRecord):
+    for model in (db.Mention, db.ConnectorState, db.RiskSnapshot, db.SurveyResponse, db.AlertRecord,
+                  db.ScreeningMatch, db.ScreeningState):
         await session.execute(delete(model).where(model.target_id == target_id))
     await session.execute(delete(db.Target).where(db.Target.id == target_id))
     await session.commit()

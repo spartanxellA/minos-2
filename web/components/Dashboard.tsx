@@ -6,6 +6,8 @@ import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Target } 
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
 import { AuditDialog } from "./AuditDialog";
+import { ScreeningCard } from "./Screening";
+import { WatchlistsDialog } from "./WatchlistsDialog";
 import { useLiveTarget } from "@/lib/useLiveTarget";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
@@ -20,8 +22,9 @@ const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-di
 const NOTIFY_KEY = "minos.notify";
 
 export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }) {
-  const [dialog, setDialog] = useState<"users" | "password" | "sources" | "audit" | null>(null);
+  const [dialog, setDialog] = useState<"users" | "password" | "sources" | "audit" | "watchlists" | null>(null);
   const [sourceErrors, setSourceErrors] = useState(0);
+  const [pendingMatches, setPendingMatches] = useState(0);
   const [targets, setTargets] = useState<Target[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [notify, setNotify] = useState(false);
@@ -39,8 +42,10 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   // Cuántas fuentes tienen algún objetivo con error, para avisar en el botón "Fuentes".
   useEffect(() => {
     const load = () => api.sources().then((s) => setSourceErrors(s.sources.filter((x) => x.errors.length).length)).catch(() => {});
+    const loadMatches = () => api.matches("pending").then((m) => setPendingMatches(m.length)).catch(() => {});
     load();
-    const timer = setInterval(load, 5 * 60_000);
+    loadMatches();
+    const timer = setInterval(() => { load(); loadMatches(); }, 5 * 60_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -69,6 +74,8 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     }
   }
 
+  // Momentos en que se confirmó una coincidencia en listas negras: se marcan en la gráfica.
+  const confirmations = (live.screening?.matches ?? []).filter((m) => m.status === "confirmed" && m.reviewedAt);
   const trend: EChartsOption = useMemo(() => ({
     grid: { left: phone ? 32 : 40, right: phone ? 8 : 16, top: 16, bottom: 28 },
     tooltip: { trigger: "axis", confine: true, valueFormatter: (v) => `${Number(v).toFixed(1)}` },
@@ -83,8 +90,13 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
         [{ yAxis: 25, itemStyle: { color: "#c9a800" } }, { yAxis: 50 }],
         [{ yAxis: 50, itemStyle: { color: "#d32f2f" } }, { yAxis: 100 }],
       ] },
+      markLine: confirmations.length ? {
+        symbol: "none", lineStyle: { color: "#d32f2f", type: "dashed" },
+        label: { formatter: "Lista negra", fontSize: 10 },
+        data: confirmations.map((m) => ({ xAxis: m.reviewedAt!, name: `${m.listedName} · ${m.sourceName}` })),
+      } : undefined,
     }],
-  }), [live.risk, phone]);
+  }), [live.risk, phone, live.screening]);
 
   const radar: EChartsOption = useMemo(() => ({
     tooltip: { confine: true },
@@ -131,6 +143,10 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
           title="Qué fuentes están activas, qué trajeron y cuáles fallan">
           Fuentes{sourceErrors > 0 && <span className="badge" aria-label={`${sourceErrors} con error`}>{sourceErrors}</span>}
         </button>
+        <button type="button" className="ghost sources" onClick={() => setDialog("watchlists")}
+          title="Coincidencias pendientes de revisar y estado de las listas negras">
+          Listas{pendingMatches > 0 && <span className="badge" aria-label={`${pendingMatches} pendientes`}>{pendingMatches}</span>}
+        </button>
         <div className="spacer" />
         {can(user, "analyst") && (
           <button type="button" className={`add ${adding ? "" : "ghost"}`} onClick={() => setAdding(!adding)} aria-expanded={adding}>
@@ -160,6 +176,10 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       {dialog === "sources" && <SourcesDialog onClose={() => setDialog(null)} onLoaded={setSourceErrors} />}
       {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
       {dialog === "audit" && <AuditDialog onClose={() => setDialog(null)} />}
+      {dialog === "watchlists" && (
+        <WatchlistsDialog canReview={can(user, "analyst")} isAdmin={can(user, "admin")}
+          onClose={() => { setDialog(null); live.refreshScreening(); }} onChanged={setPendingMatches} />
+      )}
 
       <main>
         {!selectedTarget ? (
@@ -178,6 +198,9 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
                 <span>Medios</span><b>{latest ? latest.mediaScore.toFixed(1) : "–"}</b>
                 <span>Cuestionario</span><b>{latest?.surveyScore != null ? latest.surveyScore.toFixed(1) : "sin contestar"}</b>
                 <span>Menciones 24 h</span><b>{latest ? fmt.format(latest.mentions) : "–"}</b>
+                {latest && latest.watchlistImpact > 0 && (
+                  <><span>Listas negras</span><b style={{ color: "var(--neg)" }}>+{latest.watchlistImpact.toFixed(1)}</b></>
+                )}
               </div>
               {latest && (
                 <div style={{ marginTop: 12 }}>
@@ -212,6 +235,10 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
             <SurveyCard key={selectedTarget.id} targetId={selectedTarget.id} targetName={selectedTarget.name}
               surveyScore={latest?.surveyScore} canAnswer={can(user, "analyst")} />
 
+            <ScreeningCard key={`s-${selectedTarget.id}`} target={selectedTarget} screening={live.screening}
+              canReview={can(user, "analyst")} onChanged={() => { live.refreshScreening(); api.matches("pending").then((m) => setPendingMatches(m.length)).catch(() => {}); }}
+              onTargetSaved={(t) => setTargets((p) => p.map((x) => (x.id === t.id ? t : x)))} />
+
             <section className="card span-3">
               <h2>Alertas</h2>
               {live.alerts.length === 0 ? <div className="empty">Sin alertas</div> : (
@@ -223,7 +250,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
               )}
             </section>
 
-            <section className="card span-7">
+            <section className="card span-5">
               <h2>Menciones en vivo</h2>
               {live.mentions.length === 0 ? <div className="empty">Aún no hay menciones.</div> : (
                 <ul className="feed">
@@ -244,7 +271,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
               )}
             </section>
 
-            <section className="card span-5">
+            <section className="card span-4">
               <h2>Cuentas con mayor alcance (24 h)</h2>
               <div className="scroll-x"><table>
                 <thead><tr><th>Cuenta</th><th className="num">Seguidores</th><th className="num">Menciones</th><th className="num">Negativas</th></tr></thead>

@@ -108,6 +108,42 @@ Cada aviso trae el objetivo, la alerta, el índice actual, el enlace a la menci�
 negativas se registra y avisa una sola vez cada 6 horas por objetivo (`MINOS_RISK_ENGINE__ALERT_COOLDOWN`), aunque
 la condición siga activa en cada recálculo. Un canal que falla queda en el registro y no frena a los demás.
 
+## Listas negras (screening)
+
+Cada objetivo (persona, empresa, institución o área de gobierno) se revisa contra estas listas:
+
+| Lista | Tipo | Frecuencia | Licencia |
+| --- | --- | --- | --- |
+| OFAC SDN y lista consolidada (no SDN) | Sanciones | cada 6 h | Dominio público |
+| ONU, lista consolidada del Consejo de Seguridad | Sanciones | diaria | Pública, citar la fuente |
+| UE, sanciones financieras consolidadas | Sanciones | diaria | Reutilización citando la fuente |
+| Reino Unido, UK Sanctions List (FCDO) | Sanciones | diaria | Open Government Licence |
+| SAT, artículo 69-B (presuntos y definitivos; se omiten desvirtuados) | Fiscal | diaria | Pública |
+| Banco Mundial, inhabilitados (solo con `WORLDBANK_API_KEY`) | Inhabilitación | diaria | Pública, citar la fuente |
+| Listas propias: PEP, UIF (solo sujetos obligados), SESNA… | La que se elija | al subirla | La del dueño del archivo |
+
+- El worker descarga cada lista (`minos.watchlists.sync`); si el archivo no cambió no se procesa, y si una descarga
+  falla se conserva la versión anterior y el error aparece en el tablero (botón "Listas" → pestaña "Listas").
+- Las listas propias se suben desde el tablero (solo administradores), en CSV o JSON. La única columna obligatoria es
+  el nombre (`name`/`nombre`, o `nombre(s)` + apellidos). Se usan también `alias`, `birth_date`, `nationality`, `rfc`,
+  `curp`, `id_num`, `list`, `position`, `department`, `program`, `publication_date`, `status` y `location`. Una lista
+  con el mismo nombre se reemplaza.
+- Coincidencia (`minos.domain.screening`): nombres sin acentos, títulos ni formas jurídicas, en cualquier orden, con
+  tolerancia a errores de ortografía (Jaro-Winkler y una clave fonética para el español) y a un segundo apellido
+  ausente. Se muestran las de 80 % o más. Un RFC, CURP o pasaporte igual da 100 %; un RFC distinto resta 30, una fecha
+  de nacimiento distinta resta 25 y una nacionalidad distinta resta 10. Fuerte = 95 % o más con un dato extra igual.
+  Los alias de baja calidad y en alfabetos no latinos no se comparan. Los países no se revisan.
+- Cada objetivo se revisa en menos de un minuto al crearlo o editarlo, y otra vez cuando cambia alguna lista.
+- Toda coincidencia nace pendiente y avisa como alerta. Un analista la confirma o la descarta con nota obligatoria
+  (queda en la auditoría). Una descartada no vuelve a avisar salvo que el registro cambie en la lista.
+- Efecto en el IRR (solo las confirmadas y vigentes): una sanción deja el índice en 85 como mínimo; fiscal,
+  inhabilitación u otra suman 20; PEP suma 10 (ser PEP no es negativo, solo expone más); un "Presunto" del SAT pesa la
+  mitad. Se toma la mayor de cada tipo de lista. La gráfica marca el momento de cada confirmación.
+- Rutas: `GET /api/targets/{id}/screening`, `GET /api/screening/matches?status=pending`,
+  `POST /api/screening/matches/{id}/review`, `GET /api/watchlists`, `POST/DELETE /api/watchlists/custom`.
+- Aviso legal: una coincidencia de nombre no prueba identidad; el tablero lo dice siempre. Se tratan datos personales,
+  así que la finalidad debe estar en el aviso de privacidad. La lista de la UIF solo la puede usar un sujeto obligado.
+
 ## Índice de Riesgo Reputacional (IRR, 0–100)
 
 - Medios: `M = 100 × (0.5 N + 0.3 S + 0.2 V)`. N es la negatividad ponderada por alcance, S las acusaciones graves
@@ -117,6 +153,7 @@ la condición siga activa en cada recálculo. Un canal que falla queda en el reg
   hay que contestar todas las preguntas: una sin contestar bajaría la sección por debajo de 0. Al guardar se
   recalcula el IRR y el tablero lo recibe en vivo. Historial: `GET /api/targets/{id}/survey-responses`.
 - `IRR = 0.6 M + 0.4 C`; sin cuestionario, `IRR = M`. Umbrales heredados: ≤ 25 bajo, ≤ 50 medio, > 50 alto.
+- Después se suman las coincidencias confirmadas en listas negras (ver arriba).
 - Los pesos se configuran con `MINOS_RISK_ENGINE__MEDIA_WEIGHT` y `MINOS_RISK_ENGINE__SURVEY_WEIGHT`. Son un punto
   de partida para calibrar con datos históricos.
 
@@ -185,5 +222,6 @@ migrado. Las pruebas del bus usan fakeredis, o un Redis real con `MINOS_TEST_RED
 - Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
 - Editar las cuentas propias (`handles`) de un objetivo desde el tablero; hoy se hace por la API.
 - Cuestionario de perfil (PDSurvey) en el tablero, reportes PDF, app móvil con notificaciones push.
+- Sancionados de la SESNA (Plataforma Digital Nacional) por su API; hoy se pueden subir como lista propia.
 - Destinatarios de avisos por objetivo; hoy son los mismos para todos.
 - Recuperar el scraper (Node.js/Python) y el esquema MySQL originales para comparar resultados con la versión anterior.

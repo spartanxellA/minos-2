@@ -36,6 +36,9 @@ ACTIONS = {
     "target.deleted": "Objetivo borrado",
     "survey.submitted": "Cuestionario contestado",
     "audit.exported": "Bitácora exportada",
+    "screening.reviewed": "Coincidencia en lista revisada",
+    "watchlist.uploaded": "Lista propia cargada",
+    "watchlist.deleted": "Lista propia borrada",
 }
 
 # Quien actúa sin sesión: la terminal del servidor (python -m minos.users) o el arranque (primer administrador).
@@ -56,6 +59,7 @@ def target_snapshot(t: db.Target) -> dict[str, Any]:
     return {
         "name": t.name, "kind": t.kind, "aliases": list(t.aliases or []), "keywords": list(t.keywords or []),
         "excludedTerms": list(t.excluded_terms or []), "handles": dict(t.handles or {}), "enabled": t.enabled,
+        "birthDate": t.birth_date, "nationality": t.nationality, "identifiers": dict(t.identifiers or {}),
     }
 
 

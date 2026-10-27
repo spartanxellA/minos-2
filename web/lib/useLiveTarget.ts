@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { WS_URL, api, type Alert, type Breakdown, type Mention, type Risk } from "./api";
+import { WS_URL, api, type Alert, type Breakdown, type Mention, type Risk, type Screening } from "./api";
 
 export type LiveStatus = "connecting" | "live" | "offline";
 
@@ -13,6 +13,7 @@ export function useLiveTarget(targetId: string | null, onAlert?: (alert: Alert) 
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [screening, setScreening] = useState<Screening | null>(null);
   const [status, setStatus] = useState<LiveStatus>("connecting");
 
   useEffect(() => {
@@ -29,6 +30,9 @@ export function useLiveTarget(targetId: string | null, onAlert?: (alert: Alert) 
       })
       .catch(() => setStatus("offline"));
     refreshBreakdown();
+    setScreening(null);
+    const refreshScreening = () => api.screening(targetId).then((s) => !cancelled && setScreening(s)).catch(() => {});
+    refreshScreening();
 
     // Canal en vivo: /ws/targets/{id} manda {event, data}. Se reconecta con espera creciente.
     let socket: WebSocket | null = null;
@@ -43,6 +47,8 @@ export function useLiveTarget(targetId: string | null, onAlert?: (alert: Alert) 
       } else if (event === "mentionsAdded") {
         const added = data as Mention[];
         setMentions((prev) => [...added, ...prev.filter((p) => !added.some((a) => a.id === p.id))].slice(0, 100));
+      } else if (event === "screeningUpdated") {
+        setScreening(data as Screening);
       } else if (event === "alertRaised") {
         const alert = data as Alert;
         setAlerts((prev) => [{ ...alert, at: alert.at ?? new Date().toISOString() }, ...prev].slice(0, 50));
@@ -84,5 +90,8 @@ export function useLiveTarget(targetId: string | null, onAlert?: (alert: Alert) 
     };
   }, [targetId]);
 
-  return { risk, mentions, breakdown, alerts, status, latest: risk.at(-1) ?? null };
+  return {
+    risk, mentions, breakdown, alerts, status, latest: risk.at(-1) ?? null, screening,
+    refreshScreening: () => targetId && api.screening(targetId).then(setScreening).catch(() => {}),
+  };
 }

@@ -250,3 +250,34 @@ button.more { display: block; margin: 10px auto; }
   table.audit tr.audit-detail { padding: 0 0 8px; }
   table.audit tr.audit-detail > td { padding: 8px; border-radius: 8px; }
 }
+
+/* Listas negras */
+.pill-state { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 600; font-size: 12px; border: 1px solid currentColor; }
+.pill-state.ok { color: var(--pos); } .pill-state.warn { color: var(--warn); } .pill-state.error { color: #fff; background: var(--neg); border-color: var(--neg); }
+.pill-state.muted { color: var(--muted); }
+.warn { color: var(--warn); }
+.hit { font-size: 12px; padding: 6px 0 6px 8px; margin-top: 6px; border-left: 3px solid var(--warn); }
+.hit.confirmed { border-left-color: var(--neg); }
+.disclaimer { font-size: 12px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 12%, transparent); margin: 0 0 12px; }
+.identity { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.identity .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.identity label, .upload label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.identity input, .upload input, .upload select { color: var(--ink); }
+.identity button { align-self: flex-start; }
+.match { border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
+.match.confirmed { border-left-color: var(--neg); } .match.dismissed { border-left-color: var(--neu); opacity: .8; }
+.match.retired { opacity: .65; }
+.match header { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.match .score { display: flex; gap: 6px; align-items: center; }
+.match .reasons { margin: 6px 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+.match dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 4px 12px; margin: 6px 0; }
+.match dt { font-size: 11px; color: var(--muted); } .match dd { margin: 0; overflow-wrap: anywhere; }
+.match a { color: var(--accent); font-size: 12px; }
+.match .review { margin-top: 6px; font-size: 12px; }
+.match .state.confirmed { color: var(--neg); font-weight: 600; } .match .state.pending { color: var(--warn); font-weight: 600; }
+.match .note { margin: 4px 0 0; font-style: italic; }
+.match .decide { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.match .decide input { flex: 1 1 220px; min-width: 0; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.upload { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+table.sources code { display: block; font-size: 11px; color: var(--neg); white-space: pre-wrap; overflow-wrap: anywhere; }
