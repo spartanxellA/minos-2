@@ -35,7 +35,7 @@ def test_ambiguous_items_go_to_deep_analysis(monkeypatch):
 
     seen: list[list[str]] = []
 
-    async def fake_analyze(target, texts):
+    async def fake_analyze(target, texts, examples=None):
         seen.append(texts)
         return [None] * len(texts)
 
@@ -44,3 +44,19 @@ def test_ambiguous_items_go_to_deep_analysis(monkeypatch):
                                         {"text": "Lula no es malo, solo le falta apoyo en el congreso"}]}
     assert client.post("/v1/analyze", json=body).status_code == 200
     assert seen == [["Lula no es malo, solo le falta apoyo en el congreso"]]
+
+
+def test_examples_reach_deep_analysis(monkeypatch):
+    from minos_nlp import app as app_module
+
+    got: list = []
+
+    async def fake_analyze(target, texts, examples=None):
+        got.append(examples)
+        return [None] * len(texts)
+
+    monkeypatch.setattr(app_module.deep, "analyze", fake_analyze)
+    body = {"target": "Alito", "items": [{"text": "Alito agrede a ciudadano"}],
+            "examples": [{"text": "Alito pierde los estribos", "sentiment": "negative"}]}
+    assert client.post("/v1/analyze", json=body).status_code == 200
+    assert got == [[{"text": "Alito pierde los estribos", "sentiment": "negative"}]]
