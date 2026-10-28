@@ -51,6 +51,9 @@ def test_targets_crud_uses_camel_case(client):
     assert updated["kind"] == "GovernmentArea"
     assert [x["id"] for x in client.get("/api/targets").json()] == [t["id"]]
 
+    # Solo se borra lo que ya está dado de baja.
+    assert client.delete(f"/api/targets/{t['id']}").status_code == 409
+    assert client.post(f"/api/targets/{t['id']}/deactivate", json={"reason": "Duplicado"}).status_code == 200
     assert client.delete(f"/api/targets/{t['id']}").status_code == 204
     assert client.get(f"/api/targets/{t['id']}").status_code == 404
 

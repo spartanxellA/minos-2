@@ -17,7 +17,15 @@ export interface Target {
   nationality?: string | null;
   /** "rfc", "curp", "pasaporte" → valor. */
   identifiers?: Record<string, string>;
+  createdAt?: string;
+  updatedAt?: string | null;
+  /** Baja lógica: enabled=false, con fecha, quién y por qué. */
+  deactivatedAt?: string | null;
+  deactivatedByEmail?: string | null;
+  deactivationReason?: string | null;
 }
+
+export type TargetInput = Omit<Target, "id" | "enabled" | "createdAt" | "updatedAt" | "deactivatedAt" | "deactivatedByEmail" | "deactivationReason">;
 
 export interface Risk {
   targetId: string;
@@ -355,8 +363,12 @@ export const api = {
   submitSurvey: (id: string, surveyId: string, answers: Record<string, string>) =>
     request<SurveyResponse>(`/api/targets/${id}/survey-responses`, { method: "POST", json: { surveyId, answers } }),
   sources: () => get<SourcesStatus>("/api/sources"),
-  createTarget: (input: Omit<Target, "id" | "enabled">) => request<Target>("/api/targets", { method: "POST", json: input }),
-  updateTarget: (t: Target) => request<Target>(`/api/targets/${t.id}`, { method: "PUT", json: t }),
+  createTarget: (input: TargetInput) => request<Target>("/api/targets", { method: "POST", json: input }),
+  updateTarget: (t: TargetInput & { id: string }) => request<Target>(`/api/targets/${t.id}`, { method: "PUT", json: t }),
+  deactivateTarget: (id: string, reason: string) =>
+    request<Target>(`/api/targets/${id}/deactivate`, { method: "POST", json: { reason } }),
+  reactivateTarget: (id: string) => request<Target>(`/api/targets/${id}/reactivate`, { method: "POST" }),
+  deleteTarget: (id: string) => request<void>(`/api/targets/${id}`, { method: "DELETE" }),
 
   screening: (id: string) => get<Screening>(`/api/targets/${id}/screening`),
   matches: (status: MatchStatus = "pending") => get<ScreeningMatch[]>(`/api/screening/matches?status=${status}`),

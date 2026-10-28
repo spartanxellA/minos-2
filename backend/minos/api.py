@@ -1,17 +1,17 @@
 """Rutas REST bajo /api y el WebSocket del tablero."""
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import audit, db
 from .auth import CurrentUser, Role, current_user, require_role, websocket_user
 from .domain.mentions import Sentiment
 from .schemas import (
-    AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, Influencer, MentionOut, RiskOut, SourceError,
+    AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, DeactivateInput, Influencer, MentionOut, RiskOut, SourceError,
     SourceSentimentCount, SourceStatus, SourcesOut, SurveyResponseOut, SurveySubmission, SurveySummary, TargetInput,
     TargetOut, TopicCount,
 )
@@ -47,7 +47,6 @@ def _apply(target: db.Target, body: TargetInput) -> None:
     target.keywords = _clean(body.keywords)
     target.excluded_terms = _clean(body.excluded_terms)
     target.handles = {k.strip(): v.strip() for k, v in body.handles.items() if k.strip() and v.strip()}
-    target.enabled = body.enabled
     target.birth_date = body.birth_date or None
     target.nationality = (body.nationality or "").strip() or None
     target.identifiers = {
@@ -65,9 +64,29 @@ async def _target_or_404(session: AsyncSession, target_id: uuid.UUID) -> db.Targ
 # --- Objetivos ------------------------------------------------------------------------------------
 
 
+# Campos que cambian lo que se busca en las fuentes; si cambian, los cursores vuelven a empezar.
+SEARCH_FIELDS = ("name", "aliases", "keywords", "excludedTerms", "handles")
+
+
+async def _check_unique(session: AsyncSession, body: TargetInput, exclude: uuid.UUID | None = None) -> None:
+    name = body.name.strip().lower()
+    query = select(db.Target).where(func.lower(db.Target.name) == name, db.Target.kind == body.kind.value)
+    if exclude is not None:
+        query = query.where(db.Target.id != exclude)
+    other = (await session.scalars(query.limit(1))).first()
+    if other is not None:
+        state = "activo" if other.enabled else "dado de baja"
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Ya existe un objetivo «{other.name}» del mismo tipo ({state}).")
+
+
 @router.get("/targets", response_model=list[TargetOut])
-async def list_targets(session: Session):
-    return (await session.scalars(select(db.Target).order_by(db.Target.name))).all()
+async def list_targets(
+    session: Session, target_status: Annotated[Literal["active", "inactive", "all"], Query(alias="status")] = "all",
+):
+    query = select(db.Target).order_by(db.Target.name)
+    if target_status != "all":
+        query = query.where(db.Target.enabled.is_(target_status == "active"))
+    return (await session.scalars(query)).all()
 
 
 @router.get("/targets/{target_id}", response_model=TargetOut)
@@ -79,7 +98,8 @@ async def get_target(target_id: uuid.UUID, session: Session):
 async def create_target(body: TargetInput, session: Session, response: Response, request: Request, me: Me):
     if not body.name.strip():
         raise HTTPException(422, "El nombre es obligatorio.")
-    target = db.Target(id=uuid.uuid4(), created_at=datetime.now(UTC))
+    await _check_unique(session, body)
+    target = db.Target(id=uuid.uuid4(), created_at=datetime.now(UTC), enabled=True)
     _apply(target, body)
     session.add(target)
     audit.record(session, request, "target.created", me, entity_type="target", entity_id=target.id,
@@ -91,22 +111,70 @@ async def create_target(body: TargetInput, session: Session, response: Response,
 
 @router.put("/targets/{target_id}", response_model=TargetOut, dependencies=Analyst)
 async def update_target(target_id: uuid.UUID, body: TargetInput, session: Session, request: Request, me: Me):
+    """Cambia los datos del objetivo (también de uno dado de baja). La revisión en listas se repite sola en menos
+    de un minuto si cambió el nombre, un alias, el tipo, la fecha de nacimiento, la nacionalidad o un documento."""
+    if not body.name.strip():
+        raise HTTPException(422, "El nombre es obligatorio.")
     target = await _target_or_404(session, target_id)
+    await _check_unique(session, body, exclude=target_id)
     before = audit.target_snapshot(target)
     _apply(target, body)
     changes = audit.diff(before, audit.target_snapshot(target))
     if changes:
+        target.updated_at = datetime.now(UTC)
+        if any(f in changes for f in SEARCH_FIELDS):
+            # Con otro nombre o alias la búsqueda es otra: se vuelve a traer lo reciente en lugar de seguir el
+            # cursor de la búsqueda anterior. Las menciones ya guardadas se quedan como historia.
+            await session.execute(update(db.ConnectorState).where(db.ConnectorState.target_id == target_id)
+                                  .values(value=None))
         audit.record(session, request, "target.updated", me, entity_type="target", entity_id=target.id,
                      entity_label=target.name, changes=changes)
     await session.commit()
     return target
 
 
+@router.post("/targets/{target_id}/deactivate", response_model=TargetOut, dependencies=Analyst)
+async def deactivate_target(target_id: uuid.UUID, body: DeactivateInput, session: Session, request: Request, me: Me):
+    """Baja lógica: deja de buscarse en las fuentes, de recalcularse y de revisarse en listas, pero conserva
+    menciones, gráficas, cuestionarios y coincidencias, y se puede reactivar."""
+    target = await _target_or_404(session, target_id)
+    if not target.enabled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "El objetivo ya está dado de baja.")
+    reason = body.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(422, "Escribe el motivo de la baja.")
+    target.enabled = False
+    target.deactivated_at, target.deactivated_by_email, target.deactivation_reason = datetime.now(UTC), me.email, reason
+    audit.record(session, request, "target.deactivated", me, entity_type="target", entity_id=target.id,
+                 entity_label=target.name, changes={"enabled": [True, False]}, detail={"reason": reason})
+    await session.commit()
+    return target
+
+
+@router.post("/targets/{target_id}/reactivate", response_model=TargetOut, dependencies=Analyst)
+async def reactivate_target(target_id: uuid.UUID, session: Session, request: Request, me: Me):
+    target = await _target_or_404(session, target_id)
+    if target.enabled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "El objetivo ya está activo.")
+    detail = {"deactivatedAt": target.deactivated_at.isoformat() if target.deactivated_at else None,
+              "reason": target.deactivation_reason}
+    target.enabled = True
+    target.deactivated_at = target.deactivated_by_email = target.deactivation_reason = None
+    audit.record(session, request, "target.reactivated", me, entity_type="target", entity_id=target.id,
+                 entity_label=target.name, changes={"enabled": [False, True]}, detail=detail)
+    await session.commit()
+    return target
+
+
 @router.delete("/targets/{target_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=Admin)
 async def delete_target(target_id: uuid.UUID, session: Session, request: Request, me: Me):
+    """Borrado definitivo, con toda su historia. Solo para objetivos ya dados de baja."""
     target = await _target_or_404(session, target_id)
+    if target.enabled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Primero da de baja el objetivo; solo se borran los dados de baja.")
     audit.record(session, request, "target.deleted", me, entity_type="target", entity_id=target.id,
-                 entity_label=target.name, changes=audit.diff(audit.target_snapshot(target), {}))
+                 entity_label=target.name, changes=audit.diff(audit.target_snapshot(target), {}),
+                 detail={"reason": target.deactivation_reason})
     # Se borra en orden para no depender de ON DELETE CASCADE (SQLite en pruebas no lo aplica por defecto).
     for model in (db.Mention, db.ConnectorState, db.RiskSnapshot, db.SurveyResponse, db.AlertRecord,
                   db.ScreeningMatch, db.ScreeningState):

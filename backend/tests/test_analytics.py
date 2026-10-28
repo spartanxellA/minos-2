@@ -94,7 +94,8 @@ def test_yearly_filters_by_kind_and_source_and_skips_inactive(client):
     news = client.get(URL, params={"since": "2026-01", "until": "2026-03", "source": "rss"}).json()
     assert [(s["name"], s["mentions"]) for s in news["ranking"]] == [("Ana López", 2), ("Narnia", 1), ("Acme", 0)]
 
-    client.put(f"/api/targets/{acme['id']}", json={"name": "Acme", "kind": "Company", "enabled": False})
+    r = client.post(f"/api/targets/{acme['id']}/deactivate", json={"reason": "Ya no se monitorea"})
+    assert r.status_code == 200, r.text
     active = client.get(URL, params={"since": "2026-01", "until": "2026-03"}).json()
     assert "Acme" not in [s["name"] for s in active["ranking"]]
     assert all(x["kind"] != "Company" for x in active["mentionsByKind"])
