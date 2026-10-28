@@ -145,10 +145,11 @@ def normalize_date(value: str | None) -> str | None:
     if not value:
         return None
     v = value.strip()
+    # Día o mes en 00 ("00/00/1964"): solo se sabe el año.
     if m := re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})(?:T.*)?", v):
-        return f"{m[1]}-{int(m[2]):02d}-{int(m[3]):02d}"
+        return f"{m[1]}-{int(m[2]):02d}-{int(m[3]):02d}" if int(m[2]) and int(m[3]) else m[1]
     if m := re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", v):
-        return f"{m[3]}-{int(m[2]):02d}-{int(m[1]):02d}"
+        return f"{m[3]}-{int(m[2]):02d}-{int(m[1]):02d}" if int(m[2]) and int(m[1]) else m[3]
     if m := re.fullmatch(r"(\d{1,2}) ([A-Za-z]{3})[a-z]* (\d{4})", v):
         month = MONTHS.get(m[2].lower())
         return f"{m[3]}-{month:02d}-{int(m[1]):02d}" if month else m[3]
