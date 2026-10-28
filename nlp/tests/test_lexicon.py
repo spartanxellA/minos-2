@@ -17,6 +17,10 @@ NEGATIVE = [
     "Aunque es honesta, su gabinete es totalmente inepto",
     "Abuchean a Lula en el estadio",
     "Hartos de las promesas de la 4T #FueraMorena",
+    "Alito Moreno pierde los estribos en Baja California y encara a valiente ciudadano",
+    "Alito Moreno agrede a Ciudadano",
+    "Diputado golpea a un reportero",
+    "El senador se enojó y arremetió contra los reporteros",
 ]
 NEUTRAL = [
     "La presidenta se reunió con empresarios en Monterrey",
@@ -49,6 +53,11 @@ def test_negation_flips_and_softens():
     assert lexicon.analyze("No es bueno")["sentiment"] == "negative"
     # "no es malo" solo es tibiamente positivo
     assert 0 < lexicon.analyze("No es malo")["score"] < lexicon.analyze("Es bueno")["score"]
+
+
+def test_negated_phrase_flips():
+    assert lexicon.analyze("La presidenta no se enoja con sus críticos")["sentiment"] != "negative"
+    assert lexicon.analyze("Sheinbaum encara el reto del agua")["sentiment"] == "neutral"
 
 
 def test_intensifier_raises_weight():

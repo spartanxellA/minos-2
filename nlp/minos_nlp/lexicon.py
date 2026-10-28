@@ -15,13 +15,13 @@ import unicodedata
 POSITIVE: dict[str, float] = {
     # calidad y desempeño
     "excelente": 2, "bueno": 1, "buena": 1, "buenos": 1, "buenas": 1, "buen": 1, "mejor": 1, "mejores": 1,
-    "gran": 1, "grandes": 1, "genial": 1.5, "increible": 1, "impecable": 1.5, "eficaz": 1, "eficiente": 1,
+    "genial": 1.5, "increible": 1, "impecable": 1.5, "eficaz": 1, "eficiente": 1,
     "eficientes": 1, "capaz": 1, "competente": 1, "acertad*": 1, "brillante": 1.5, "magnific*": 1.5,
     "extraordinari*": 1.5, "maravillos*": 1.5, "estupend*": 1.5, "positiv*": 1, "favorable*": 1, "solid*": 0.5,
     "exitos*": 1.5, "exito": 1.5, "exitos": 1.5, "logro": 1, "logros": 1, "logra": 1, "lograron": 1, "logramos": 1,
     "avance": 1, "avances": 1, "avanza": 0.5, "progreso": 1, "crecimiento": 0.5, "crece": 0.5, "mejora": 1,
     "mejoras": 1, "mejoro": 1, "beneficio": 1, "beneficios": 1, "beneficia": 1, "gano": 1, "gana": 1, "ganamos": 1,
-    "triunfo": 1.5, "triunfa": 1.5, "victoria": 1, "record": 0.5, "histori*": 0.5,
+    "triunfo": 1.5, "triunfa": 1.5, "victoria": 1,
     # ética
     "honest*": 1.5, "honrad*": 1.5, "integridad": 1.5, "transparente": 1.5, "transparencia": 1, "etic*": 0.5,
     "confiable": 1, "confianza": 1, "responsable": 0.5, "justo": 1, "justa": 1, "justicia": 0.5, "legitim*": 0.5,
@@ -61,9 +61,14 @@ NEGATIVE: dict[str, float] = {
     "mentir*": 2, "mentira*": 2, "mentiros*": 2, "mintio": 2, "miente": 2, "mienten": 2, "falso": 1.5,
     "falsa": 1.5, "falsos": 1.5, "falsedad*": 1.5, "hipocrit*": 2, "hipocresia": 2, "cinic*": 2, "descarad*": 2,
     "manipul*": 1.5, "propaganda": 1, "arrogan*": 1.5, "soberbi*": 1.5, "prepoten*": 1.5, "abuso": 2, "abusos": 2,
-    "abusiv*": 2, "amenaz*": 1.5, "ataque*": 1, "ataca*": 1, "agresion*": 1.5, "odio": 2, "odia*": 2,
+    "abusiv*": 2, "amenaz*": 1.5, "ataque*": 1, "ataca*": 1, "agresion*": 1.5, "agred*": 2, "agresor*": 2,
+    "golpe*": 2, "golpea*": 2, "cachetad*": 2, "bofetad*": 2, "patea*": 1.5, "pateo": 1.5, "patada*": 1.5, "puñetazo*": 2, "punetazo*": 2,
+    "zape": 1.5, "zarandea*": 2, "jaloneo*": 1.5, "jalone*": 1.5, "odio": 2, "odia*": 2,
     "miedo": 1, "peligro*": 1.5, "riesgo": 0.5, "preocupa*": 1, "alarma*": 1, "grave": 1.5, "graves": 1.5,
     "triste": 1, "tristeza": 1, "lamentable": 2, "insult*": 1.5, "ofens*": 1.5, "ofende": 1.5, "burla*": 1.5,
+    "enoj*": 1.5, "furios*": 2, "furia": 2, "colera": 2, "iracund*": 2,
+    "berrinche*": 2, "exabrupto*": 2, "arremet*": 1.5, "zafarrancho": 1.5, "trifulca": 1.5, "pleito*": 1,
+    "empuj*": 1, "manotazo*": 2, "groseri*": 2, "grosero*": 2, "majader*": 2, "altercado*": 1.5,
     "basta": 1, "harto*": 2, "harta*": 2, "hartazgo": 2, "cansad*": 1, "asco": 2, "asqueros*": 2,
     # seguridad
     "violencia": 1.5, "violent*": 1.5, "inseguridad": 1.5, "insegur*": 1, "asesin*": 2, "homicidio*": 2,
@@ -92,6 +97,11 @@ PHRASES: dict[str, float] = {
     "en contra de": -0.5, "fuera de control": -2, "a la deriva": -2, "sin rumbo": -2, "mano dura": -0.5,
     "lo peor": -2, "el peor": -2, "la peor": -2, "nunca mas": -1.5, "hasta la madre": -2.5, "cero empatia": -2,
     "falta de": -1, "le falta": -1, "les falta": -1, "carece de": -1, "brilla por su ausencia": -2, "tomadura de pelo": -2, "pura grilla": -1.5,
+    # pérdida de control: enojo, pleitos, berrinches
+    "pierde los estribos": -2.5, "perdio los estribos": -2.5, "pierde la paciencia": -2,
+    "perdio la paciencia": -2, "pierde el control": -2, "perdio el control": -2, "se le sale": -1,
+    "se enoja": -2, "se enojo": -2, "se molesta": -1.5, "se molesto": -1.5, "se pone loco": -2,
+    "encara a": -1.5, "encaro a": -1.5, "se lanza contra": -1.5, "arremete contra": -2, "la emprende contra": -2, "se le va encima": -2,
     "muy bien": 1.5, "buen trabajo": 2, "gran trabajo": 2, "bien hecho": 2, "sigue asi": 1.5, "vamos bien": 1,
     "estamos contigo": 2, "todo mi apoyo": 2, "mis respetos": 2, "a favor de": 0.5, "mano firme": 0.5,
 }
@@ -181,7 +191,11 @@ def _clause_score(clause: str) -> tuple[float, float]:
     for phrase, weight in _PHRASES:
         padded = f" {phrase} "
         while padded in clause:
-            pos, neg = (pos + weight, neg) if weight > 0 else (pos, neg - weight)
+            at = clause.index(padded)
+            w = weight
+            if any(x in NEGATORS for x in clause[:at].split()[-2:]):
+                w = -w * (0.9 if w > 0 else 0.5)  # "no se enoja", "no hizo un buen trabajo"
+            pos, neg = (pos + w, neg) if w > 0 else (pos, neg - w)
             clause = clause.replace(padded, " _ ", 1)  # las palabras de la frase no cuentan otra vez
     words = clause.split()
     for i, word in enumerate(words):
