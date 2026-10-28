@@ -347,3 +347,12 @@ form.deactivate input { flex: 1 1 260px; min-width: 0; }
   form.deactivate > * { flex: 1 1 100%; }
   .target-editor .actions > * { flex: 1; }
 }
+
+/* Sentimiento editable por analistas: la etiqueta es un select con el mismo aspecto. */
+.sentiment-picker { background: transparent; font: inherit; font-size: 11px; cursor: pointer; padding: 0 2px; }
+.sentiment-picker option { color: var(--ink); background: var(--panel); }
+@media (max-width: 640px) {
+  /* 16 px evita el zoom de iOS al tocar; un poco más bajo que los demás controles para no estirar la tarjeta. */
+  .feed .meta { align-items: center; }
+  .feed select.sentiment-picker { min-height: 34px; padding: 0 4px; }
+}

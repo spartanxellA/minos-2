@@ -14,7 +14,11 @@ _SENTIMENT = {"negative": Sentiment.NEGATIVE, "positive": Sentiment.POSITIVE, "n
 
 
 class MentionAnalyzer(Protocol):
-    async def analyze(self, drafts: Sequence[MentionDraft], target_name: str) -> list[MentionAnalysis]: ...
+    async def analyze(
+        self, drafts: Sequence[MentionDraft], target_name: str, examples: Sequence[dict] = (),
+    ) -> list[MentionAnalysis]:
+        """`examples`: correcciones de los analistas ({"text", "sentiment"}) que guían al análisis profundo."""
+        ...
 
 
 def _from_dict(d: dict) -> MentionAnalysis:
@@ -31,7 +35,9 @@ def _from_dict(d: dict) -> MentionAnalysis:
 class LexiconAnalyzer:
     """Diccionario en español, el mismo del servicio de NLP. Deliberadamente simple: es el respaldo."""
 
-    async def analyze(self, drafts: Sequence[MentionDraft], target_name: str) -> list[MentionAnalysis]:
+    async def analyze(
+        self, drafts: Sequence[MentionDraft], target_name: str, examples: Sequence[dict] = (),
+    ) -> list[MentionAnalysis]:
         return [_from_dict(lexicon.analyze(d.text)) for d in drafts]
 
 
@@ -43,7 +49,9 @@ class NlpServiceAnalyzer:
         self._base_url = base_url.rstrip("/")
         self._fallback = fallback or LexiconAnalyzer()
 
-    async def analyze(self, drafts: Sequence[MentionDraft], target_name: str) -> list[MentionAnalysis]:
+    async def analyze(
+        self, drafts: Sequence[MentionDraft], target_name: str, examples: Sequence[dict] = (),
+    ) -> list[MentionAnalysis]:
         if not self._base_url or not drafts:
             return await self._fallback.analyze(drafts, target_name)
         payload = {
@@ -52,6 +60,7 @@ class NlpServiceAnalyzer:
                 {"text": d.text, "language": d.language, "reach": d.author.followers + d.engagement.interactions}
                 for d in drafts
             ],
+            "examples": list(examples),
         }
         try:
             response = await self._http.post(f"{self._base_url}/v1/analyze", json=payload, timeout=60)

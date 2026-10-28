@@ -2,7 +2,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, BigInteger, Integer, DateTime, Float, ForeignKey, Index, String, Text, TypeDecorator
+from sqlalchemy import JSON, BigInteger, Integer, DateTime, Float, ForeignKey, Index, String, Text, TypeDecorator, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -76,6 +76,7 @@ class Mention(Base):
         Index("ux_mentions_target_source_external", "target_id", "source", "external_id", unique=True),
         Index("ix_mentions_target_fingerprint", "target_id", "fingerprint"),
         Index("ix_mentions_target_published", "target_id", "published_at"),
+        Index("ix_mentions_target_corrected", "target_id", "sentiment_corrected_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -103,6 +104,10 @@ class Mention(Base):
     summary: Mapped[str | None] = mapped_column(Text)
     analyzer: Mapped[str] = mapped_column(String(64), default="lexicon")
     raw: Mapped[dict | None] = mapped_column(Json)
+    # Corrección de un analista: lo que dijo el análisis automático, quién y cuándo lo cambió.
+    original_sentiment: Mapped[str | None] = mapped_column(String(16))
+    sentiment_corrected_by: Mapped[str | None] = mapped_column(String(254))
+    sentiment_corrected_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
 
     @property
     def interactions(self) -> int:
@@ -186,6 +191,21 @@ class AlertRecord(Base):
     title: Mapped[str] = mapped_column(String(200))
     message: Mapped[str] = mapped_column(Text)
     mention_id: Mapped[uuid.UUID | None] = mapped_column()
+
+
+# Correcciones que se mandan como ejemplo al análisis: las del mismo objetivo pesan más que las de otros.
+EXAMPLES_SAME_TARGET = 20
+EXAMPLES_OTHER_TARGETS = 10
+
+
+async def sentiment_examples(session: AsyncSession, target_id: uuid.UUID) -> list[dict[str, str]]:
+    """Las correcciones más recientes de los analistas como {"text", "sentiment"} para el análisis profundo."""
+    corrected = select(Mention.text, Mention.sentiment).where(Mention.sentiment_corrected_at.is_not(None))
+    same = (await session.execute(corrected.where(Mention.target_id == target_id)
+                                  .order_by(Mention.sentiment_corrected_at.desc()).limit(EXAMPLES_SAME_TARGET))).all()
+    other = (await session.execute(corrected.where(Mention.target_id != target_id)
+                                   .order_by(Mention.sentiment_corrected_at.desc()).limit(EXAMPLES_OTHER_TARGETS))).all()
+    return [{"text": text[:500], "sentiment": sentiment.lower()} for text, sentiment in [*same, *other]]
 
 
 class Database:
