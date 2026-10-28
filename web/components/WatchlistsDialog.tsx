@@ -127,7 +127,9 @@ function UploadForm({ onUploaded }: { onUploaded: () => void }) {
     if (!file || !name.trim()) return;
     setBusy(true);
     try {
-      const r = await api.uploadWatchlist(name.trim(), category, await readText(file));
+      const text = await readText(file);
+      if (!text.trim()) throw new Error(`El archivo «${file.name}» está vacío.`);
+      const r = await api.uploadWatchlist(name.trim(), category, text);
       setMessage({ ok: true, text: `${fmt.format(r.entries)} registros (${r.added} nuevos, ${r.changed} cambiados, ${r.removed} retirados).` });
       onUploaded();
     } catch (err) {

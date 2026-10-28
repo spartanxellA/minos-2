@@ -292,6 +292,29 @@ export class ApiError extends Error {
   }
 }
 
+const FIELD_LABEL: Record<string, string> = {
+  name: "El nombre", category: "El tipo", csv: "El archivo", note: "La nota", reason: "El motivo",
+  birthDate: "La fecha de nacimiento", email: "El correo", password: "La contraseña",
+};
+
+/** Los 422 de validación llegan como lista ({loc, type, ctx}); se traduce el primero a una frase. */
+function validationMessage(errors: { loc?: (string | number)[]; type?: string; msg?: string; ctx?: Record<string, unknown> }[]) {
+  const e = errors[0];
+  if (!e) return null;
+  const key = String(e.loc?.at(-1) ?? "");
+  const field = FIELD_LABEL[key] ?? (key && key !== "body" ? `El campo «${key}»` : "Los datos enviados");
+  const n = (v: unknown) => new Intl.NumberFormat("es-MX").format(Number(v));
+  switch (e.type) {
+    case "missing": return `${field} es obligatorio.`;
+    case "string_too_short": return Number(e.ctx?.min_length) <= 1 ? `${field} está vacío.` : `${field} es muy corto (mínimo ${n(e.ctx?.min_length)} caracteres).`;
+    case "string_too_long": return `${field} es muy grande (máximo ${n(e.ctx?.max_length)} caracteres).`;
+    case "string_pattern_mismatch": return `${field} no tiene el formato esperado.`;
+    case "literal_error": return `${field} no es una opción válida.`;
+    case "json_invalid": return "Los datos enviados no son válidos.";
+    default: return `${field}: ${e.msg ?? "valor no válido"}.`;
+  }
+}
+
 /** Todas las llamadas llevan la cookie de sesión (HttpOnly; el JavaScript del tablero no la ve). */
 async function request<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
   const { json, ...rest } = init;
@@ -306,7 +329,9 @@ async function request<T>(path: string, init: RequestInit & { json?: unknown } =
     const body = await res.json().catch(() => null);
     if (res.status === 401 && !path.startsWith("/api/auth/")) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     const detail = body?.detail;
-    const message = typeof detail === "string" ? detail : detail?.message ?? `Error ${res.status}`;
+    const message = typeof detail === "string" ? detail
+      : Array.isArray(detail) ? validationMessage(detail) ?? `Error ${res.status}`
+      : detail?.message ?? `Error ${res.status}`;
     throw new ApiError(res.status, message, body);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
