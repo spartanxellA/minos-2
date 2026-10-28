@@ -370,9 +370,9 @@ def test_custom_pipe_file_without_header():
     assert alfonso.name == "ALFONSO TORRES JIMENEZ" and alfonso.nationalities == ["MX"]
     assert alfonso.programs == ["DIRECCION DE PLANEACION (COMISION NACIONAL DE BUSQUEDA DE PERSONAS)"]
     assert maria.name == 'MARÍA "LA JEFA" PÉREZ'  # las comillas no rompen la fila
-    assert (alfonso.status, alfonso.identifiers, alfonso.birth_dates) == ("0", [], [])
+    assert (alfonso.status, alfonso.identifiers, alfonso.birth_dates) == ("Inactivo", [], [])
     [full] = list(parse_custom_csv(b"LUIS RUIZ|SENADOR|SENADO|RUIL700101AB1|1970-01-01|MX|1\n", "x"))
-    assert (full.identifiers, full.birth_dates, full.status) == (["RUIL700101AB1"], ["1970-01-01"], "1")
+    assert (full.identifiers, full.birth_dates, full.status) == (["RUIL700101AB1"], ["1970-01-01"], "Activo")
     # Con encabezado y "|" también funciona por nombre de columna.
     [r] = list(parse_custom_csv(b"name|position|nationality\nAna Ruiz|Senadora|MX\n", "x"))
     assert (r.name, r.programs, r.nationalities) == ("Ana Ruiz", ["Senadora"], ["MX"])

@@ -353,6 +353,9 @@ def _custom_rows(data: bytes) -> tuple[list[str], Iterable[list[str]]]:
     return _rows_after_header(text, is_header)
 
 
+# El archivo PEP marca el estatus con 1 (activo) o 0 (inactivo: ya no ocupa el cargo, pesa la mitad en el índice).
+STATUS_CODES = {"1": "Activo", "0": "Inactivo"}
+
 # Orden de las columnas en los archivos PEP sin encabezado separados por "|" (los mismos campos de referencia del
 # archivo PEP: name, position, department, rfc, birth_date, nationality, status).
 PIPE_LAYOUT = ("nombre", "cargo", "dependencia", "rfc", "fecha de nacimiento", "nacionalidad", "status")
@@ -400,7 +403,8 @@ def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
             nationalities=[get("nationality")] if get("nationality") else [],
             identifiers=[x for x in (rfc, curp) if x],
             programs=[x for x in (get("list"), position, get("reason")) if x],
-            listed_on=get("listed_on") or None, status=get("status") or None, url=get("url") or None,
+            listed_on=get("listed_on") or None, status=STATUS_CODES.get(get("status"), get("status")) or None,
+            url=get("url") or None,
             notes=get("location") or None,
         )
 
