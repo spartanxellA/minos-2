@@ -361,3 +361,32 @@ def test_custom_json_with_the_pep_export_fields():
                 "GOHJ680412AB1,Activo\n").encode()
     [same] = list(parse_custom_csv(csv_data, "propia-pep"))
     assert same == jose
+
+
+def test_custom_pipe_file_without_header():
+    data = ("ALFONSO TORRES JIMENEZ|DIRECCION DE PLANEACION|COMISION NACIONAL DE BUSQUEDA DE PERSONAS|||MX|0\n"
+            "MARÍA \"LA JEFA\" PÉREZ|DIRECTORA GENERAL|SECRETARÍA DE ECONOMÍA|||MX|1\n\n").encode("cp1252")
+    alfonso, maria = list(parse_custom_csv(data, "propia-pep"))
+    assert alfonso.name == "ALFONSO TORRES JIMENEZ" and alfonso.nationalities == ["MX"]
+    assert alfonso.programs == ["DIRECCION DE PLANEACION (COMISION NACIONAL DE BUSQUEDA DE PERSONAS)"]
+    assert maria.name == 'MARÍA "LA JEFA" PÉREZ'  # las comillas no rompen la fila
+    assert (alfonso.status, alfonso.identifiers, alfonso.birth_dates) == ("Inactivo", [], [])
+    [full] = list(parse_custom_csv(b"LUIS RUIZ|SENADOR|SENADO|RUIL700101AB1|1970-01-01|MX|1\n", "x"))
+    assert (full.identifiers, full.birth_dates, full.status) == (["RUIL700101AB1"], ["1970-01-01"], "Activo")
+    # Con encabezado y "|" también funciona por nombre de columna.
+    [r] = list(parse_custom_csv(b"name|position|nationality\nAna Ruiz|Senadora|MX\n", "x"))
+    assert (r.name, r.programs, r.nationalities) == ("Ana Ruiz", ["Senadora"], ["MX"])
+
+
+def test_pep_upload_of_the_pipe_file_screens_people(app):
+    with TestClient(app()) as admin:
+        login(admin, *ADMIN)
+        target = admin.post("/api/targets", json={"name": "Alfonso Torres Jiménez", "kind": "Person"}).json()
+        company = admin.post("/api/targets", json={"name": "Alfonso Torres Jimenez", "kind": "Company"}).json()
+        csv = "ALFONSO TORRES JIMENEZ|DIRECCION DE PLANEACION|COMISION NACIONAL DE BUSQUEDA DE PERSONAS|||MX|0\n"
+        r = admin.post("/api/watchlists/custom", json={"name": "PEP", "category": "pep", "csv": csv})
+        assert r.status_code == 201 and r.json()["entries"] == 1
+        admin.portal.call(admin.app.state.runtime.screener.cycle)
+        [m] = admin.get(f"/api/targets/{target['id']}/screening").json()["matches"]
+        assert m["entry"]["kind"] == "person" and m["entry"]["nationalities"] == ["MX"]
+        assert admin.get(f"/api/targets/{company['id']}/screening").json()["matches"] == []

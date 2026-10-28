@@ -2,6 +2,7 @@
 import hashlib
 import re
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import audit, db
 from ..auth import CurrentUser, Role, current_user, require_role
-from ..domain.screening import ascii_fold
+from ..domain.screening import EntryKind, ascii_fold
 from .schemas import CustomListInput, CustomListResult, MatchOut, ReviewInput, ScreeningOut, WatchlistOut
 from .screener import screening_summary
 from .sources import CATEGORY_LABEL, OFFICIAL_SOURCES, parse_custom_csv
@@ -114,6 +115,9 @@ async def upload_custom(body: CustomListInput, session: Session, request: Reques
     data = body.csv.encode("utf-8")
     try:
         records = list(parse_custom_csv(data, slug))
+        if body.category == "pep":
+            # Una lista PEP es de personas, aunque el archivo no traiga tipo, RFC ni CURP.
+            records = [replace(r, kind=EntryKind.PERSON) if r.kind == EntryKind.OTHER else r for r in records]
     except ValueError as ex:
         raise HTTPException(422, str(ex)) from None
     if not records:

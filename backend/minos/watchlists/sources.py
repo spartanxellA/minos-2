@@ -344,7 +344,21 @@ def _custom_rows(data: bytes) -> tuple[list[str], Iterable[list[str]]]:
             return str(v)
 
         return [_header_key(n) for n in names], ([value(item.get(n)) for n in names] for item in items)
-    return _rows_after_header(text, lambda k: any(x.startswith(("nombre", "name", "razon social")) for x in k))
+    is_header = lambda k: any(x.startswith(("nombre", "name", "razon social")) for x in k)  # noqa: E731
+    first = next((line for line in text.splitlines() if line.strip()), "")
+    if "|" in first and not is_header([_header_key(c) for c in first.split("|")]):
+        # Archivo PEP sin encabezado, separado por "|": las columnas van en un orden fijo.
+        rows = csv.reader(io.StringIO(text), delimiter="|", quoting=csv.QUOTE_NONE)
+        return list(PIPE_LAYOUT), (r for r in rows if any(c.strip() for c in r))
+    return _rows_after_header(text, is_header)
+
+
+# El archivo PEP marca el estatus con 1 (activo) o 0 (inactivo: ya no ocupa el cargo, pesa la mitad en el índice).
+STATUS_CODES = {"1": "Activo", "0": "Inactivo"}
+
+# Orden de las columnas en los archivos PEP sin encabezado separados por "|" (los mismos campos de referencia del
+# archivo PEP: name, position, department, rfc, birth_date, nationality, status).
+PIPE_LAYOUT = ("nombre", "cargo", "dependencia", "rfc", "fecha de nacimiento", "nacionalidad", "status")
 
 
 def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
@@ -389,7 +403,8 @@ def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
             nationalities=[get("nationality")] if get("nationality") else [],
             identifiers=[x for x in (rfc, curp) if x],
             programs=[x for x in (get("list"), position, get("reason")) if x],
-            listed_on=get("listed_on") or None, status=get("status") or None, url=get("url") or None,
+            listed_on=get("listed_on") or None, status=STATUS_CODES.get(get("status"), get("status")) or None,
+            url=get("url") or None,
             notes=get("location") or None,
         )
 
