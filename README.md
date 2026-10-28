@@ -80,11 +80,29 @@ Seguridad: contraseñas con scrypt y mínimo 10 caracteres; tras 5 intentos fall
 desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
 WebSocket se rechazan si vienen de otro sitio. Con `AUTH_MODE=off` no se pide contraseña, solo en development.
 
+### Mantenimiento de objetivos
+
+El botón "Objetivos" del encabezado lista los objetivos activos y los dados de baja, con búsqueda por nombre, alias o
+RFC. Todos los roles lo ven; analistas y administradores editan, dan de baja y reactivan; solo un administrador borra.
+
+- **Cambios**: todos los datos (nombre, tipo, alias, palabras clave, exclusiones, cuentas, fecha de nacimiento,
+  nacionalidad, RFC/CURP/pasaporte). Si cambia lo que se busca, los cursores de las fuentes vuelven a empezar; si
+  cambia nombre, alias, tipo o un documento, la revisión en listas negras se repite sola en menos de un minuto. No se
+  permiten dos objetivos con el mismo nombre y tipo.
+- **Baja** (lógica, con motivo obligatorio): deja de buscarse, de recalcularse y de revisarse en listas, y sus
+  coincidencias pendientes salen de la cola de revisión, pero conserva menciones, gráficas y cuestionarios. Se puede
+  corregir estando de baja y reactivar cuando se quiera.
+- **Borrado definitivo**: solo de objetivos ya dados de baja, solo administradores, escribiendo el nombre para
+  confirmar. Borra toda su historia; la bitácora conserva el registro.
+
+API: `PUT /api/targets/{id}`, `POST /api/targets/{id}/deactivate` (`{"reason": "…"}`), `POST /api/targets/{id}/reactivate`,
+`DELETE /api/targets/{id}` y `GET /api/targets?status=active|inactive|all`.
+
 ### Auditoría
 
 Cada acción queda en la bitácora `audit_events` con quién, cuándo, desde qué IP y navegador, y los valores de antes y
 después: inicios y cierres de sesión (también los fallidos, con el motivo, y los bloqueos), cambios de contraseña,
-altas, cambios de rol, desactivaciones y bajas de cuentas, altas, cambios y bajas de objetivos, y cuestionarios
+altas, cambios de rol, desactivaciones y bajas de cuentas, altas, cambios, bajas (con motivo), reactivaciones y borrados de objetivos, y cuestionarios
 contestados. Las cuentas creadas desde la terminal o al arrancar aparecen como "sistema". Nunca se guardan
 contraseñas ni tokens.
 

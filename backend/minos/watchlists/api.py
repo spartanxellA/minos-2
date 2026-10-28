@@ -46,7 +46,7 @@ async def list_matches(
     """Coincidencias vigentes de todos los objetivos (por omisión, las pendientes de revisar)."""
     S, T = db.ScreeningMatch, db.Target
     rows = (await session.execute(
-        select(S, T.name).join(T, T.id == S.target_id).where(S.status == match_status, S.active.is_(True))
+        select(S, T.name).join(T, T.id == S.target_id).where(S.status == match_status, S.active.is_(True), T.enabled.is_(True))
         .order_by(S.score.desc(), S.first_seen_at.desc()).limit(limit)
     )).all()
     return [MatchOut.of(m, name) for m, name in rows]

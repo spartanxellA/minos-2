@@ -8,6 +8,7 @@ import { SourcesDialog } from "./SourcesDialog";
 import { AuditDialog } from "./AuditDialog";
 import { ScreeningCard } from "./Screening";
 import { WatchlistsDialog } from "./WatchlistsDialog";
+import { TargetsDialog } from "./TargetsDialog";
 import { useLiveTarget } from "@/lib/useLiveTarget";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
@@ -22,7 +23,7 @@ const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-di
 const NOTIFY_KEY = "minos.notify";
 
 export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }) {
-  const [dialog, setDialog] = useState<"users" | "password" | "sources" | "audit" | "watchlists" | null>(null);
+  const [dialog, setDialog] = useState<"users" | "password" | "sources" | "audit" | "watchlists" | "targets" | null>(null);
   const [sourceErrors, setSourceErrors] = useState(0);
   const [pendingMatches, setPendingMatches] = useState(0);
   const [targets, setTargets] = useState<Target[]>([]);
@@ -59,7 +60,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     const wanted = new URLSearchParams(window.location.search).get("target");
     api.targets().then((t) => {
       setTargets(t);
-      setSelected((s) => s ?? t.find((x) => x.id === wanted)?.id ?? t[0]?.id ?? null);
+      setSelected((s) => s ?? t.find((x) => x.id === wanted)?.id ?? t.find((x) => x.enabled)?.id ?? null);
     }).catch(() => {});
   }, []);
 
@@ -126,13 +127,21 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   }, [live.breakdown]);
 
   const selectedTarget = targets.find((t) => t.id === selected);
+  // El selector muestra los activos; uno dado de baja solo aparece mientras está abierto (por ejemplo desde un aviso).
+  const choices = targets.filter((t) => t.enabled || t.id === selected);
+
+  function targetChanged(change: Target | { id: string; deleted: true }) {
+    const next = "deleted" in change ? targets.filter((t) => t.id !== change.id) : targets.map((t) => (t.id === change.id ? change : t));
+    setTargets(next);
+    if (change.id === selected && ("deleted" in change || !change.enabled)) setSelected(next.find((t) => t.enabled)?.id ?? null);
+  }
 
   return (
     <>
       <header className="top">
         <h1 className="brand"><Logo />min<span>OS</span> 2.0</h1>
         <select className="target" value={selected ?? ""} onChange={(e) => setSelected(e.target.value)} aria-label="Objetivo">
-          {targets.map((t) => <option key={t.id} value={t.id}>{t.name} · {KIND_LABEL[t.kind]}</option>)}
+          {choices.map((t) => <option key={t.id} value={t.id}>{t.name} · {KIND_LABEL[t.kind]}{t.enabled ? "" : " (de baja)"}</option>)}
         </select>
         <div className="status"><span className={`dot ${live.status}`} />{live.status === "live" ? "En vivo" : live.status === "connecting" ? "Conectando…" : "Sin conexión"}</div>
         <button type="button" className={`notify ${notify ? "" : "ghost"}`} onClick={toggleNotify} aria-pressed={notify}
@@ -146,6 +155,10 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
         <button type="button" className="ghost sources" onClick={() => setDialog("watchlists")}
           title="Coincidencias pendientes de revisar y estado de las listas negras">
           Listas{pendingMatches > 0 && <span className="badge" aria-label={`${pendingMatches} pendientes`}>{pendingMatches}</span>}
+        </button>
+        <button type="button" className="ghost sources" onClick={() => setDialog("targets")}
+          title="Editar, dar de baja y reactivar objetivos">
+          Objetivos
         </button>
         <div className="spacer" />
         {can(user, "analyst") && (
@@ -176,6 +189,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       {dialog === "sources" && <SourcesDialog onClose={() => setDialog(null)} onLoaded={setSourceErrors} />}
       {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
       {dialog === "audit" && <AuditDialog onClose={() => setDialog(null)} />}
+      {dialog === "targets" && <TargetsDialog user={user} onClose={() => setDialog(null)} onChanged={targetChanged} />}
       {dialog === "watchlists" && (
         <WatchlistsDialog canReview={can(user, "analyst")} isAdmin={can(user, "admin")}
           onClose={() => { setDialog(null); live.refreshScreening(); }} onChanged={setPendingMatches} />
@@ -184,12 +198,18 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       <main>
         {!selectedTarget ? (
           <div className="card empty">
-            {can(user, "analyst")
+            {targets.length > 0 ? "Todos los objetivos están dados de baja; se pueden reactivar en «Objetivos»." : can(user, "analyst")
               ? "Agrega una persona, empresa, institución, área de gobierno o país para empezar a monitorear."
               : "Todavía no hay objetivos. Un analista o administrador puede agregarlos."}
           </div>
         ) : (
           <div className="grid">
+            {!selectedTarget.enabled && (
+              <div className="card span-12 disclaimer" role="status" style={{ margin: 0 }}>
+                <b>Dado de baja</b> el {selectedTarget.deactivatedAt ? new Date(selectedTarget.deactivatedAt).toLocaleDateString("es-MX", { dateStyle: "medium" }) : "—"}
+                {selectedTarget.deactivationReason && ` · “${selectedTarget.deactivationReason}”`}. Ya no se busca ni se recalcula; lo que ves es su historia.
+              </div>
+            )}
             <section className="card span-3">
               <h2>Índice de riesgo reputacional</h2>
               <div className="kpi">{latest ? latest.index.toFixed(1) : "–"} <small>/ 100</small></div>

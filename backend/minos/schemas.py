@@ -22,12 +22,17 @@ class TargetInput(Camel):
     keywords: list[str] = Field(default_factory=list)
     excluded_terms: list[str] = Field(default_factory=list)
     handles: dict[str, str] = Field(default_factory=dict)
+    # Se ignora al editar: la baja y la reactivación tienen sus propias rutas (con motivo y bitácora).
     enabled: bool = True
     # Para la revisión en listas negras: fecha de nacimiento (AAAA-MM-DD o AAAA), nacionalidad y documentos.
     birth_date: str | None = Field(default=None, pattern=r"^\d{4}(-\d{2}-\d{2})?$")
     nationality: str | None = Field(default=None, max_length=64)
     # "rfc", "curp", "pasaporte" → valor.
     identifiers: dict[str, str] = Field(default_factory=dict)
+
+
+class DeactivateInput(Camel):
+    reason: str = Field(min_length=3, max_length=1000)
 
 
 class TargetOut(Camel):
@@ -43,6 +48,10 @@ class TargetOut(Camel):
     birth_date: str | None = None
     nationality: str | None = None
     identifiers: dict[str, str] = Field(default_factory=dict)
+    updated_at: datetime | None = None
+    deactivated_at: datetime | None = None
+    deactivated_by_email: str | None = None
+    deactivation_reason: str | None = None
 
     _no_null = field_validator("identifiers", mode="before")(lambda v: v or {})
 

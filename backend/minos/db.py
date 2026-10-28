@@ -56,6 +56,11 @@ class Target(Base):
     nationality: Mapped[str | None] = mapped_column(String(64))
     # "rfc", "curp", "pasaporte" → valor.
     identifiers: Mapped[dict[str, str]] = mapped_column(Json, default=dict)
+    # Baja lógica: enabled=False deja de monitorearse pero conserva su historia y se puede reactivar.
+    deactivated_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    deactivated_by_email: Mapped[str | None] = mapped_column(String(254))
+    deactivation_reason: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
 
     def to_domain(self) -> MonitoredTarget:
         return MonitoredTarget(

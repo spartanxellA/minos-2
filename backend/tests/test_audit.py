@@ -85,9 +85,12 @@ def test_targets_and_surveys_are_recorded(app):
         survey = c.get("/api/surveys/RASurvey").json()
         answers = {q["id"]: max(q["options"], key=lambda o: o["weight"])["value"] for s in survey["sections"] for q in s["questions"]}
         assert c.post(f"/api/targets/{t['id']}/survey-responses", json={"surveyId": "RASurvey", "answers": answers}).status_code == 200
+        assert c.post(f"/api/targets/{t['id']}/deactivate", json={"reason": "Cliente terminó contrato"}).status_code == 200
         assert c.delete(f"/api/targets/{t['id']}").status_code == 204
 
         rows = by_action(events(c, entityType="target"))
+        assert rows["target.deactivated"]["detail"] == {"reason": "Cliente terminó contrato"}
+        assert rows["target.deleted"]["detail"] == {"reason": "Cliente terminó contrato"}
         assert rows["target.created"]["changes"]["name"] == [None, "Acme"]
         assert rows["target.updated"]["changes"] == {"name": ["Acme", "Acme SA"], "keywords": [["acme"], ["acme", "=cmd"]]}
         assert rows["survey.submitted"]["detail"]["surveyId"] == "RASurvey"
@@ -97,7 +100,7 @@ def test_targets_and_surveys_are_recorded(app):
         csv = c.get("/api/audit/export.csv", params={"entityType": "target"})
         assert csv.headers["content-type"].startswith("text/csv")
         assert "attachment" in csv.headers["content-disposition"]
-        assert csv.text.count("\n") == 5  # encabezado + 4 eventos
+        assert csv.text.count("\n") == 6  # encabezado + 5 eventos
         assert events(c)[0]["action"] == "audit.exported"
 
 

@@ -281,3 +281,45 @@ button.more { display: block; margin: 10px auto; }
 .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
 .upload { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
 table.sources code { display: block; font-size: 11px; color: var(--neg); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Mantenimiento de objetivos */
+button.danger:not(.ghost) { background: var(--neg); border-color: var(--neg); color: #fff; }
+button:disabled { opacity: .6; cursor: default; }
+.small { font-size: 12px; }
+.targets-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.targets-bar input { flex: 1 1 200px; min-width: 0; }
+.segmented { display: flex; gap: 4px; flex-wrap: wrap; }
+.segmented .count { font-size: 11px; opacity: .8; margin-left: 2px; }
+table.targets td { vertical-align: top; }
+table.targets td.name { overflow-wrap: anywhere; }
+table.targets tr.inactive td.name b { color: var(--muted); }
+table.targets td.state .tag:not(.positive) { color: var(--muted); }
+table.targets .note { font-size: 12px; font-style: italic; margin-top: 2px; overflow-wrap: anywhere; }
+table.targets tr.leave > td { background: color-mix(in srgb, var(--neg) 6%, transparent); }
+form.deactivate { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+form.deactivate input { flex: 1 1 260px; min-width: 0; }
+.target-editor { display: flex; flex-direction: column; gap: 12px; }
+.target-editor fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0; padding: 10px 12px 12px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 10px; }
+.target-editor legend { font-weight: 600; padding: 0 4px; }
+.target-editor label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.target-editor label.wide { grid-column: 1 / -1; }
+.target-editor label small { font-size: 11px; }
+.target-editor input, .target-editor select { color: var(--ink); }
+.target-editor .actions { display: flex; gap: 8px; }
+.target-editor .notice { margin: 0; font-size: 12px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.card h2 .edit { float: right; font-size: 12px; text-transform: none; letter-spacing: 0; padding: 0 4px; }
+@media (max-width: 640px) {
+  .segmented { flex: 1 1 100%; }
+  .segmented button { flex: 1; }
+  table.targets > thead { display: none; }
+  table.targets, table.targets > tbody, table.targets > tbody > tr, table.targets > tbody > tr > td { display: block; }
+  table.targets > tbody > tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  table.targets > tbody > tr.leave { padding: 8px; border-radius: 8px; }
+  table.targets > tbody > tr > td { border: 0; padding: 1px 0; }
+  table.targets td.kind { color: var(--muted); font-size: 12px; }
+  table.targets td.actions { text-align: left; white-space: normal; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  table.targets td.actions button { padding-left: 0; }
+  form.deactivate > * { flex: 1 1 100%; }
+  .target-editor .actions > * { flex: 1; }
+}
