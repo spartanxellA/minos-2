@@ -129,7 +129,8 @@ function UploadForm({ onUploaded }: { onUploaded: () => void }) {
       <p className="muted" style={{ fontSize: 12, margin: 0 }}>
         CSV o JSON con una columna de nombre (name o nombre). También se usan: alias, birth_date, nationality, rfc, curp,
         id_num, list, position, department, program, publication_date, status y location. También acepta el archivo PEP
-        separado por &quot;|&quot; sin encabezado (nombre|cargo|dependencia|rfc|fecha de nacimiento|país|estatus 1 o 0). Si ya existe una lista con el
+        separado por &quot;|&quot; sin encabezado, nacional (nombre|cargo|dependencia|rfc|fecha de nacimiento|país|estatus 1 o 0) o
+        internacional (nombre|fecha de nacimiento|cargo|país|estatus||dependencia). Si ya existe una lista con el
         mismo nombre, se reemplaza.
       </p>
       <label>Nombre de la lista<input required value={name} onChange={(e) => setName(e.target.value)} placeholder="PEP México" /></label>

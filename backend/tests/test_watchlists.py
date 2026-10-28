@@ -11,7 +11,7 @@ from minos import db
 from minos.bus import MemoryBus
 from minos.config import RiskEngineSettings, WatchlistSettings
 from minos.domain.risk import SANCTIONS_FLOOR, WatchlistHit, watchlist_adjust
-from minos.domain.screening import EntryKind
+from minos.domain.screening import EntryKind, normalize_date
 from minos.main import create_app
 from minos.pipeline import RiskEngine
 from minos.watchlists import Screener, WatchlistSync
@@ -459,3 +459,22 @@ def test_common_name_keeps_the_closest_matches_and_one_alert(database):
         assert alert.message.startswith(f"{MAX_MATCHES} posibles coincidencias nuevas")
 
     asyncio.run(scenario())
+
+
+def test_international_pep_file_layout():
+    data = (
+        "\r\nA K ANTONY||MEMBER OF THE ASSEMBLY OF INDIA|IN|0||\r\n"
+        "JOSH HARDER|01/08/1986|REPRESENTATIVE OF CALIFORNIA|US|1||HOUSE OF REPRESENTATIVES\r\n"
+        "NORBERT NEMETH|00/00/1969|MEMBER OF THE PARLIAMENT OF AUSTRIA|AT|1||PARLIAMENT OF AUSTRIA\r\n"
+        "MANUEL MARRERO CRUZ|Column1|MINISTRO DE TURISMO|CU|0|Column2|CONSEJO DE MINISTROS\r\n"
+    ).encode()
+    antony, harder, nemeth, marrero = parse_custom_csv(data, "x")
+    assert (antony.name, antony.nationalities, antony.status, antony.birth_dates) == (
+        "A K ANTONY", ["IN"], "Inactivo", [])
+    assert harder.birth_dates == ["01/08/1986"] and harder.programs == [
+        "REPRESENTATIVE OF CALIFORNIA (HOUSE OF REPRESENTATIVES)"] and harder.status == "Activo"
+    assert nemeth.birth_dates == ["00/00/1969"] and normalize_date(nemeth.birth_dates[0]) == "1969"
+    assert marrero.birth_dates == [] and marrero.programs == ["MINISTRO DE TURISMO (CONSEJO DE MINISTROS)"]
+    # El orden nacional sigue igual, aunque el estatus traiga basura al final.
+    [r] = parse_custom_csv(b"SALVADOR EQUIHUA|UNIDAD JURIDICA|SECRETARIA DE LAS MUJERES|||MX|1},\n", "x")
+    assert (r.nationalities, r.status, r.programs) == (["MX"], "Activo", ["UNIDAD JURIDICA (SECRETARIA DE LAS MUJERES)"])

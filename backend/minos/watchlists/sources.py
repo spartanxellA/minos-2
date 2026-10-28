@@ -254,7 +254,11 @@ def _col(keys: list[str], *options: str, exact: bool = False) -> int | None:
 
 
 def _cell(row: list[str], i: int | None) -> str:
-    return " ".join(row[i].split()) if i is not None and i < len(row) and row[i] else ""
+    if i is None or i >= len(row) or not row[i]:
+        return ""
+    value = " ".join(row[i].split())
+    # Excel deja "Column1", "Column2"… en celdas que venían vacías.
+    return "" if value.startswith("Column") and value[6:].isdigit() else value
 
 
 # Situaciones del 69-B que ya no son lista negra: el contribuyente desvirtuó la presunción o ganó en tribunales.
@@ -363,7 +367,8 @@ def _custom_rows(data: bytes) -> tuple[list[str], Iterable[list[str]]]:
         keys = [_header_key(c) for c in first]
         if is_header(keys):
             return keys, rows
-        return list(PIPE_LAYOUT), itertools.chain([first], rows)
+        sample = [first, *itertools.islice(rows, 200)]
+        return list(_pipe_layout(sample)), itertools.chain(sample, rows)
     return _rows_after_header(text, is_header)
 
 
@@ -373,6 +378,16 @@ STATUS_CODES = {"1": "Activo", "0": "Inactivo"}
 # Orden de las columnas en los archivos PEP sin encabezado separados por "|" (los mismos campos de referencia del
 # archivo PEP: name, position, department, rfc, birth_date, nationality, status).
 PIPE_LAYOUT = ("nombre", "cargo", "dependencia", "rfc", "fecha de nacimiento", "nacionalidad", "status")
+# El archivo de PEP internacionales: nombre|fecha de nacimiento|cargo|país|estatus|(vacía)|dependencia.
+PIPE_LAYOUT_INTL = ("nombre", "fecha de nacimiento", "cargo", "nacionalidad", "status", "", "dependencia")
+
+
+def _pipe_layout(sample: list[list[str]]) -> tuple[str, ...]:
+    """Cuál de los dos órdenes trae el archivo: se ve en qué columna vienen el país (dos letras) y el estatus."""
+    def votes(country: int, status: int) -> int:
+        return sum(1 for r in sample if len(r) > status and re.fullmatch(r"[A-Za-z]{2}", r[country].strip())
+                   and r[status].strip().removesuffix(",") in STATUS_CODES)
+    return PIPE_LAYOUT_INTL if votes(3, 4) > votes(5, 6) else PIPE_LAYOUT
 
 
 def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
@@ -420,7 +435,8 @@ def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
             nationalities=[get("nationality")] if get("nationality") else [],
             identifiers=[x for x in (rfc, curp) if x],
             programs=[x for x in (get("list"), position, get("reason")) if x],
-            listed_on=get("listed_on") or None, status=STATUS_CODES.get(get("status"), get("status")) or None,
+            listed_on=get("listed_on") or None,
+            status=STATUS_CODES.get(get("status").rstrip(",;}]) "), get("status")) or None,
             url=get("url") or None,
             notes=get("location") or None,
         )
