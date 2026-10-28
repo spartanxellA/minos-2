@@ -306,8 +306,45 @@ async function request<T>(path: string, init: RequestInit & { json?: unknown } =
 
 const get = <T,>(path: string) => request<T>(path);
 
+export type Granularity = "month" | "year";
+
+export interface MentionsOverview {
+  granularity: Granularity;
+  timezone: string;
+  /** "2026-01" por mes o "2026" por año; todos los del rango, con o sin datos. */
+  periods: string[];
+  ranking: {
+    targetId: string; name: string; kind: TargetKind; enabled: boolean; mentions: number;
+    positive: number; neutral: number; negative: number; severe: number; lastIndex: number | null;
+  }[];
+  byKind: { kind: TargetKind; targets: number; mentions: number; negative: number }[];
+  mentionsByKind: { period: string; kind: TargetKind; count: number }[];
+  mentionsByTarget: { period: string; targetId: string; count: number }[];
+  riskByTarget: { period: string; targetId: string; avg: number; max: number }[];
+  riskByKind: { period: string; kind: TargetKind; avg: number }[];
+}
+
+export interface OverviewFilters {
+  granularity: Granularity;
+  since?: string;
+  until?: string;
+  kind?: TargetKind | "";
+  source?: string;
+  top?: number;
+  includeInactive?: boolean;
+}
+
+function overviewQuery(f: OverviewFilters) {
+  const params = new URLSearchParams({ granularity: f.granularity });
+  for (const [k, v] of Object.entries(f)) {
+    if (k !== "granularity" && v !== undefined && v !== "" && v !== false) params.set(k, String(v));
+  }
+  return params.toString();
+}
+
 export const api = {
   targets: () => get<Target[]>("/api/targets"),
+  mentionsOverview: (f: OverviewFilters) => get<MentionsOverview>(`/api/analytics/mentions?${overviewQuery(f)}`),
   risk: (id: string, hours = 24 * 7) => get<Risk[]>(`/api/targets/${id}/risk?hours=${hours}`),
   mentions: (id: string, limit = 40) => get<Mention[]>(`/api/targets/${id}/mentions?limit=${limit}`),
   breakdown: (id: string, hours = 24) => get<Breakdown>(`/api/targets/${id}/breakdown?hours=${hours}`),

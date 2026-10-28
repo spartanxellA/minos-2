@@ -93,6 +93,16 @@ IP y solo fallidos, y la pueden descargar en CSV. La API no tiene forma de modif
 sobrevive aunque se borre la cuenta o el objetivo. API: `GET /api/audit` (paginada con `?before=`) y
 `GET /api/audit/export.csv`.
 
+### Análisis general
+
+El botón "Análisis" del encabezado cambia el tablero de un objetivo por una vista de todos los sujetos monitoreados:
+ranking de los más mencionados (por sentimiento), menciones por tipo de sujeto, histórico de menciones por tipo y de
+los más mencionados, y la evolución histórica del índice de riesgo (promedio por sujeto o por tipo). Todo se agrupa
+por mes o por año y se filtra por tipo de sujeto y medio; los objetivos dados de baja (`enabled = false`) quedan
+fuera salvo que se marque "Incluir dados de baja". Los meses se cortan en la zona `MINOS_TIMEZONE`
+(por omisión `America/Mexico_City`). API: `GET /api/analytics/mentions?granularity=month|year&since=AAAA-MM&until=…
+&kind=…&source=…&top=10&includeInactive=false`.
+
 ## Avisos de alertas
 
 Las alertas se ven en vivo en el tablero. Además se avisan por los canales configurados (vacío = apagado):
