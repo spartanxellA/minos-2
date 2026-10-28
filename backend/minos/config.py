@@ -209,6 +209,8 @@ class Settings(BaseSettings):
     redis_url: str = ""
     # Crea las tablas desde los modelos al arrancar (pruebas con SQLite). En PostgreSQL se usan las migraciones.
     create_schema: bool = False
+    # Zona horaria con la que se agrupan por mes y año las gráficas históricas del análisis general.
+    timezone: str = "America/Mexico_City"
 
     auth: AuthSettings = AuthSettings()
     demo: DemoSettings = DemoSettings()

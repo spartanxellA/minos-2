@@ -6,6 +6,7 @@ import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Target } 
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
 import { AuditDialog } from "./AuditDialog";
+import { Analytics } from "./Analytics";
 import { ScreeningCard } from "./Screening";
 import { WatchlistsDialog } from "./WatchlistsDialog";
 import { TargetsDialog } from "./TargetsDialog";
@@ -30,6 +31,8 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   const [selected, setSelected] = useState<string | null>(null);
   const [notify, setNotify] = useState(false);
   const [adding, setAdding] = useState(false);
+  // "analytics": vista general de todos los sujetos en lugar del tablero de uno.
+  const [view, setView] = useState<"target" | "analytics">("target");
   const phone = useMediaQuery(PHONE);
   const selectedName = targets.find((t) => t.id === selected)?.name ?? "";
 
@@ -140,13 +143,18 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     <>
       <header className="top">
         <h1 className="brand"><Logo />min<span>OS</span> 2.0</h1>
-        <select className="target" value={selected ?? ""} onChange={(e) => setSelected(e.target.value)} aria-label="Objetivo">
+        <select className="target" value={selected ?? ""} onChange={(e) => { setSelected(e.target.value); setView("target"); }} aria-label="Objetivo">
           {choices.map((t) => <option key={t.id} value={t.id}>{t.name} · {KIND_LABEL[t.kind]}{t.enabled ? "" : " (de baja)"}</option>)}
         </select>
         <div className="status"><span className={`dot ${live.status}`} />{live.status === "live" ? "En vivo" : live.status === "connecting" ? "Conectando…" : "Sin conexión"}</div>
         <button type="button" className={`notify ${notify ? "" : "ghost"}`} onClick={toggleNotify} aria-pressed={notify}
           title="Aviso del navegador cuando llegue una alerta del objetivo seleccionado">
           {notify ? "Avisos activados" : "Activar avisos"}
+        </button>
+        <button type="button" className={`sources ${view === "analytics" ? "" : "ghost"}`} aria-pressed={view === "analytics"}
+          onClick={() => setView(view === "analytics" ? "target" : "analytics")}
+          title="Sujetos más mencionados, por tipo, e históricos por mes y año">
+          Análisis
         </button>
         <button type="button" className="ghost sources" onClick={() => setDialog("sources")}
           title="Qué fuentes están activas, qué trajeron y cuáles fallan">
@@ -196,7 +204,9 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       )}
 
       <main>
-        {!selectedTarget ? (
+        {view === "analytics" ? (
+          <Analytics onOpenTarget={(id) => { setSelected(id); setView("target"); window.scrollTo({ top: 0 }); }} />
+        ) : !selectedTarget ? (
           <div className="card empty">
             {targets.length > 0 ? "Todos los objetivos están dados de baja; se pueden reactivar en «Objetivos»." : can(user, "analyst")
               ? "Agrega una persona, empresa, institución, área de gobierno o país para empezar a monitorear."
