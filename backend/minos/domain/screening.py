@@ -33,7 +33,8 @@ SHOW_MIN = 80
 STRONG_MIN = 95
 
 
-@dataclass(frozen=True)
+# slots: una lista PEP puede traer cientos de miles de registros y el revisor los tiene todos en memoria.
+@dataclass(frozen=True, slots=True)
 class WatchlistRecord:
     """Un registro de una lista, ya normalizado por su lector."""
 

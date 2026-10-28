@@ -6,9 +6,10 @@ los que salieron; el revisor de objetivos lo nota porque cambia la versión de l
 """
 import asyncio
 import hashlib
+import itertools
 import json
 import logging
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from datetime import UTC, datetime
 
 import httpx
@@ -24,6 +25,7 @@ from .sources import OFFICIAL_SOURCES, OfficialSource
 log = logging.getLogger(__name__)
 
 TICK_SECONDS = 60
+BATCH = 2000
 
 
 def record_fingerprint(r: WatchlistRecord) -> str:
@@ -32,41 +34,60 @@ def record_fingerprint(r: WatchlistRecord) -> str:
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False).encode()).hexdigest()
 
 
-async def store_entries(session, slug: str, records: Iterable[WatchlistRecord]) -> tuple[int, int, int, int]:
+def _entry_row(slug: str, ext: str, r: WatchlistRecord) -> dict:
+    return {
+        "source": slug, "external_id": ext, "kind": r.kind.value, "name": r.name[:500],
+        "aliases": [a[:500] for a in r.aliases], "birth_dates": list(r.birth_dates),
+        "nationalities": list(r.nationalities), "identifiers": list(r.identifiers), "programs": list(r.programs),
+        "listed_on": (r.listed_on or None) and r.listed_on[:32], "status": (r.status or None) and r.status[:64],
+        "url": r.url, "notes": r.notes, "fingerprint": record_fingerprint(r),
+    }
+
+
+async def batches(records: Iterable[WatchlistRecord], size: int = BATCH) -> AsyncIterator[list[WatchlistRecord]]:
+    """Lee los registros por tandas en otro hilo: una lista de cientos de miles no se carga completa en memoria ni
+    detiene al servidor mientras se lee."""
+    it = iter(records)
+    while batch := await asyncio.to_thread(lambda: list(itertools.islice(it, size))):
+        yield batch
+
+
+async def store_entries(session, slug: str, records: Iterable[WatchlistRecord] | AsyncIterator[list[WatchlistRecord]]
+                        ) -> tuple[int, int, int, int]:
     """Deja en la base exactamente los registros recibidos. Devuelve (total, nuevos, modificados, borrados)."""
     E = db.WatchlistEntry
     existing = {ext: (id_, fp) for id_, ext, fp in (await session.execute(
         select(E.id, E.external_id, E.fingerprint).where(E.source == slug)
     )).all()}
-    seen: dict[str, WatchlistRecord] = {}
-    for r in records:
-        seen.setdefault(r.external_id[:200], r)
-    new, changed = [], []
-    for ext, r in seen.items():
-        row = {
-            "source": slug, "external_id": ext, "kind": r.kind.value, "name": r.name[:500],
-            "aliases": [a[:500] for a in r.aliases], "birth_dates": list(r.birth_dates),
-            "nationalities": list(r.nationalities), "identifiers": list(r.identifiers), "programs": list(r.programs),
-            "listed_on": (r.listed_on or None) and r.listed_on[:32], "status": (r.status or None) and r.status[:64],
-            "url": r.url, "notes": r.notes, "fingerprint": record_fingerprint(r),
-        }
-        if ext not in existing:
-            new.append(row)
-        elif existing[ext][1] != row["fingerprint"]:
-            changed.append(row | {"id": existing[ext][0]})
+    seen: set[str] = set()
+    new = changed = 0
+    chunks = records if hasattr(records, "__aiter__") else batches(records)
+    async for chunk in chunks:
+        inserts = []
+        for r in chunk:
+            ext = r.external_id[:200]
+            if ext in seen:
+                continue
+            seen.add(ext)
+            row = _entry_row(slug, ext, r)
+            if ext not in existing:
+                inserts.append(row)
+            elif existing[ext][1] != row["fingerprint"]:
+                changed += 1
+                await session.execute(update(E).where(E.id == existing[ext][0]).values(**row))
+        if inserts:
+            new += len(inserts)
+            await session.execute(insert(E), inserts)
     gone = [id_ for ext, (id_, _) in existing.items() if ext not in seen]
-    for i in range(0, len(new), 2000):
-        await session.execute(insert(E), new[i:i + 2000])
-    for row in changed:
-        await session.execute(update(E).where(E.id == row.pop("id")).values(**row))
-    for i in range(0, len(gone), 2000):
-        await session.execute(delete(E).where(E.id.in_(gone[i:i + 2000])))
-    return len(seen), len(new), len(changed), len(gone)
+    for i in range(0, len(gone), BATCH):
+        await session.execute(delete(E).where(E.id.in_(gone[i:i + BATCH])))
+    return len(seen), new, changed, len(gone)
 
 
-async def save_list(database: db.Database, slug: str, records: list[WatchlistRecord], version: str, now: datetime, *,
-               official: OfficialSource | None = None, name: str | None = None, category: str | None = None,
-               uploaded_by: str | None = None) -> tuple[int, int, int, int]:
+async def save_list(database: db.Database, slug: str,
+                    records: Iterable[WatchlistRecord] | AsyncIterator[list[WatchlistRecord]], version: str,
+                    now: datetime, *, official: OfficialSource | None = None, name: str | None = None,
+                    category: str | None = None, uploaded_by: str | None = None) -> tuple[int, int, int, int]:
     async with database.session() as session:
         row = await session.get(db.WatchlistSource, slug)
         if row is None:

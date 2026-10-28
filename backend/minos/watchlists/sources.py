@@ -4,6 +4,7 @@ Cada lector recibe el archivo tal como se descargó y devuelve registros ya norm
 publica cada autoridad; si cambian, el lector falla con un mensaje claro y el error aparece en el panel de listas.
 """
 import csv
+import hashlib
 import io
 import itertools
 import json
@@ -355,7 +356,9 @@ def _custom_rows(data: bytes) -> tuple[list[str], Iterable[list[str]]]:
     if any(line.count("|") >= 3 for line in lines[:50]):
         # Separado por "|". Si trae encabezado se usa; si no, las columnas van en el orden fijo del archivo PEP.
         # Las líneas sin "|" (títulos, notas al final) se ignoran.
-        rows = csv.reader((line for line in lines if line.count("|") >= 3), delimiter="|", quoting=csv.QUOTE_NONE)
+        # Algunas exportaciones cierran cada línea con una coma de más ("...|MX|0,").
+        rows = csv.reader((line.rstrip().removesuffix(",") for line in lines if line.count("|") >= 3), delimiter="|",
+                          quoting=csv.QUOTE_NONE)
         first = next(rows)
         keys = [_header_key(c) for c in first]
         if is_header(keys):
@@ -402,11 +405,14 @@ def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
             kind = EntryKind.PERSON
         else:
             kind = EntryKind.OTHER
-        external = get("id") or curp or rfc or f"{ascii_fold(name)}|{get('birth')}"
+        position = _join(get("position"), f"({get('agency')})" if get("agency") else None)
+        # Sin id, RFC ni CURP, la misma persona aparece una vez por cada cargo: el cargo entra en la llave para que
+        # no dependa del orden de las filas y la lista del día siguiente conserve las mismas llaves.
+        external = get("id") or curp or rfc or f"{ascii_fold(name)}|{get('birth')}" + (
+            f"|{hashlib.sha1(ascii_fold(position).encode()).hexdigest()[:12]}" if position else "")
         if external in seen:
             external = f"{external}#{number}"
         seen.add(external)
-        position = _join(get("position"), f"({get('agency')})" if get("agency") else None)
         yield WatchlistRecord(
             source=source, external_id=external[:200], kind=kind, name=name,
             aliases=[a.strip() for a in re.split(r"[;|]", get("aliases")) if a.strip() and a.strip() != name],

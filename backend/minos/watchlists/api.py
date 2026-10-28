@@ -16,7 +16,7 @@ from ..domain.screening import EntryKind, ascii_fold
 from .schemas import CustomListInput, CustomListResult, MatchOut, ReviewInput, ScreeningOut, WatchlistOut
 from .screener import screening_summary
 from .sources import CATEGORY_LABEL, OFFICIAL_SOURCES, parse_custom_csv
-from .sync import save_list
+from .sync import batches, save_list
 
 
 async def get_session(request: Request):
@@ -108,25 +108,58 @@ def custom_slug(name: str) -> str:
     return "propia-" + (re.sub(r"[^a-z0-9]+", "-", ascii_fold(name)).strip("-")[:50] or "lista")
 
 
+# Una lista PEP nacional completa pesa cerca de 100 MB.
+MAX_UPLOAD_BYTES = 300 * 1024 * 1024
+
+
 @watchlist_router.post("/watchlists/custom", response_model=CustomListResult, status_code=status.HTTP_201_CREATED)
 async def upload_custom(body: CustomListInput, session: Session, request: Request, me: Admin):
     """Carga o reemplaza una lista propia (PEP, UIF, SESNA…) desde un CSV. Una lista con el mismo nombre se reemplaza."""
-    slug = custom_slug(body.name)
-    data = body.csv.encode("utf-8")
+    return await _save_custom(body.name, body.category, body.csv.encode("utf-8"), session, request, me)
+
+
+@watchlist_router.post("/watchlists/custom/file", response_model=CustomListResult, status_code=status.HTTP_201_CREATED)
+async def upload_custom_file(
+    session: Session, request: Request, me: Admin, name: Annotated[str, Query(min_length=2, max_length=200)],
+    category: Annotated[Literal["pep", "sanctions", "tax", "debarment", "other"], Query()] = "pep",
+):
+    """Lo mismo, con el archivo tal cual en el cuerpo (sin JSON): así entran listas de cientos de MB."""
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                                f"El archivo pasa de {MAX_UPLOAD_BYTES // 2**20} MB.")
+    return await _save_custom(name, category, bytes(data), session, request, me)
+
+
+async def _save_custom(name: str, category: str, data: bytes, session: AsyncSession, request: Request,
+                       me: CurrentUser) -> CustomListResult:
+    name = name.strip()
+    slug = custom_slug(name)
+    records = parse_custom_csv(data, slug)
+    if category == "pep":
+        # Una lista PEP es de personas, aunque el archivo no traiga tipo, RFC ni CURP.
+        records = (replace(r, kind=EntryKind.PERSON) if r.kind == EntryKind.OTHER else r for r in records)
+    chunks = batches(records)
     try:
-        records = list(parse_custom_csv(data, slug))
-        if body.category == "pep":
-            # Una lista PEP es de personas, aunque el archivo no traiga tipo, RFC ni CURP.
-            records = [replace(r, kind=EntryKind.PERSON) if r.kind == EntryKind.OTHER else r for r in records]
+        # La primera tanda se lee antes de tocar la base: un archivo sin encabezado o sin nombres no borra la lista.
+        first = await anext(chunks, [])
     except ValueError as ex:
         raise HTTPException(422, str(ex)) from None
-    if not records:
+    if not first:
         raise HTTPException(422, "El archivo no tiene filas con nombre.")
-    counts = await save_list(request.app.state.db, slug, records, hashlib.sha256(data).hexdigest(), datetime.now(UTC),
-                             name=body.name.strip(), category=body.category, uploaded_by=me.email)
+
+    async def all_chunks():
+        yield first
+        async for chunk in chunks:
+            yield chunk
+
+    counts = await save_list(request.app.state.db, slug, all_chunks(), hashlib.sha256(data).hexdigest(),
+                             datetime.now(UTC), name=name, category=category, uploaded_by=me.email)
     audit.record(session, request, "watchlist.uploaded", me, entity_type="watchlist", entity_id=slug,
-                 entity_label=body.name.strip(), detail={"category": body.category, "entries": counts[0],
-                                                         "added": counts[1], "changed": counts[2], "removed": counts[3]})
+                 entity_label=name, detail={"category": category, "entries": counts[0], "added": counts[1],
+                                            "changed": counts[2], "removed": counts[3]})
     await session.commit()
     return CustomListResult(slug=slug, entries=counts[0], added=counts[1], changed=counts[2], removed=counts[3])
 

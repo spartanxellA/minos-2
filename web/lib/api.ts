@@ -400,9 +400,11 @@ export const api = {
   reviewMatch: (id: number, decision: MatchStatus, note: string) =>
     request<ScreeningMatch>(`/api/screening/matches/${id}/review`, { method: "POST", json: { decision, note } }),
   watchlists: () => get<Watchlist[]>("/api/watchlists"),
-  uploadWatchlist: (name: string, category: string, csv: string) =>
+  // El archivo va tal cual (sin JSON): el servidor detecta UTF-8, Windows-1252 o UTF-16 y aguanta listas de cientos de MB.
+  uploadWatchlist: (name: string, category: string, file: Blob) =>
     request<{ slug: string; entries: number; added: number; changed: number; removed: number }>(
-      "/api/watchlists/custom", { method: "POST", json: { name, category, csv } }),
+      `/api/watchlists/custom/file?${new URLSearchParams({ name, category })}`,
+      { method: "POST", body: file, headers: { "content-type": "application/octet-stream" } }),
   deleteWatchlist: (slug: string) => request<void>(`/api/watchlists/custom/${slug}`, { method: "DELETE" }),
 
   me: () => get<Me>("/api/auth/me"),
