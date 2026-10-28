@@ -390,3 +390,15 @@ def test_pep_upload_of_the_pipe_file_screens_people(app):
         [m] = admin.get(f"/api/targets/{target['id']}/screening").json()["matches"]
         assert m["entry"]["kind"] == "person" and m["entry"]["nationalities"] == ["MX"]
         assert admin.get(f"/api/targets/{company['id']}/screening").json()["matches"] == []
+
+
+def test_pipe_file_variations_from_excel_and_other_systems():
+    row = "ALFONSO TORRES JIMÉNEZ|DIRECCION DE PLANEACION|COMISION NACIONAL DE BUSQUEDA DE PERSONAS|||MX|0"
+    for data in [
+        ("Lista PEP al 27/10/2026\n\n" + row + "\nTotal: 1 registro\n").encode("cp1252"),  # título y nota al final
+        ("﻿" + row + "\r\n").encode("utf-8"),  # UTF-8 con BOM y fin de línea de Windows
+        (row + "\r\n").encode("utf-16"),  # "texto Unicode" de Excel
+        ("NOMBRE|CARGO|DEPENDENCIA|RFC|FECHA NACIMIENTO|PAIS|ESTATUS\n" + row + "\n").encode(),  # con encabezado
+    ]:
+        [r] = list(parse_custom_csv(data, "x"))
+        assert (r.name, r.nationalities, r.status) == ("ALFONSO TORRES JIMÉNEZ", ["MX"], "Inactivo"), data[:30]

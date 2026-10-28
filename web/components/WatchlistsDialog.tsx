@@ -103,6 +103,11 @@ export function WatchlistsDialog({ canReview, isAdmin, onClose, onChanged }: {
 /** Los archivos que salen de Excel o de sistemas viejos suelen venir en Windows-1252, no en UTF-8. */
 async function readText(file: File) {
   const bytes = await file.arrayBuffer();
+  const head = new Uint8Array(bytes.slice(0, 2));
+  // "Texto Unicode" de Excel: UTF-16 con marca al inicio.
+  if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0xfe && head[1] === 0xff)) {
+    return new TextDecoder(head[0] === 0xff ? "utf-16le" : "utf-16be").decode(bytes);
+  }
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
