@@ -81,6 +81,7 @@ services:
     build: ./nlp
     environment:
       MINOS_CLAUDE_ENABLED: ${MINOS_CLAUDE_ENABLED:-0}
+      MINOS_CLAUDE_MODEL: ${MINOS_CLAUDE_MODEL:-claude-haiku-5-5}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports: ["8000:8000"]
     restart: unless-stopped

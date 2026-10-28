@@ -146,7 +146,8 @@ class IngestionWorker:
         if not fresh:
             return []
 
-        analyses = await self._analyzer.analyze(fresh, target.name)
+        examples = await db.sentiment_examples(session, target.id)
+        analyses = await self._analyzer.analyze(fresh, target.name, examples)
         mentions = [db.Mention.create(target.id, d, a) for d, a in zip(fresh, analyses)]
         session.add_all(mentions)
         await session.flush()

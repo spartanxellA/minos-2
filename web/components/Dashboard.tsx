@@ -2,7 +2,7 @@
 
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
-import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Target } from "@/lib/api";
+import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Mention, type Sentiment, type Target } from "@/lib/api";
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
 import { AuditDialog } from "./AuditDialog";
@@ -288,7 +288,14 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
                     <li key={m.id}>
                       <a href={m.url} target="_blank" rel="noreferrer">{m.text}</a>
                       <div className="meta">
-                        <span className={`tag ${m.sentiment}`}>{SENT[m.sentiment].label}</span>
+                        {can(user, "analyst")
+                          ? <SentimentPicker mention={m} onSaved={live.replaceMention} />
+                          : <span className={`tag ${m.sentiment}`}>{SENT[m.sentiment].label}</span>}
+                        {m.corrected && (
+                          <span title={`Corregido por ${m.correctedBy ?? "un analista"}; el análisis automático dijo ${SENT[m.originalSentiment ?? m.sentiment].label}`}>
+                            ✎ corregido
+                          </span>
+                        )}
                         {m.severe && <span className="tag severe">Acusación grave</span>}
                         {m.topic && <span>#{m.topic}</span>}
                         <span>{SOURCE_LABEL[m.source] ?? m.source}</span>
@@ -315,6 +322,30 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
           </div>
         )}
       </main>
+    </>
+  );
+}
+
+
+/** Etiqueta de sentimiento que un analista puede cambiar; la corrección cuenta en el índice y enseña al análisis. */
+function SentimentPicker({ mention: m, onSaved }: { mention: Mention; onSaved: (m: Mention) => void }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <select className={`tag ${m.sentiment} sentiment-picker`} value={m.sentiment} disabled={saving}
+        aria-label="Corregir sentimiento" title="Corregir sentimiento"
+        onChange={(e) => {
+          setSaving(true);
+          setError(null);
+          api.correctSentiment(m.id, e.target.value as Sentiment)
+            .then(onSaved)
+            .catch((err: Error) => setError(err.message))
+            .finally(() => setSaving(false));
+        }}>
+        {(Object.keys(SENT) as Sentiment[]).map((k) => <option key={k} value={k}>{SENT[k].label}</option>)}
+      </select>
+      {error && <span className="error" role="alert">{error}</span>}
     </>
   );
 }

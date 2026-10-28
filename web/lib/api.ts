@@ -57,13 +57,19 @@ export interface Mention {
   followers: number;
   publishedAt: string;
   text: string;
-  sentiment: "positive" | "negative" | "neutral";
+  sentiment: Sentiment;
   score: number;
   severe: boolean;
   topic: string | null;
   summary: string | null;
   interactions: number;
+  /** Lo cambió un analista; originalSentiment es lo que dijo el análisis automático. */
+  corrected: boolean;
+  originalSentiment: Sentiment | null;
+  correctedBy: string | null;
 }
+
+export type Sentiment = "positive" | "negative" | "neutral";
 
 export interface Breakdown {
   bySourceAndSentiment: { source: string; sentiment: string; count: number }[];
@@ -394,6 +400,9 @@ export const api = {
     request<Target>(`/api/targets/${id}/deactivate`, { method: "POST", json: { reason } }),
   reactivateTarget: (id: string) => request<Target>(`/api/targets/${id}/reactivate`, { method: "POST" }),
   deleteTarget: (id: string) => request<void>(`/api/targets/${id}`, { method: "DELETE" }),
+
+  correctSentiment: (mentionId: string, sentiment: Sentiment) =>
+    request<Mention>(`/api/mentions/${mentionId}/sentiment`, { method: "POST", json: { sentiment } }),
 
   screening: (id: string) => get<Screening>(`/api/targets/${id}/screening`),
   matches: (status: MatchStatus = "pending") => get<ScreeningMatch[]>(`/api/screening/matches?status=${status}`),

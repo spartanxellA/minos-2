@@ -47,6 +47,9 @@ export function useLiveTarget(targetId: string | null, onAlert?: (alert: Alert) 
       } else if (event === "mentionsAdded") {
         const added = data as Mention[];
         setMentions((prev) => [...added, ...prev.filter((p) => !added.some((a) => a.id === p.id))].slice(0, 100));
+      } else if (event === "mentionUpdated") {
+        const updated = data as Mention;
+        setMentions((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       } else if (event === "screeningUpdated") {
         setScreening(data as Screening);
       } else if (event === "alertRaised") {
@@ -93,5 +96,6 @@ export function useLiveTarget(targetId: string | null, onAlert?: (alert: Alert) 
   return {
     risk, mentions, breakdown, alerts, status, latest: risk.at(-1) ?? null, screening,
     refreshScreening: () => targetId && api.screening(targetId).then(setScreening).catch(() => {}),
+    replaceMention: (m: Mention) => setMentions((prev) => prev.map((p) => (p.id === m.id ? m : p))),
   };
 }

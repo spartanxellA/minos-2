@@ -1,6 +1,7 @@
 """Contratos JSON de la API, en camelCase para el tablero."""
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
@@ -71,6 +72,10 @@ class MentionOut(Camel):
     topic: str | None
     summary: str | None
     interactions: int
+    # Lo cambió un analista; originalSentiment es lo que había dicho el análisis automático.
+    corrected: bool = False
+    original_sentiment: str | None = None
+    corrected_by: str | None = None
 
     @classmethod
     def of(cls, m: db.Mention) -> "MentionOut":
@@ -78,8 +83,14 @@ class MentionOut(Camel):
             id=m.id, source=m.source, url=m.url, author=m.author_handle, author_name=m.author_name,
             followers=m.author_followers, published_at=m.published_at, text=m.text, sentiment=m.sentiment.lower(),
             score=m.sentiment_score, severe=m.is_severe_accusation, topic=m.topic, summary=m.summary,
-            interactions=m.interactions,
+            interactions=m.interactions, corrected=m.sentiment_corrected_at is not None,
+            original_sentiment=m.original_sentiment.lower() if m.original_sentiment else None,
+            corrected_by=m.sentiment_corrected_by,
         )
+
+
+class SentimentCorrection(Camel):
+    sentiment: Literal["negative", "neutral", "positive"]
 
 
 class RiskOut(Camel):

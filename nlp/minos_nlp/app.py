@@ -1,6 +1,7 @@
 """API del servicio de análisis. La consume la API de minOS (backend/minos/analysis.py) en POST /v1/analyze."""
 import logging
 import os
+from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -24,9 +25,16 @@ class Item(BaseModel):
     reach: int = 0
 
 
+class Example(BaseModel):
+    text: str = Field(max_length=2000)
+    sentiment: Literal["negative", "neutral", "positive"]
+
+
 class AnalyzeRequest(BaseModel):
     target: str
     items: list[Item] = Field(default_factory=list, max_length=500)
+    # Correcciones de los analistas para este objetivo; Claude las toma como criterio.
+    examples: list[Example] = Field(default_factory=list, max_length=30)
 
 
 class Result(BaseModel):
@@ -57,7 +65,7 @@ async def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     picked = [i for i, (item, b) in enumerate(zip(req.items, base))
               if b["sentiment"] == "negative" or b["severe_accusation"] or b.get("ambiguous")
               or item.reach >= HIGH_REACH]
-    deep_results = await deep.analyze(req.target, [texts[i] for i in picked])
+    deep_results = await deep.analyze(req.target, [texts[i] for i in picked], [e.model_dump() for e in req.examples])
     for i, d in zip(picked, deep_results):
         if d is None:
             continue

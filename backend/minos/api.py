@@ -11,7 +11,8 @@ from . import audit, db
 from .auth import CurrentUser, Role, current_user, require_role, websocket_user
 from .domain.mentions import Sentiment
 from .schemas import (
-    AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, DeactivateInput, Influencer, MentionOut, RiskOut, SourceError,
+    AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, DeactivateInput, Influencer, MentionOut, RiskOut,
+    SentimentCorrection, SourceError,
     SourceSentimentCount, SourceStatus, SourcesOut, SurveyResponseOut, SurveySubmission, SurveySummary, TargetInput,
     TargetOut, TopicCount,
 )
@@ -201,6 +202,34 @@ async def list_mentions(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sentimiento inválido") from None
     rows = (await session.scalars(q.order_by(db.Mention.published_at.desc()).limit(limit))).all()
     return [MentionOut.of(m) for m in rows]
+
+
+@router.post("/mentions/{mention_id}/sentiment", response_model=MentionOut, dependencies=Analyst)
+async def correct_sentiment(mention_id: uuid.UUID, body: SentimentCorrection, session: Session, request: Request, me: Me):
+    """Un analista fija el sentimiento correcto. Cuenta para el índice de riesgo y se manda como ejemplo al análisis
+    de las menciones nuevas. Se conserva lo que dijo el análisis automático la primera vez."""
+    m = await session.get(db.Mention, mention_id)
+    if m is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Mención no encontrada")
+    new = Sentiment(body.sentiment.capitalize()).value
+    before = m.sentiment
+    if m.original_sentiment is None:
+        m.original_sentiment = m.sentiment
+    sign = {"Negative": -1.0, "Neutral": 0.0, "Positive": 1.0}[new]
+    m.sentiment, m.sentiment_score = new, sign * max(abs(m.sentiment_score or 0), 0.5)
+    m.sentiment_corrected_by, m.sentiment_corrected_at = me.email, datetime.now(UTC)
+    target = await session.get(db.Target, m.target_id)
+    audit.record(session, request, "mention.sentiment_corrected", me, entity_type="target", entity_id=m.target_id,
+                 entity_label=target.name if target else None,
+                 changes={"sentiment": [before.lower(), new.lower()]},
+                 detail={"mentionId": str(m.id), "source": m.source, "url": m.url, "text": m.text[:300],
+                         "automatic": m.original_sentiment.lower()})
+    await session.commit()
+    out = MentionOut.of(m)
+    if before != new:
+        await request.app.state.risk_engine.recompute(m.target_id)
+    await request.app.state.bus.publish(m.target_id, "mentionUpdated", out)
+    return out
 
 
 @router.get("/targets/{target_id}/risk", response_model=list[RiskOut])
