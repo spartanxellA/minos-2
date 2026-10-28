@@ -86,6 +86,12 @@ def test_roles_limit_what_each_account_can_do(app):
         assert viewer.get(f"/api/targets/{t['id']}").status_code == 200
         assert viewer.post(f"/api/targets/{t['id']}/survey-responses", json={"surveyId": "PDSurvey", "answers": {}}).status_code == 403
         assert analyst.post(f"/api/targets/{t['id']}/survey-responses", json={"surveyId": "PDSurvey", "answers": {}}).status_code == 200
+        assert viewer.put(f"/api/targets/{t['id']}", json=body).status_code == 403
+        assert viewer.post(f"/api/targets/{t['id']}/deactivate", json={"reason": "Ya no aplica"}).status_code == 403
+        assert analyst.post(f"/api/targets/{t['id']}/deactivate", json={"reason": "Ya no aplica"}).status_code == 200
+        assert viewer.post(f"/api/targets/{t['id']}/reactivate").status_code == 403
+        assert analyst.post(f"/api/targets/{t['id']}/reactivate").status_code == 200
+        analyst.post(f"/api/targets/{t['id']}/deactivate", json={"reason": "Ya no aplica"})
         assert analyst.delete(f"/api/targets/{t['id']}").status_code == 403
         assert analyst.get("/api/users").status_code == 403
         assert admin.delete(f"/api/targets/{t['id']}").status_code == 204

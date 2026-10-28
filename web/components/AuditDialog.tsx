@@ -7,6 +7,7 @@ import { Modal } from "./AccountDialogs";
 const FIELD_LABEL: Record<string, string> = {
   name: "Nombre", email: "Correo", role: "Rol", active: "Activa", kind: "Tipo", aliases: "Alias",
   keywords: "Palabras clave", excludedTerms: "Términos excluidos", handles: "Cuentas", enabled: "Activo",
+  birthDate: "Fecha de nacimiento", nationality: "Nacionalidad", identifiers: "Documentos",
 };
 const REASON_LABEL: Record<string, string> = {
   wrong_password: "contraseña incorrecta", unknown_account: "correo sin cuenta", inactive: "cuenta desactivada",
@@ -48,6 +49,7 @@ function summary(e: AuditEvent): string | null {
     return `${d.survey ?? d.surveyId}${score}`;
   }
   if (e.action === "audit.exported") return `${d.rows} filas`;
+  if (e.action.startsWith("target.") && d.reason) return `motivo: ${d.reason}`;
   if (d.passwordReset) return "contraseña restablecida";
   return null;
 }
