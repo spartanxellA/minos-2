@@ -5,6 +5,7 @@ publica cada autoridad; si cambian, el lector falla con un mensaje claro y el er
 """
 import csv
 import io
+import itertools
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -210,7 +211,12 @@ def parse_uk(data: bytes, source: str) -> Iterator[WatchlistRecord]:
 
 
 def decode_text(data: bytes) -> str:
-    """Los archivos del SAT y los que salen de Excel suelen venir en Windows-1252, no en UTF-8."""
+    """Los archivos del SAT y los que salen de Excel suelen venir en Windows-1252, no en UTF-8. Excel también guarda
+    "texto Unicode" en UTF-16."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16")
+    if data[1:2] == b"\x00" and data[:4].count(b"\x00") >= 2:
+        return data.decode("utf-16-le")
     for encoding in ("utf-8-sig", "cp1252"):
         try:
             return data.decode(encoding)
@@ -345,11 +351,16 @@ def _custom_rows(data: bytes) -> tuple[list[str], Iterable[list[str]]]:
 
         return [_header_key(n) for n in names], ([value(item.get(n)) for n in names] for item in items)
     is_header = lambda k: any(x.startswith(("nombre", "name", "razon social")) for x in k)  # noqa: E731
-    first = next((line for line in text.splitlines() if line.strip()), "")
-    if "|" in first and not is_header([_header_key(c) for c in first.split("|")]):
-        # Archivo PEP sin encabezado, separado por "|": las columnas van en un orden fijo.
-        rows = csv.reader(io.StringIO(text), delimiter="|", quoting=csv.QUOTE_NONE)
-        return list(PIPE_LAYOUT), (r for r in rows if any(c.strip() for c in r))
+    lines = [line for line in text.splitlines() if line.strip()]
+    if any(line.count("|") >= 3 for line in lines[:50]):
+        # Separado por "|". Si trae encabezado se usa; si no, las columnas van en el orden fijo del archivo PEP.
+        # Las líneas sin "|" (títulos, notas al final) se ignoran.
+        rows = csv.reader((line for line in lines if line.count("|") >= 3), delimiter="|", quoting=csv.QUOTE_NONE)
+        first = next(rows)
+        keys = [_header_key(c) for c in first]
+        if is_header(keys):
+            return keys, rows
+        return list(PIPE_LAYOUT), itertools.chain([first], rows)
     return _rows_after_header(text, is_header)
 
 
