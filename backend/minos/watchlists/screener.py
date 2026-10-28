@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import sys
 import uuid
 from datetime import UTC, datetime
 
@@ -17,7 +18,7 @@ from .. import db
 from ..bus import Bus
 from ..config import WatchlistSettings
 from ..domain.risk import LEVEL_LABEL, RiskLevel
-from ..domain.screening import MatchResult, ScreeningIndex, Subject
+from ..domain.screening import EntryKind, MatchResult, ScreeningIndex, Subject, WatchlistRecord
 from ..domain.targets import TargetKind
 from ..notifications import AlertNotice, Notifier
 from ..schemas import AlertOut
@@ -27,6 +28,9 @@ from .sync import record_fingerprint
 log = logging.getLogger(__name__)
 
 ALERT_KIND = "WatchlistMatch"
+MAX_MATCHES = 50
+# Con más coincidencias nuevas que esto en una vuelta, se manda un solo aviso en lugar de uno por coincidencia.
+ALERTS_EACH = 3
 
 
 def subject_of(target: db.Target) -> Subject:
@@ -66,6 +70,28 @@ async def screening_summary(session, target_id: uuid.UUID, include_dismissed: bo
     )
 
 
+async def load_records(database: db.Database) -> list[WatchlistRecord]:
+    """Todos los registros de las listas, leídos por columnas y por tandas: con una lista PEP de cientos de miles de
+    personas, cargar cada fila como objeto de la base ocuparía varias veces más memoria."""
+    E = db.WatchlistEntry
+    cols = (E.source, E.external_id, E.kind, E.name, E.aliases, E.birth_dates, E.nationalities, E.identifiers,
+            E.programs, E.listed_on, E.status, E.url, E.notes)
+    small = sys.intern  # fuente, tipo, país y estatus se repiten en casi todos los registros
+    tup = lambda v: tuple(v) if v else ()  # noqa: E731
+    records: list[WatchlistRecord] = []
+    async with database.session() as session:
+        result = await session.stream(select(*cols).execution_options(yield_per=5000))
+        async for part in result.partitions():
+            for (source, ext, kind, name, aliases, births, nats, ids, programs, listed_on, st, url, notes) in part:
+                records.append(WatchlistRecord(
+                    source=small(source), external_id=ext, kind=EntryKind(kind), name=name, aliases=tup(aliases),
+                    birth_dates=tup(births), nationalities=tuple(small(n) for n in nats or ()), identifiers=tup(ids),
+                    programs=tup(programs), listed_on=listed_on, status=small(st) if st else None, url=url,
+                    notes=notes,
+                ))
+    return records
+
+
 class Screener:
     def __init__(self, database: db.Database, bus: Bus, settings: WatchlistSettings, notifier: Notifier | None = None,
                  risk_engine=None) -> None:
@@ -102,9 +128,8 @@ class Screener:
 
     async def index(self, version: str) -> ScreeningIndex:
         if self._index is None or self._index_version != version:
-            async with self._db.session() as session:
-                entries = (await session.scalars(select(db.WatchlistEntry))).all()
-                records = [e.to_record() for e in entries]
+            self._index = None  # se suelta el índice viejo antes de armar el nuevo
+            records = await load_records(self._db)
             self._index = await asyncio.to_thread(ScreeningIndex, records)
             self._index_version = version
             log.info("Índice de listas negras: %d registros", len(self._index))
@@ -138,6 +163,11 @@ class Screener:
             sources = {s.slug: s for s in (await session.scalars(select(db.WatchlistSource))).all()}
             existing = {(m.source, m.external_id): m for m in (await session.scalars(
                 select(S).where(S.target_id == target.id))).all()}
+            # Un nombre muy común ("María Hernández") puede parecerse a miles de registros de una lista PEP grande:
+            # se guardan las MAX_MATCHES más parecidas, más las que un analista ya revisó.
+            reviewed = {k for k, m in existing.items() if m.status != "pending"}
+            results = [r for i, r in enumerate(results)
+                       if i < MAX_MATCHES or (r.record.source, r.record.external_id) in reviewed]
             for res in results:
                 src = sources.get(res.record.source)
                 fp = record_fingerprint(res.record)
@@ -176,6 +206,12 @@ class Screener:
                                message=f"«{m.listed_name}» en {m.source_name} ({m.score:.0f}% de parecido). "
                                        "Un analista debe confirmarla o descartarla.")
                 for m in raised
+            ] if len(raised) <= ALERTS_EACH else [
+                db.AlertRecord(target_id=target.id, at=now, kind=ALERT_KIND,
+                               title="Posibles coincidencias en listas negras",
+                               message=f"{len(raised)} posibles coincidencias nuevas; la más parecida es "
+                                       f"«{raised[0].listed_name}» en {raised[0].source_name} "
+                                       f"({raised[0].score:.0f}%). Un analista debe confirmarlas o descartarlas.")
             ]
             session.add_all(alerts)
             await session.commit()

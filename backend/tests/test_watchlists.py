@@ -402,3 +402,60 @@ def test_pipe_file_variations_from_excel_and_other_systems():
     ]:
         [r] = list(parse_custom_csv(data, "x"))
         assert (r.name, r.nationalities, r.status) == ("ALFONSO TORRES JIMÉNEZ", ["MX"], "Inactivo"), data[:30]
+
+
+def test_pep_export_with_trailing_comma_and_stable_ids():
+    rows = [
+        "A EMILIO POLANCO SERVIN|EXMAGISTRADO DE LA QUINTA SALA|TRIBUNAL SUPERIOR DE JUSTICIA DE VERACRUZ|||MX|0,",
+        "ANDRES LOPEZ|PRESIDENTE MUNICIPAL|AYUNTAMIENTO DE TEPIC|||MX|1,",
+        "ANDRES LOPEZ|DIPUTADO LOCAL|CONGRESO DE NAYARIT|||MX|0,",
+    ]
+    first = list(parse_custom_csv("\n".join(rows).encode(), "x"))
+    assert [r.status for r in first] == ["Inactivo", "Activo", "Inactivo"]
+    # La misma persona con dos cargos son dos registros, y su llave no depende del orden de las filas.
+    again = list(parse_custom_csv("\n".join(reversed(rows)).encode(), "x"))
+    assert {r.external_id: r.programs for r in first} == {r.external_id: r.programs for r in again}
+    assert len({r.external_id for r in first}) == 3 and not any("#" in r.external_id for r in first)
+
+
+def test_raw_file_upload_and_bad_file_keeps_the_list(app):
+    with TestClient(app()) as admin:
+        login(admin, *ADMIN)
+        url = "/api/watchlists/custom/file"
+        rows = "".join(f"PERSONA NUMERO {i} GOMEZ|CARGO {i}|DEPENDENCIA|||MX|{i % 2},\r\n" for i in range(4500))
+        r = admin.post(url, params={"name": "PEP México", "category": "pep"}, content=rows.encode("cp1252"))
+        assert r.status_code == 201 and r.json()["entries"] == 4500 and r.json()["added"] == 4500
+        r = admin.post(url, params={"name": "PEP México", "category": "pep"}, content=rows.encode())
+        assert r.json() == {"slug": "propia-pep-mexico", "entries": 4500, "added": 0, "changed": 0, "removed": 0}
+
+        # Un archivo que no se puede leer no borra la lista que ya estaba.
+        r = admin.post(url, params={"name": "PEP México"}, content=b"a,b\n1,2\n")
+        assert r.status_code == 422 and "encabezados" in r.json()["detail"]
+        assert admin.post(url, params={"name": "PEP México"}, content=b"").status_code == 422
+        lists = {w["slug"]: w for w in admin.get("/api/watchlists").json()}
+        assert lists["propia-pep-mexico"]["entryCount"] == 4500
+        assert admin.post(url, params={"name": "X"}, content=rows.encode()).status_code == 422  # nombre muy corto
+
+
+def test_common_name_keeps_the_closest_matches_and_one_alert(database):
+    from minos.watchlists.screener import MAX_MATCHES
+    from minos.watchlists.sync import save_list
+
+    async def scenario():
+        rows = "".join(f"MARIA HERNANDEZ {s}|CARGO {i}|DEPENDENCIA {i}|||MX|1\n"
+                       for i, s in enumerate(["LOPEZ", "GARCIA", "PEREZ", "RUIZ"] * 20))
+        await save_list(database, "propia-pep", list(parse_custom_csv(rows.encode(), "propia-pep")), "v1",
+                        datetime.now(UTC), name="PEP", category="pep")
+        async with database.session() as s:
+            s.add(db.Target(name="María Hernández", kind="Person", aliases=[], keywords=[], excluded_terms=[],
+                            handles={}, identifiers={}))
+            await s.commit()
+        await Screener(database, MemoryBus(), WatchlistSettings()).cycle()
+        async with database.session() as s:
+            matches = (await s.scalars(select(db.ScreeningMatch))).all()
+            alerts = (await s.scalars(select(db.AlertRecord))).all()
+        assert len(matches) == MAX_MATCHES
+        [alert] = alerts
+        assert alert.message.startswith(f"{MAX_MATCHES} posibles coincidencias nuevas")
+
+    asyncio.run(scenario())

@@ -100,21 +100,6 @@ export function WatchlistsDialog({ canReview, isAdmin, onClose, onChanged }: {
   );
 }
 
-/** Los archivos que salen de Excel o de sistemas viejos suelen venir en Windows-1252, no en UTF-8. */
-async function readText(file: File) {
-  const bytes = await file.arrayBuffer();
-  const head = new Uint8Array(bytes.slice(0, 2));
-  // "Texto Unicode" de Excel: UTF-16 con marca al inicio.
-  if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0xfe && head[1] === 0xff)) {
-    return new TextDecoder(head[0] === 0xff ? "utf-16le" : "utf-16be").decode(bytes);
-  }
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    return new TextDecoder("windows-1252").decode(bytes);
-  }
-}
-
 function UploadForm({ onUploaded }: { onUploaded: () => void }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("pep");
@@ -127,7 +112,8 @@ function UploadForm({ onUploaded }: { onUploaded: () => void }) {
     if (!file || !name.trim()) return;
     setBusy(true);
     try {
-      const r = await api.uploadWatchlist(name.trim(), category, await readText(file));
+      if (!file.size) throw new Error(`El archivo «${file.name}» está vacío.`);
+      const r = await api.uploadWatchlist(name.trim(), category, file);
       setMessage({ ok: true, text: `${fmt.format(r.entries)} registros (${r.added} nuevos, ${r.changed} cambiados, ${r.removed} retirados).` });
       onUploaded();
     } catch (err) {
@@ -154,7 +140,7 @@ function UploadForm({ onUploaded }: { onUploaded: () => void }) {
       </label>
       <label>Archivo<input type="file" required accept=".csv,.json,.txt,.psv,.dat,text/csv,text/plain,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
       {message && <p className={message.ok ? "ok" : "error"} role="status">{message.text}</p>}
-      <button type="submit" disabled={busy}>{busy ? "Cargando…" : "Cargar"}</button>
+      <button type="submit" disabled={busy}>{busy ? "Cargando… (una lista grande tarda unos minutos)" : "Cargar"}</button>
     </form>
   );
 }
