@@ -68,6 +68,15 @@ El tablero, la API y el WebSocket piden iniciar sesión con correo y contraseña
 | Analista | Además, agregar y editar objetivos y contestar el cuestionario |
 | Administrador | Además, borrar objetivos y administrar cuentas (botón "Usuarios") |
 
+**Inactividad**: si pasan 30 minutos sin que la persona use el tablero (clics, teclas, toques o desplazarse), la
+sesión se cierra. Dos minutos antes aparece el aviso "¿Sigues ahí?" con la cuenta regresiva y el botón "Seguir
+conectado". Los datos que llegan solos (gráficas en vivo por WebSocket, consultas automáticas) no cuentan como
+actividad. La actividad en una pestaña mantiene abiertas las demás del mismo navegador. El servidor también lleva la
+cuenta: el tablero le avisa a lo más una vez por minuto (`POST /api/auth/activity`) y, si deja de oírlo (pestaña
+cerrada, computadora dormida), rechaza la sesión vencida y cierra los WebSocket abiertos. Cada cierre por inactividad
+queda en la auditoría ("Sesión cerrada por inactividad", con `via`: dashboard, server o cleanup). El lapso se cambia
+con `IDLE_TIMEOUT_SECONDS` en `.env` (en segundos; `0` lo apaga).
+
 El primer administrador se crea con `ADMIN_EMAIL` y `ADMIN_PASSWORD` en `.env` (solo si todavía no hay cuentas), o
 desde la terminal:
 
@@ -101,7 +110,7 @@ API: `PUT /api/targets/{id}`, `POST /api/targets/{id}/deactivate` (`{"reason": "
 ### Auditoría
 
 Cada acción queda en la bitácora `audit_events` con quién, cuándo, desde qué IP y navegador, y los valores de antes y
-después: inicios y cierres de sesión (también los fallidos, con el motivo, y los bloqueos), cambios de contraseña,
+después: inicios y cierres de sesión (también los fallidos, con el motivo, los bloqueos y los cierres por inactividad), cambios de contraseña,
 altas, cambios de rol, desactivaciones y bajas de cuentas, altas, cambios, bajas (con motivo), reactivaciones y borrados de objetivos, y cuestionarios
 contestados. Las cuentas creadas desde la terminal o al arrancar aparecen como "sistema". Nunca se guardan
 contraseñas ni tokens.

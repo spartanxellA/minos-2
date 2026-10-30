@@ -185,6 +185,8 @@ class AuthSettings(BaseModel):
     # "local": cuentas de minOS con correo y contraseña. "off": sin inicio de sesión, solo en development.
     mode: Literal["local", "off"] = "local"
     session_ttl: Duration = timedelta(days=7)
+    # Sin actividad de la persona durante este lapso la sesión se cierra (el tablero avisa antes). 0 = nunca.
+    idle_timeout: Duration = timedelta(minutes=30)
     cookie_name: str = "minos_session"
     # Intentos fallidos seguidos antes de bloquear la cuenta un rato.
     max_failed_logins: int = 5
