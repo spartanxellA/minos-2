@@ -4,6 +4,9 @@
 - La sesión es un token aleatorio; en la base solo se guarda su SHA-256, con vencimiento. Cerrar sesión, desactivar
   la cuenta o cambiar la contraseña la invalida al momento.
 - Tras varios intentos fallidos la cuenta se bloquea un rato.
+- Inactividad: si pasan MINOS_AUTH__IDLE_TIMEOUT (30 min) sin que la persona use el tablero, la sesión se cierra y
+  queda en la auditoría. Solo cuenta lo que hace la persona (el tablero avisa con POST /api/auth/activity cuando hay
+  clics, teclas o toques); las consultas automáticas y el WebSocket en vivo no mantienen viva la sesión.
 - Las peticiones que cambian datos y el WebSocket solo se aceptan desde el mismo sitio o un origen permitido
   (además de SameSite=Lax en la cookie), para que otra página no pueda usarlas con la sesión del navegador.
 - Roles: lector (ve todo), analista (además da de alta objetivos y contesta cuestionarios), administrador (además
@@ -17,7 +20,7 @@ import hmac
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from urllib.parse import urlsplit
 
@@ -110,33 +113,70 @@ def _same_origin(conn: Request | WebSocket) -> bool:
     return urlsplit(origin).netloc == conn.headers.get("host", "")
 
 
-async def _user_for_token(conn: Request | WebSocket, token: str | None) -> CurrentUser | None:
+def last_activity(s: db.UserSession) -> datetime:
+    return s.last_seen_at or s.created_at
+
+
+def idle_expired(s: db.UserSession, idle_timeout: timedelta, now: datetime) -> bool:
+    return bool(idle_timeout) and now - last_activity(s) >= idle_timeout
+
+
+async def _user_for_token(conn: Request | WebSocket, token: str | None, *, touch: bool = False) -> CurrentUser | None:
+    """La cuenta de la sesión, o None si no hay, venció o pasó demasiado tiempo sin actividad. Con touch=True la
+    petición cuenta como actividad de la persona."""
     if not token:
         return None
+    idle_timeout = _settings(conn).auth.idle_timeout
+    now = datetime.now(UTC)
     async with conn.app.state.db.session() as session:
         row = (await session.execute(
-            select(db.User, db.UserSession.expires_at)
+            select(db.User, db.UserSession)
             .join(db.UserSession, db.UserSession.user_id == db.User.id)
             .where(db.UserSession.token_hash == token_hash(token))
         )).first()
-    if row is None:
-        return None
-    user, expires_at = row
-    if not user.active or expires_at <= datetime.now(UTC):
-        return None
+        if row is None:
+            return None
+        user, user_session = row
+        if not user.active or user_session.expires_at <= now:
+            return None
+        if idle_expired(user_session, idle_timeout, now):
+            await close_idle_session(session, conn, user, user_session, via="server")
+            await session.commit()
+            return None
+        if touch:
+            user_session.last_seen_at = now
+            await session.commit()
     return CurrentUser(user.id, user.email, user.name, Role(user.role))
 
 
-async def current_user(request: Request) -> CurrentUser:
+async def close_idle_session(session: AsyncSession, conn: Request | WebSocket | None, user: db.User,
+                             user_session: db.UserSession, via: str) -> None:
+    """Borra la sesión y lo anota en la auditoría (una sola vez aunque lleguen varias peticiones a la par)."""
+    from . import audit  # audit importa este módulo
+
+    result = await session.execute(delete(db.UserSession).where(db.UserSession.token_hash == user_session.token_hash))
+    if result.rowcount:
+        audit.record(session, conn, "auth.idle_timeout", CurrentUser(user.id, user.email, user.name, Role(user.role)),
+                     entity_type="user", entity_id=user.id, entity_label=user.email,
+                     detail={"via": via, "lastActivityAt": last_activity(user_session).isoformat()})
+
+
+async def _require_user(request: Request, touch: bool) -> CurrentUser:
     settings = _settings(request)
     if settings.auth.mode == "off":
         return DEV_USER
     if request.method not in ("GET", "HEAD", "OPTIONS") and not _same_origin(request):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Origen no permitido")
-    user = await _user_for_token(request, request.cookies.get(settings.auth.cookie_name))
+    user = await _user_for_token(request, request.cookies.get(settings.auth.cookie_name), touch=touch)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Inicia sesión")
     return user
+
+
+async def session_alive(ws: WebSocket) -> bool:
+    """Para revisar de vez en cuando un WebSocket abierto: la sesión pudo cerrarse por inactividad o en otro lado."""
+    settings = _settings(ws)
+    return settings.auth.mode == "off" or await _user_for_token(ws, ws.cookies.get(settings.auth.cookie_name)) is not None
 
 
 def require_role(role: Role):
@@ -146,6 +186,17 @@ def require_role(role: Role):
         return user
 
     return check
+
+
+async def current_user(request: Request) -> CurrentUser:
+    """La cuenta con sesión. No cuenta como actividad: el tablero hace consultas solo (al llegar datos en vivo o cada
+    tantos minutos) y eso no debe impedir que la sesión se cierre por inactividad."""
+    return await _require_user(request, touch=False)
+
+
+async def active_user(request: Request) -> CurrentUser:
+    """Como current_user, pero la petición cuenta como actividad de la persona."""
+    return await _require_user(request, touch=True)
 
 
 async def websocket_user(ws: WebSocket) -> CurrentUser:

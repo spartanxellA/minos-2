@@ -251,6 +251,8 @@ class UserSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    # Última vez que la persona usó el tablero; sin dato, cuenta desde created_at.
+    last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
 class AuditEvent(Base):
