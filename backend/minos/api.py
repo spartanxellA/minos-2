@@ -1,4 +1,5 @@
 """Rutas REST bajo /api y el WebSocket del tablero."""
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
@@ -8,7 +9,7 @@ from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import audit, db
-from .auth import CurrentUser, Role, current_user, require_role, websocket_user
+from .auth import CurrentUser, Role, current_user, require_role, session_alive, websocket_user
 from .domain.mentions import Sentiment
 from .schemas import (
     AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, DeactivateInput, Influencer, MentionOut, RiskOut,
@@ -398,6 +399,7 @@ async def get_survey(survey_id: str, request: Request):
 # --- Tiempo real ----------------------------------------------------------------------------------
 
 ws_router = APIRouter()
+WS_SESSION_CHECK = 60  # segundos
 
 
 @ws_router.websocket("/ws/targets/{target_id}")
@@ -410,9 +412,17 @@ async def live(ws: WebSocket, target_id: uuid.UUID):
     await ws.accept()
     hub = ws.app.state.hub
     hub.subscribe(target_id, ws)
+    checked = time.monotonic()
     try:
         while True:
             await ws.receive_text()  # el cliente solo manda pings; mantiene la conexión abierta
+            # Los pings no cuentan como actividad; de vez en cuando se revisa que la sesión siga abierta (pudo
+            # cerrarse por inactividad o desde otra pestaña).
+            if time.monotonic() - checked >= WS_SESSION_CHECK:
+                checked = time.monotonic()
+                if not await session_alive(ws):
+                    await ws.close(code=status.WS_1008_POLICY_VIOLATION)
+                    break
     except WebSocketDisconnect:
         pass
     finally:

@@ -160,6 +160,9 @@ button.danger { color: var(--neg); }
 .logo { display: block; flex: none; border-radius: 22%; }
 h1.brand .logo { display: inline-block; vertical-align: middle; margin: -4px 8px 0 0; }
 .login form > .logo { align-self: center; }
+.login .notice { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 12%, transparent); }
+dialog.idle-warning p { margin: 0; }
+dialog.idle-warning .countdown { font-variant-numeric: tabular-nums; }
 .login form > .logo + h1 { text-align: center; }
 .login form > .logo + h1 + p { text-align: center; }
 .badge { display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--neg); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }

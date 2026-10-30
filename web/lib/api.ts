@@ -240,6 +240,8 @@ export interface User {
 
 export interface Me extends User {
   authMode: "local" | "off";
+  /** Tras este lapso sin actividad se cierra la sesión (se avisa antes). null = nunca. */
+  idleTimeoutSeconds?: number | null;
 }
 
 export interface AuditEvent {
@@ -462,7 +464,9 @@ export const api = {
 
   me: () => get<Me>("/api/auth/me"),
   login: (email: string, password: string) => request<Me>("/api/auth/login", { method: "POST", json: { email, password } }),
-  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+  logout: (reason?: "idle") => request<void>("/api/auth/logout", { method: "POST", json: reason ? { reason } : undefined }),
+  /** La persona está usando el tablero; mantiene viva la sesión. */
+  activity: () => request<void>("/api/auth/activity", { method: "POST" }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>("/api/auth/password", { method: "POST", json: { currentPassword, newPassword } }),
 

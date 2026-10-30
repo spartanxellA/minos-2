@@ -1,18 +1,18 @@
 """Rutas de inicio de sesión (/api/auth) y de administración de cuentas (/api/users)."""
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import audit, db
 from .auth import (
-    _DUMMY_HASH, ROLE_LABEL, CurrentUser, Role, create_user, current_user, end_sessions, hash_password,
-    new_session_token, normalize_email, require_role, token_hash, verify_password,
+    _DUMMY_HASH, ROLE_LABEL, CurrentUser, Role, active_user, close_idle_session, create_user, current_user,
+    end_sessions, hash_password, new_session_token, normalize_email, require_role, token_hash, verify_password,
 )
 from .schemas import Camel
 
@@ -58,6 +58,19 @@ class UserOut(Camel):
 
 class MeOut(UserOut):
     auth_mode: str
+    # El tablero cierra la sesión tras este lapso sin actividad y avisa antes. None = nunca.
+    idle_timeout_seconds: int | None = None
+
+
+class LogoutInput(Camel):
+    # "idle": el tablero cerró la sesión porque la persona dejó de usarlo.
+    reason: Literal["user", "idle"] = "user"
+
+
+def _me_out(request: Request, user: db.User | CurrentUser) -> MeOut:
+    a = request.app.state.settings.auth
+    idle = int(a.idle_timeout.total_seconds()) if a.mode == "local" and a.idle_timeout else None
+    return MeOut(**UserOut.of(user).model_dump(), auth_mode=a.mode, idle_timeout_seconds=idle)
 
 
 class UserCreate(Camel):
@@ -127,37 +140,65 @@ async def login(body: LoginInput, request: Request, response: Response, session:
     user.locked_until = None
     user.last_login_at = now
     token = new_session_token()
-    session.add(db.UserSession(token_hash=token_hash(token), user_id=user.id, created_at=now, expires_at=now + a.session_ttl))
+    session.add(db.UserSession(token_hash=token_hash(token), user_id=user.id, created_at=now, last_seen_at=now,
+                               expires_at=now + a.session_ttl))
     await session.execute(delete(db.UserSession).where(db.UserSession.expires_at <= now))
+    await _close_abandoned_sessions(session, request, now)
     audit.record(session, request, "auth.login", _actor(user), entity_type="user", entity_id=user.id, entity_label=user.email)
     await session.commit()
     response.set_cookie(
         a.cookie_name, token, max_age=int(a.session_ttl.total_seconds()), httponly=True, samesite="lax",
         secure=not settings.is_development, path="/",
     )
-    return MeOut(**UserOut.of(user).model_dump(), auth_mode=a.mode)
+    return _me_out(request, user)
+
+
+async def _close_abandoned_sessions(session: AsyncSession, request: Request, now: datetime) -> None:
+    """Sesiones que se quedaron sin actividad y nadie volvió a usar (se cerró la pestaña): se cierran y se anotan."""
+    idle_timeout = request.app.state.settings.auth.idle_timeout
+    if not idle_timeout:
+        return
+    S = db.UserSession
+    cutoff = now - idle_timeout
+    rows = (await session.execute(
+        select(db.User, S).join(S, S.user_id == db.User.id)
+        .where(or_(S.last_seen_at < cutoff, S.last_seen_at.is_(None) & (S.created_at < cutoff)))
+        .limit(500)
+    )).all()
+    for user, user_session in rows:
+        await close_idle_session(session, None, user, user_session, via="cleanup")
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(request: Request, response: Response, session: Session):
+async def logout(request: Request, response: Response, session: Session, body: LogoutInput | None = None):
     a = request.app.state.settings.auth
     token = request.cookies.get(a.cookie_name)
     if token:
-        user = await session.scalar(
-            select(db.User).join(db.UserSession, db.UserSession.user_id == db.User.id)
+        row = (await session.execute(
+            select(db.User, db.UserSession).join(db.UserSession, db.UserSession.user_id == db.User.id)
             .where(db.UserSession.token_hash == token_hash(token))
-        )
-        result = await session.execute(delete(db.UserSession).where(db.UserSession.token_hash == token_hash(token)))
-        if user is not None and result.rowcount:
-            audit.record(session, request, "auth.logout", _actor(user), entity_type="user", entity_id=user.id,
-                         entity_label=user.email)
+        )).first()
+        if row is not None and body is not None and body.reason == "idle":
+            await close_idle_session(session, request, *row, via="dashboard")
+        else:
+            result = await session.execute(delete(db.UserSession).where(db.UserSession.token_hash == token_hash(token)))
+            if row is not None and result.rowcount:
+                user = row[0]
+                audit.record(session, request, "auth.logout", _actor(user), entity_type="user", entity_id=user.id,
+                             entity_label=user.email)
         await session.commit()
     response.delete_cookie(a.cookie_name, path="/")
 
 
 @auth_router.get("/me", response_model=MeOut)
-async def me(request: Request, user: Annotated[CurrentUser, Depends(current_user)]):
-    return MeOut(**UserOut.of(user).model_dump(), auth_mode=request.app.state.settings.auth.mode)
+async def me(request: Request, user: Annotated[CurrentUser, Depends(active_user)]):
+    # Abrir o recargar el tablero cuenta como actividad.
+    return _me_out(request, user)
+
+
+@auth_router.post("/activity", status_code=status.HTTP_204_NO_CONTENT)
+async def activity(user: Annotated[CurrentUser, Depends(active_user)]):
+    """El tablero avisa que la persona lo está usando (clics, teclas, toques), a lo más una vez por minuto."""
 
 
 @auth_router.post("/password", status_code=status.HTTP_204_NO_CONTENT)

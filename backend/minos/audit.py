@@ -27,6 +27,7 @@ ACTIONS = {
     "auth.login_failed": "Inicio de sesión fallido",
     "auth.locked": "Cuenta bloqueada por intentos",
     "auth.logout": "Cierre de sesión",
+    "auth.idle_timeout": "Sesión cerrada por inactividad",
     "auth.password_changed": "Cambio de contraseña propia",
     "user.created": "Cuenta creada",
     "user.updated": "Cuenta modificada",
