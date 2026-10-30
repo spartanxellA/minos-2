@@ -359,3 +359,26 @@ form.deactivate input { flex: 1 1 260px; min-width: 0; }
   .feed .meta { align-items: center; }
   .feed select.sentiment-picker { min-height: 34px; padding: 0 4px; }
 }
+
+/* Mapa de menciones */
+.geo-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.geo-controls select { min-height: 0; padding: 4px 8px; font-size: 12px; }
+.geo-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+.geo-side { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.geo-side .hint { font-size: 12px; margin: 0; }
+.geo-side button { align-self: flex-start; }
+.geo-coverage { display: flex; gap: 12px; align-items: center; }
+.geo-coverage .kpi { font-size: 34px; }
+.geo-side td .dot { display: inline-block; margin-right: 6px; vertical-align: middle; }
+.geo-help { font-size: 12px; color: var(--muted); }
+.geo-help summary { cursor: pointer; }
+.geo-help p { margin: 6px 0 0; line-height: 1.45; }
+.place { color: var(--muted); }
+@media (max-width: 1000px) {
+  .geo-body { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .geo-controls { width: 100%; }
+  .geo-controls > * { flex: 1 1 100%; }
+  .geo-controls .seg button { flex: 1; }
+}

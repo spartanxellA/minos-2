@@ -34,6 +34,25 @@ class Engagement:
         return self.likes + self.shares + self.replies
 
 
+@dataclass(frozen=True)
+class GeoHint:
+    """Pistas de ubicación que trae la fuente, todavía sin interpretar (ver minos.geo)."""
+
+    # Geoetiqueta de la publicación: coordenada exacta o el lugar que eligió el autor ("Monterrey, Nuevo León").
+    lat: float | None = None
+    lon: float | None = None
+    place: str | None = None
+    # País del lugar geoetiquetado o del canal (YouTube lo da como código ISO).
+    country_code: str | None = None
+    # Texto libre de la ubicación en el perfil del autor ("CDMX", "Monterrey, N.L.", "En algún lugar").
+    author_location: str | None = None
+    # Comunidad donde se publicó (subreddit).
+    community: str | None = None
+    # Medio que publicó la nota: su sitio y su nombre.
+    outlet_url: str | None = None
+    outlet_name: str | None = None
+
+
 # Tamaños de las columnas en la base (mentions.external_id y author_handle/author_name).
 MAX_EXTERNAL_ID = 512
 MAX_AUTHOR = 200
@@ -53,6 +72,7 @@ class MentionDraft:
     engagement: Engagement = field(default_factory=Engagement)
     # Comentario o publicación en un canal propio del objetivo (su página, su cuenta): habla de él aunque no lo nombre.
     own_channel: bool = False
+    geo: GeoHint | None = None
     raw: dict | None = None
 
     def __post_init__(self) -> None:

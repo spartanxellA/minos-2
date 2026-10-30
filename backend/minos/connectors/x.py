@@ -5,7 +5,7 @@ from datetime import timedelta
 import httpx
 
 from ..config import XSettings
-from ..domain.mentions import AuthorInfo, Engagement, MentionDraft
+from ..domain.mentions import AuthorInfo, Engagement, GeoHint, MentionDraft
 from ..domain.targets import MonitoredTarget
 from .base import ConnectorCursor, MentionConnector, parse_datetime
 from .query import build_query
@@ -38,9 +38,10 @@ class XConnector(MentionConnector):
         params = {
             "query": query,
             "max_results": min(max(self._settings.max_results, 10), 100),
-            "tweet.fields": "created_at,public_metrics,lang,author_id",
-            "expansions": "author_id",
-            "user.fields": "public_metrics,verified,username,name",
+            "tweet.fields": "created_at,public_metrics,lang,author_id,geo",
+            "expansions": "author_id,geo.place_id",
+            "user.fields": "public_metrics,verified,username,name,location",
+            "place.fields": "country_code,full_name,geo",
         }
         if cursor.value:
             params["since_id"] = cursor.value
@@ -53,7 +54,9 @@ class XConnector(MentionConnector):
             response.raise_for_status()
 
         page = response.json()
-        users = {u["id"]: u for u in (page.get("includes") or {}).get("users", [])}
+        includes = page.get("includes") or {}
+        users = {u["id"]: u for u in includes.get("users", [])}
+        places = {p["id"]: p for p in includes.get("places", [])}
         for t in page.get("data") or []:
             user = users.get(t.get("author_id", ""))
             metrics = t.get("public_metrics") or {}
@@ -80,7 +83,24 @@ class XConnector(MentionConnector):
                     replies=metrics.get("reply_count", 0),
                     views=metrics.get("impression_count", 0),
                 ),
+                geo=_geo(t, user, places),
                 raw=t,
             )
         if newest := (page.get("meta") or {}).get("newest_id"):
             cursor.value = newest
+
+
+def _geo(tweet: dict, user: dict | None, places: dict[str, dict]) -> GeoHint | None:
+    """Geoetiqueta del tuit (rara vez viene) y ubicación escrita en el perfil del autor."""
+    geo = tweet.get("geo") or {}
+    place = places.get(geo.get("place_id", "")) or {}
+    lat = lon = None
+    if (point := (geo.get("coordinates") or {}).get("coordinates")) and len(point) == 2:
+        lon, lat = point
+    elif (bbox := (place.get("geo") or {}).get("bbox")) and len(bbox) == 4:
+        lon, lat = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
+    location = (user or {}).get("location")
+    if lat is None and not place and not location:
+        return None
+    return GeoHint(lat=lat, lon=lon, place=place.get("full_name"), country_code=place.get("country_code"),
+                   author_location=location)

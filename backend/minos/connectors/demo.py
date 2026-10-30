@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 from ..config import DemoSettings
-from ..domain.mentions import AuthorInfo, Engagement, MentionDraft
+from ..domain.mentions import AuthorInfo, Engagement, GeoHint, MentionDraft
 from ..domain.targets import MonitoredTarget
 from .base import ConnectorCursor, MentionConnector
 
@@ -20,9 +20,14 @@ TEMPLATES = [
     "Opinión: lo que {0} no ha explicado sobre su patrimonio",
 ]
 
+# Cuenta, seguidores y ubicación del perfil (como la escriben las personas; algunas no dicen nada útil).
 AUTHORS = [
-    ("@noticias_mx", 2_400_000), ("@columnista", 180_000), ("@ciudadano_42", 310), ("@observatorio", 52_000),
-    ("@reportera", 95_000), ("@vecino_tlalpan", 1_200), ("@radio_fm", 640_000),
+    ("@noticias_mx", 2_400_000, "Ciudad de México"), ("@columnista", 180_000, "Monterrey, N.L."),
+    ("@ciudadano_42", 310, ""), ("@observatorio", 52_000, "Guadalajara, Jalisco"),
+    ("@reportera", 95_000, "CDMX"), ("@vecino_tlalpan", 1_200, "Tlalpan, CDMX"), ("@radio_fm", 640_000, "Puebla"),
+    ("@norte_hoy", 33_000, "Tijuana, BC"), ("@sureste_info", 21_000, "Mérida, Yucatán"),
+    ("@paisano_tx", 4_800, "Houston, TX"), ("@bajio_news", 15_000, "León, Gto."), ("@desde_madrid", 9_000, "Madrid"),
+    ("@sin_lugar", 150, "En todas partes 🌎"), ("@golfo_noticias", 27_000, "Veracruz"),
 ]
 
 
@@ -45,7 +50,7 @@ class DemoConnector(MentionConnector):
     async def fetch(self, target: MonitoredTarget, cursor: ConnectorCursor) -> AsyncIterator[MentionDraft]:
         now = datetime.now(UTC)
         for _ in range(random.randint(1, 5)):
-            handle, followers = random.choice(AUTHORS)
+            handle, followers, location = random.choice(AUTHORS)
             mid = uuid.uuid4().hex
             yield MentionDraft(
                 source=self.source,
@@ -56,5 +61,6 @@ class DemoConnector(MentionConnector):
                 text=random.choice(TEMPLATES).format(target.name) + f" #{random.randint(0, 999)}",
                 language="es",
                 engagement=Engagement(random.randint(0, 1999), random.randint(0, 499), random.randint(0, 299)),
+                geo=GeoHint(author_location=location) if location else None,
             )
         cursor.value = now.isoformat()

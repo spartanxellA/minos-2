@@ -1,6 +1,7 @@
 """Esquema en PostgreSQL (SQLAlchemy 2, asyncpg). Las listas y diccionarios van en columnas jsonb."""
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, BigInteger, Integer, DateTime, Float, ForeignKey, Index, String, Text, TypeDecorator, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -10,6 +11,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from .domain.mentions import MentionAnalysis, MentionDraft, fingerprint
 from .domain.screening import EntryKind, WatchlistRecord
 from .domain.targets import MonitoredTarget, TargetKind
+
+if TYPE_CHECKING:
+    from .geo.locate import Located
 
 Json = JSON().with_variant(JSONB(), "postgresql")
 
@@ -77,6 +81,7 @@ class Mention(Base):
         Index("ix_mentions_target_fingerprint", "target_id", "fingerprint"),
         Index("ix_mentions_target_published", "target_id", "published_at"),
         Index("ix_mentions_target_corrected", "target_id", "sentiment_corrected_at"),
+        Index("ix_mentions_target_geo", "target_id", "geo_country", "geo_region"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -108,15 +113,30 @@ class Mention(Base):
     original_sentiment: Mapped[str | None] = mapped_column(String(16))
     sentiment_corrected_by: Mapped[str | None] = mapped_column(String(254))
     sentiment_corrected_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    # Ubicación para el mapa (minos.geo): país ISO, estado ISO 3166-2, ciudad, coordenada, precisión y de dónde salió.
+    geo_country: Mapped[str | None] = mapped_column(String(2))
+    geo_region: Mapped[str | None] = mapped_column(String(8))
+    geo_city: Mapped[str | None] = mapped_column(String(80))
+    geo_lat: Mapped[float | None] = mapped_column(Float)
+    geo_lon: Mapped[float | None] = mapped_column(Float)
+    geo_precision: Mapped[str | None] = mapped_column(String(8))
+    geo_method: Mapped[str | None] = mapped_column(String(16))
+
+    def set_location(self, place: "Located | None") -> None:
+        p = place
+        self.geo_country, self.geo_region, self.geo_city = (p.country, p.region, p.city) if p else (None, None, None)
+        self.geo_lat, self.geo_lon = (p.lat, p.lon) if p else (None, None)
+        # "none": ya se intentó y no hubo pistas; NULL: nunca se intentó (menciones de antes del mapa).
+        self.geo_precision, self.geo_method = (p.precision, p.method) if p else (None, "none")
 
     @property
     def interactions(self) -> int:
         return (self.likes or 0) + (self.shares or 0) + (self.replies or 0)
 
     @classmethod
-    def create(cls, target_id: uuid.UUID, draft: MentionDraft, analysis: MentionAnalysis) -> "Mention":
+    def create(cls, target_id: uuid.UUID, draft: MentionDraft, analysis: MentionAnalysis, place: "Located | None" = None) -> "Mention":
         e = draft.engagement
-        return cls(
+        mention = cls(
             id=uuid.uuid4(), target_id=target_id, source=draft.source, external_id=draft.external_id, url=draft.url,
             author_handle=draft.author.handle, author_name=draft.author.display_name,
             author_followers=draft.author.followers, author_verified=draft.author.verified,
@@ -126,6 +146,8 @@ class Mention(Base):
             is_severe_accusation=analysis.severe_accusation, topic=analysis.topic and analysis.topic[:200], summary=analysis.summary,
             analyzer=analysis.analyzer, raw=draft.raw,
         )
+        mention.set_location(place)
+        return mention
 
 
 class ConnectorState(Base):

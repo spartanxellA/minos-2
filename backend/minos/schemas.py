@@ -10,6 +10,7 @@ from . import db
 from .connectors.base import redact_secrets
 from .domain.risk import LEVEL_COLOR, LEVEL_LABEL, RiskAlert, RiskLevel
 from .domain.targets import TargetKind
+from .geo.gazetteer import place_label
 
 
 class Camel(BaseModel):
@@ -76,6 +77,9 @@ class MentionOut(Camel):
     corrected: bool = False
     original_sentiment: str | None = None
     corrected_by: str | None = None
+    # Lugar asignado para el mapa ("Monterrey, Nuevo León") y de dónde salió: geotag, profile, community, outlet o text.
+    place: str | None = None
+    place_method: str | None = None
 
     @classmethod
     def of(cls, m: db.Mention) -> "MentionOut":
@@ -86,6 +90,8 @@ class MentionOut(Camel):
             interactions=m.interactions, corrected=m.sentiment_corrected_at is not None,
             original_sentiment=m.original_sentiment.lower() if m.original_sentiment else None,
             corrected_by=m.sentiment_corrected_by,
+            place=place_label(m.geo_country, m.geo_region, m.geo_city) if m.geo_country else None,
+            place_method=m.geo_method if m.geo_country else None,
         )
 
 

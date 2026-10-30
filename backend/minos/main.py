@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import router, ws_router
 from .accounts import auth_router, users_router
 from .analytics import analytics_router
+from .geo.api import geo_router
 from .audit import audit_router
 from .auth import bootstrap_admin
 from .config import Settings, get_settings
@@ -70,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(users_router)
     app.include_router(audit_router)
     app.include_router(analytics_router)
+    app.include_router(geo_router)
     app.include_router(watchlist_router)
     app.include_router(router)
     app.include_router(ws_router)

@@ -10,7 +10,7 @@ import feedparser
 import httpx
 
 from ..config import RssSettings
-from ..domain.mentions import AuthorInfo, MentionDraft
+from ..domain.mentions import AuthorInfo, GeoHint, MentionDraft
 from ..domain.targets import MonitoredTarget
 from .base import ConnectorCursor, MentionConnector, parse_since
 from .query import build_query
@@ -70,7 +70,8 @@ class RssConnector(MentionConnector):
                     continue
                 newest = max(newest, published)
                 link = entry.get("link") or entry.get("id", "")
-                outlet = (entry.get("source") or {}).get("title") or outlet_default
+                source = entry.get("source") or {}
+                outlet = source.get("title") or outlet_default
                 summary = _strip_html(entry.get("summary", ""))
                 yield MentionDraft(
                     source=self.source,
@@ -79,5 +80,7 @@ class RssConnector(MentionConnector):
                     author=AuthorInfo(outlet, outlet),
                     published_at=published,
                     text=f"{entry.get('title', '')} {summary}".strip(),
+                    # Google Noticias dice qué medio publicó la nota; en un feed propio, el medio es el feed.
+                    geo=GeoHint(outlet_url=source.get("href") or url, outlet_name=outlet),
                 )
         cursor.value = newest.isoformat()

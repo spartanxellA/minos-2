@@ -14,6 +14,7 @@ from ..config import IngestionSettings
 from ..connectors import ConnectorCursor, MentionConnector, redact_secrets
 from ..domain.mentions import MentionDraft, fingerprint
 from ..domain.targets import MonitoredTarget, is_relevant
+from ..geo.locate import locate_draft
 from ..schemas import MentionOut
 
 log = logging.getLogger(__name__)
@@ -148,7 +149,10 @@ class IngestionWorker:
 
         examples = await db.sentiment_examples(session, target.id)
         analyses = await self._analyzer.analyze(fresh, target.name, examples)
-        mentions = [db.Mention.create(target.id, d, a) for d, a in zip(fresh, analyses)]
+        names = target.search_names()
+        mentions = [
+            db.Mention.create(target.id, d, a, locate_draft(d, names, self._settings.geo)) for d, a in zip(fresh, analyses)
+        ]
         session.add_all(mentions)
         await session.flush()
         return mentions
