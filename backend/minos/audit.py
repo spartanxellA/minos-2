@@ -38,6 +38,7 @@ ACTIONS = {
     "target.deleted": "Objetivo borrado definitivamente",
     "survey.submitted": "Cuestionario contestado",
     "mention.sentiment_corrected": "Sentimiento de mención corregido",
+    "mentions.geolocated": "Menciones anteriores ubicadas en el mapa",
     "audit.exported": "Bitácora exportada",
     "screening.reviewed": "Coincidencia en lista revisada",
     "watchlist.uploaded": "Lista propia cargada",

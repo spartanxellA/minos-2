@@ -49,6 +49,7 @@ function summary(e: AuditEvent): string | null {
     return `${d.survey ?? d.surveyId}${score}`;
   }
   if (e.action === "audit.exported") return `${d.rows} filas`;
+  if (e.action === "mentions.geolocated") return `${d.reviewed} menciones revisadas`;
   if (e.action.startsWith("target.") && d.reason) return `motivo: ${d.reason}`;
   if (d.passwordReset) return "contraseña restablecida";
   return null;

@@ -2,7 +2,7 @@
 
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
-import { api, can, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Mention, type Sentiment, type Target } from "@/lib/api";
+import { api, can, GEO_METHOD_LABEL, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Mention, type Sentiment, type Target } from "@/lib/api";
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
 import { AuditDialog } from "./AuditDialog";
@@ -15,6 +15,7 @@ import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
 import { SurveyCard } from "./SurveyCard";
+import { GeoMapCard } from "./GeoMap";
 import { Logo } from "./Logo";
 
 const SENT = { positive: { label: "Positivo", color: "#2e7d32" }, neutral: { label: "Neutro", color: "#8a94a0" }, negative: { label: "Negativo", color: "#d32f2f" } } as const;
@@ -300,6 +301,9 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
                         {m.topic && <span>#{m.topic}</span>}
                         <span>{SOURCE_LABEL[m.source] ?? m.source}</span>
                         <span>{m.author}{m.followers ? ` · ${fmt.format(m.followers)} seguidores` : ""}</span>
+                        {m.place && (
+                          <span className="place" title={`Ubicación para el mapa: ${m.placeMethod ? GEO_METHOD_LABEL[m.placeMethod] : ""}`}>⌖ {m.place}</span>
+                        )}
                         <span>{time(m.publishedAt)}</span>
                       </div>
                     </li>
@@ -319,6 +323,9 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
                 </tbody>
               </table></div>
             </section>
+
+            <GeoMapCard targetId={selectedTarget.id} targetName={selectedTarget.name} canLocate={can(user, "analyst")}
+              refreshKey={live.mentions.length ? Date.parse(live.mentions[0].publishedAt) : undefined} />
           </div>
         )}
       </main>

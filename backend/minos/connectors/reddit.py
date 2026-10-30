@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 
 from ..config import RedditSettings
-from ..domain.mentions import AuthorInfo, Engagement, MentionDraft
+from ..domain.mentions import AuthorInfo, Engagement, GeoHint, MentionDraft
 from ..domain.targets import MonitoredTarget
 from .base import ConnectorCursor, MentionConnector, parse_since
 from .query import build_query
@@ -87,5 +87,7 @@ class RedditConnector(MentionConnector):
                     shares=post.get("num_crossposts", 0),
                     replies=post.get("num_comments", 0),
                 ),
+                # r/mexico, r/Monterrey, r/guadalajara: la comunidad dice de dónde se habla.
+                geo=GeoHint(community=post.get("subreddit")) if post.get("subreddit") else None,
             )
         cursor.value = newest.isoformat()

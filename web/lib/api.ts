@@ -67,6 +67,9 @@ export interface Mention {
   corrected: boolean;
   originalSentiment: Sentiment | null;
   correctedBy: string | null;
+  /** Lugar asignado para el mapa ("Monterrey, Nuevo León") y de qué pista salió. */
+  place?: string | null;
+  placeMethod?: GeoMethod | null;
 }
 
 export type Sentiment = "positive" | "negative" | "neutral";
@@ -347,6 +350,43 @@ const get = <T,>(path: string) => request<T>(path);
 
 export type Granularity = "month" | "year";
 
+export type GeoMethod = "geotag" | "profile" | "community" | "outlet" | "text";
+/** "origin": de dónde es quien publica. "text": de qué lugar habla la mención. */
+export type GeoBasis = "all" | "origin" | "text";
+
+export const GEO_METHOD_LABEL: Record<GeoMethod, string> = {
+  geotag: "Geoetiqueta", profile: "Perfil del autor", community: "Comunidad", outlet: "Sede del medio", text: "Lugar mencionado",
+};
+
+export interface GeoArea { code: string; name: string; count: number; negative: number }
+
+export interface GeoPlace {
+  name: string;
+  country: string;
+  region: string | null;
+  lat: number;
+  lon: number;
+  precision: "point" | "city" | "region" | "country";
+  count: number;
+  negative: number;
+}
+
+export interface GeoOverview {
+  since: string;
+  until: string;
+  basis: GeoBasis;
+  total: number;
+  located: number;
+  byMethod: { method: GeoMethod; count: number }[];
+  bySource: { source: string; total: number; located: number }[];
+  countries: GeoArea[];
+  /** Solo estados de México. */
+  regions: GeoArea[];
+  places: GeoPlace[];
+  /** Menciones guardadas antes del mapa que todavía no se intentan ubicar. */
+  pending: number;
+}
+
 export interface MentionsOverview {
   granularity: Granularity;
   timezone: string;
@@ -400,6 +440,10 @@ export const api = {
     request<Target>(`/api/targets/${id}/deactivate`, { method: "POST", json: { reason } }),
   reactivateTarget: (id: string) => request<Target>(`/api/targets/${id}/reactivate`, { method: "POST" }),
   deleteTarget: (id: string) => request<void>(`/api/targets/${id}`, { method: "DELETE" }),
+
+  geo: (id: string, days: number, basis: GeoBasis, source = "") =>
+    get<GeoOverview>(`/api/targets/${id}/geo?${new URLSearchParams({ days: String(days), basis, ...(source ? { source } : {}) })}`),
+  locatePending: (id: string) => request<{ reviewed: number }>(`/api/targets/${id}/geo/locate`, { method: "POST" }),
 
   correctSentiment: (mentionId: string, sentiment: Sentiment) =>
     request<Mention>(`/api/mentions/${mentionId}/sentiment`, { method: "POST", json: { sentiment } }),

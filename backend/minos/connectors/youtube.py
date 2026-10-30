@@ -1,15 +1,18 @@
+import logging
 from collections.abc import AsyncIterator
 from datetime import timedelta
 
 import httpx
 
 from ..config import YouTubeSettings
-from ..domain.mentions import AuthorInfo, MentionDraft
+from ..domain.mentions import AuthorInfo, GeoHint, MentionDraft
 from ..domain.targets import MonitoredTarget
 from .base import ConnectorCursor, MentionConnector, parse_datetime, parse_since
 from .query import build_query
 
+log = logging.getLogger(__name__)
 SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
+CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
 
 
 class YouTubeConnector(MentionConnector):
@@ -43,8 +46,10 @@ class YouTubeConnector(MentionConnector):
             "key": self._settings.api_key,
         })
         response.raise_for_status()
+        items = response.json().get("items", [])
+        countries = await self._channel_countries({(i.get("snippet") or {}).get("channelId") for i in items} - {None})
         newest = since
-        for item in response.json().get("items", []):
+        for item in items:
             video_id = (item.get("id") or {}).get("videoId")
             s = item.get("snippet")
             if not video_id or not s:
@@ -59,5 +64,24 @@ class YouTubeConnector(MentionConnector):
                 author=AuthorInfo(channel, s.get("channelTitle")),
                 published_at=published,
                 text=f"{s.get('title', '')} {s.get('description', '')}".strip(),
+                geo=GeoHint(country_code=countries[s["channelId"]]) if s.get("channelId") in countries else None,
             )
         cursor.value = newest.isoformat()
+
+    async def _channel_countries(self, channel_ids: set[str]) -> dict[str, str]:
+        """País declarado de cada canal (channels.list cuesta 1 unidad por cada 50). Si falla, se sigue sin él."""
+        countries: dict[str, str] = {}
+        ids = sorted(channel_ids)
+        for start in range(0, len(ids), 50):
+            try:
+                response = await self._http.get(CHANNELS_URL, params={
+                    "part": "snippet", "id": ",".join(ids[start:start + 50]), "maxResults": 50, "key": self._settings.api_key,
+                })
+                response.raise_for_status()
+            except httpx.HTTPError as ex:
+                log.warning("No se pudo leer el país de los canales de YouTube: %s", type(ex).__name__)
+                return countries
+            for channel in response.json().get("items", []):
+                if isinstance(channel.get("id"), str) and (country := (channel.get("snippet") or {}).get("country")):
+                    countries[channel["id"]] = country
+        return countries

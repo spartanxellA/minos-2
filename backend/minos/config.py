@@ -102,6 +102,15 @@ class DemoSettings(BaseModel):
     poll_interval: Duration = timedelta(seconds=20)
 
 
+class GeoSettings(BaseModel):
+    # Ubicación de cada mención para el mapa (ver minos.geo). Todo se resuelve con un nomenclátor local.
+    enabled: bool = True
+    # País que se supone cuando un nombre existe en varios (León, Mérida, La Paz) y nada más lo aclara.
+    default_country: str = "MX"
+    # Si la fuente no dice de dónde es el autor, usar el lugar que más se nombra en el texto.
+    from_text: bool = True
+
+
 class IngestionSettings(BaseModel):
     tick: Duration = timedelta(seconds=30)
     max_mentions_per_run: int = 300
@@ -109,6 +118,7 @@ class IngestionSettings(BaseModel):
     duplicate_window: Duration = timedelta(days=3)
     # Vencimiento del candado por objetivo y fuente: si un worker muere a media consulta, otro la retoma después.
     lock_ttl: Duration = timedelta(minutes=10)
+    geo: GeoSettings = GeoSettings()
 
 
 class RiskEngineSettings(BaseModel):

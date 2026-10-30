@@ -121,6 +121,19 @@ fuera salvo que se marque "Incluir dados de baja". Los meses se cortan en la zon
 (por omisión `America/Mexico_City`). API: `GET /api/analytics/mentions?granularity=month|year&since=AAAA-MM&until=…
 &kind=…&source=…&top=10&includeInactive=false`.
 
+### Mapa de menciones
+
+La tarjeta "¿Desde dónde se habla de…?" del tablero de cada objetivo muestra un mapa de México (por estado) o del
+mundo (por país), con ciudades como puntos del tamaño de sus menciones y del color de su proporción de negativas.
+Cada mención se ubica al guardarse con un nomenclátor local (`minos.geo`, sin servicios externos), usando la pista
+más confiable que dé la fuente: geoetiqueta (X, rara vez), ubicación escrita en el perfil (X), país del canal
+(YouTube), comunidad (Reddit) o sede del medio (Noticias, por dominio o nombre). Si no hay ninguna, se usa el lugar
+que más se nombra en el texto, que dice de qué lugar trata y no desde dónde se escribió; el tablero permite separar
+"origen" de "lugar mencionado". Bluesky, Facebook e Instagram no comparten ubicación. Se configura con
+`MINOS_INGESTION__GEO__ENABLED`, `__DEFAULT_COUNTRY` (país para homónimos como León o Mérida, `MX`) y `__FROM_TEXT`.
+API: `GET /api/targets/{id}/geo?days=30&basis=all|origin|text&source=…`. Las menciones guardadas antes del mapa se
+ubican con el botón de la tarjeta (`POST /api/targets/{id}/geo/locate`) o con `python -m minos.geo.backfill`.
+
 ## Avisos de alertas
 
 Las alertas se ven en vivo en el tablero. Además se avisan por los canales configurados (vacío = apagado):
