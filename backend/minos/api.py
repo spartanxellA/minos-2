@@ -1,6 +1,6 @@
 """Rutas REST bajo /api y el WebSocket del tablero."""
-import uuid
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 

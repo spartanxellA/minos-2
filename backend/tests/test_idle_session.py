@@ -6,13 +6,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import POSTGRES_URL, migrate, needs_postgres, reset_postgres
 from fastapi.testclient import TestClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-from starlette.websockets import WebSocketDisconnect
-
 from minos import api as api_module
 from minos.config import Settings
 from minos.main import create_app
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+from starlette.websockets import WebSocketDisconnect
 from test_auth import ADMIN, PASSWORD, login
 
 TARGET = "00000000-0000-0000-0000-000000000001"
