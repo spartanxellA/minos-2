@@ -29,6 +29,13 @@ ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443 && ufw --force enable
 git clone https://github.com/spartanxellA/minos-2.git /opt/minos-2
 ```
 
+Con 2 GB de RAM agrega 2 GB de memoria de intercambio (swap) para que la construcción no se quede sin memoria:
+
+```bash
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
 Si el repositorio es privado, clónalo con un token de GitHub de solo lectura
 (`git clone https://TOKEN@github.com/spartanxellA/minos-2.git /opt/minos-2`) o con una llave de despliegue.
 
@@ -80,6 +87,8 @@ cd /opt/minos-2 && git pull
 minos up -d --build      # el servicio migrate aplica las migraciones nuevas antes de arrancar la API
 ```
 
+Antes de una actualización grande puedes sacar un respaldo a mano con `deploy/backup.sh`.
+
 ## Más workers
 
 Si hay muchos objetivos o fuentes: `minos up -d --scale worker=3`. Con 4 GB caben dos o tres.
@@ -94,12 +103,20 @@ Hay tres capas; con las tres siempre hay de dónde restaurar:
 | `deploy/backup.sh` | base completa + `.env` + versión del código | `/opt/minos-2/backups/` y copia externa cifrada | 14 días aquí; 30 diarios y 12 mensuales fuera |
 | Backups de DigitalOcean | el Droplet entero (disco completo) | DigitalOcean | según el plan del panel |
 
+Los Backups de DigitalOcean se activan en el panel: *Droplet → Backups → Enable* (semanales, o diarios con costo
+extra). No necesitan nada en el servidor.
+
 ### Configurar (una sola vez)
 
 1. **Crear dónde guardar la copia externa.** En DigitalOcean: *Spaces Object Storage → Create Space*, en una región
    distinta a la del Droplet si se puede, acceso **privado** (sin CDN). Luego *Spaces Keys → Generate New Key*, con
-   acceso solo a ese Space. Anota el nombre del Space, el endpoint (por ejemplo `nyc3.digitaloceanspaces.com`), la
-   llave y el secreto. Funciona igual con Backblaze B2 o AWS S3 (ver `.env.example`).
+   acceso solo a ese Space (lectura, escritura y borrado). Anota el nombre del Space, el endpoint, la llave y el
+   secreto (DigitalOcean muestra el secreto una sola vez). Funciona igual con Backblaze B2 o AWS S3 (ver
+   `.env.example`).
+   - **Endpoint:** solo la región, **sin** el nombre del Space. Si la dirección del Space es
+     `https://minos.sfo3.digitaloceanspaces.com`, el endpoint es `sfo3.digitaloceanspaces.com` y el bucket es `minos`.
+   - **Llave:** es una *Spaces Access Key* (suele empezar con `DO`, unos 20 caracteres; el secreto tiene unos 43). Un
+     token de la API de DigitalOcean (`dop_v1_...`) no sirve aquí.
 2. **Instalar rclone** (sube los archivos): `apt install -y rclone`.
 3. **Llenar en `.env`:** `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY` y
    `BACKUP_PASSPHRASE` (genera una con `openssl rand -base64 32`).
@@ -181,5 +198,15 @@ también respalda y restaura una base real de TimescaleDB en cada cambio.
   443 estén abiertos en `ufw` y en el firewall del proveedor. `minos logs caddy` dice qué pasó con Let's Encrypt.
 - **Olvidaste la contraseña o la cuenta quedó bloqueada:**
   `minos run --rm migrate python -m minos.users password tu@correo.com`
+- **`deploy/backup.sh --check` falla:**
+  - `x509: certificate is valid for *.internal.digitalocean.com`: el endpoint lleva el nombre del Space al principio
+    (la dirección sale duplicada, `minos.minos.sfo3...`). Deja solo `BACKUP_S3_ENDPOINT=sfo3.digitaloceanspaces.com`.
+  - `InvalidAccessKeyId`: la llave no es una Spaces Access Key válida (token de la API, llave y secreto al revés, o un
+    espacio de más). Crea otra en *Spaces Object Storage → Access Keys*.
+  - `SignatureDoesNotMatch`: la llave existe pero el secreto no corresponde.
+  - `AccessDenied`: la llave no tiene permiso sobre ese Space, o el nombre del bucket está mal.
+  - `Falta BACKUP_PASSPHRASE`: la copia externa siempre va cifrada; agrega la frase al `.env`.
+- **Ver cómo van los respaldos:** `tail /var/log/minos-backup.log`, `deploy/restore.sh list` y `crontab -l` (debe
+  aparecer `backup.sh`).
 - **Una fuente no trae menciones:** en el tablero, el botón "Fuentes" muestra si cada una tiene llave, cuándo
   consultó y su último error por objetivo. En el servidor, `minos logs --since 10m worker | grep -i error`.
