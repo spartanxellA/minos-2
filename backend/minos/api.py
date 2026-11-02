@@ -1,4 +1,5 @@
 """Rutas REST bajo /api y el WebSocket del tablero."""
+import re
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -283,14 +284,43 @@ async def list_alerts(target_id: uuid.UUID, session: Session):
 
 
 @router.get("/targets/{target_id}/connectors", response_model=list[ConnectorStateOut])
-async def connector_states(target_id: uuid.UUID, session: Session):
+async def connector_states(target_id: uuid.UUID, session: Session, me: Me):
     C = db.ConnectorState
-    return (await session.scalars(select(C).where(C.target_id == target_id).order_by(C.source))).all()
+    rows = (await session.scalars(select(C).where(C.target_id == target_id).order_by(C.source))).all()
+    out = [ConnectorStateOut.model_validate(r) for r in rows]
+    if not me.can(Role.ADMIN):
+        for o in out:
+            o.last_error = o.last_error and public_source_error(o.last_error)
+    return out
+
+
+_HTTP_STATUS = re.compile(r"\b([1-5]\d\d) [A-Z][A-Za-z ]+")
+
+
+def public_source_error(error: str) -> str:
+    """Resumen del error de una fuente sin detalles del servidor, para quien no es administrador."""
+    m = _HTTP_STATUS.search(error)
+    code = int(m.group(1)) if m else None
+    if code in (401, 403):
+        return f"La fuente rechazó la consulta ({code}). Un administrador debe revisar la configuración."
+    if code == 429:
+        return "La fuente alcanzó su límite de consultas (429). Se vuelve a intentar sola más tarde."
+    if code and code >= 500:
+        return f"La fuente tuvo una falla de su lado ({code}). Se vuelve a intentar sola más tarde."
+    if code:
+        return f"La fuente respondió con un error ({code})."
+    if "timeout" in error.lower() or "timed out" in error.lower():
+        return "La fuente tardó demasiado en responder. Se vuelve a intentar sola más tarde."
+    return "No se pudo consultar la fuente. Se vuelve a intentar sola más tarde."
 
 
 @router.get("/sources", response_model=SourcesOut)
-async def source_status(session: Session, request: Request):
-    """Estado de cada fuente y canal de avisos: si tiene llave, cuándo corrió, qué trajo y qué objetivos fallan."""
+async def source_status(session: Session, request: Request, me: Me):
+    """Estado de cada fuente y canal de avisos: si tiene llave, cuándo corrió, qué trajo y qué objetivos fallan.
+
+    El texto técnico del error (URL de la API, consulta, respuesta) solo lo ve un administrador; los demás roles
+    reciben una explicación corta (p. ej. «Límite de consultas alcanzado (429)»)."""
+    is_admin = me.can(Role.ADMIN)
     runtime = request.app.state.runtime
     configured: dict[str, bool] = {}
     for c in runtime.connectors:
@@ -307,7 +337,8 @@ async def source_status(session: Session, request: Request):
         .join(T, T.id == C.target_id).where(C.last_error.is_not(None)).order_by(T.name)
     )
     for source, target_id, name, at, error in rows:
-        errors.setdefault(source, []).append(SourceError(target_id=target_id, target_name=name, at=at, error=error))
+        shown = error if is_admin else public_source_error(error)
+        errors.setdefault(source, []).append(SourceError(target_id=target_id, target_name=name, at=at, error=shown))
     since = datetime.now(UTC) - timedelta(hours=24)
     mentions = {
         source: (last, recent) for source, last, recent in await session.execute(
