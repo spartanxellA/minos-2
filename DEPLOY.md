@@ -210,3 +210,16 @@ también respalda y restaura una base real de TimescaleDB en cada cambio.
   aparecer `backup.sh`).
 - **Una fuente no trae menciones:** en el tablero, el botón "Fuentes" muestra si cada una tiene llave, cuándo
   consultó y su último error por objetivo. En el servidor, `minos logs --since 10m worker | grep -i error`.
+- **Errores de fuentes en el log del worker** (también salen en "Fuentes"). El worker pausa solo la fuente o el feed
+  y no lo vuelve a pedir en cada ronda; el aviso dice hasta qué hora:
+  - `429 Too Many Requests` en un feed RSS: el sitio pide esperar. Se respeta `Retry-After` (o 15 min que se duplican
+    hasta 6 h) y los feeds de `RSS_FEEDS` se descargan una vez por ronda para todos los objetivos. No requiere nada.
+  - `402 Payment Required` en un feed (por ejemplo `rss.app`): el plan del servicio venció. Renuévalo o quita ese
+    feed de `RSS_FEEDS`.
+  - `403 Forbidden` en un feed: el sitio bloquea lectores automáticos. minOS ya se presenta como navegador; si sigue,
+    el sitio tiene protección anti-bots (Cloudflare) y conviene quitar el feed o buscar su liga en Google Noticias.
+  - `402` en X: el plan de la API de X no tiene créditos. X queda en pausa 6 h (luego 12 y 24) para todos los
+    objetivos; recarga o cambia el plan en developer.x.com.
+  - `403 quotaExceeded` o `429` en YouTube: se acabó la cuota diaria (10,000 unidades; cada búsqueda gasta ~101).
+    YouTube queda en pausa hasta que Google la reinicia (medianoche del Pacífico). minOS ya alarga el intervalo según
+    el número de objetivos; si pides más cuota en Google Cloud, súbela en `YOUTUBE_DAILY_QUOTA`.

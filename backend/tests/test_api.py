@@ -321,3 +321,51 @@ def test_lasting_alerts_are_recorded_and_notified_once_per_cooldown(client):
     assert notice.title == "Cambio de tendencia"
     assert notice.index == 40
     assert notice.dashboard_url == f"https://minos.example/?target={t['id']}"
+
+
+class PausingConnector:
+    """Como X sin créditos: la primera consulta responde 402 y la fuente entera queda en pausa."""
+
+    source = "x"
+    is_configured = True
+    poll_interval = timedelta(0)
+    paused_until = None
+    calls = 0
+
+    async def fetch(self, target, cursor):
+        self.calls += 1
+        self.paused_until = datetime.now(UTC) + timedelta(hours=6)
+        raise RuntimeError("X respondió 402: sin créditos")
+        yield  # pragma: no cover
+
+
+class PartialFeedConnector:
+    """Como RSS con un feed caído: la ronda sirve, pero queda el aviso del feed que falló."""
+
+    source = "rss"
+    is_configured = True
+    poll_interval = timedelta(0)
+
+    async def fetch(self, target, cursor):
+        cursor.warnings.append("heraldodemexico.com.mx/rss: 403")
+        cursor.warnings.append("heraldodemexico.com.mx/rss: 403")
+        yield MentionDraft("rss", "n1", "https://n/1", AuthorInfo("Medio"), datetime.now(UTC), "Ana López inaugura")
+
+
+def test_paused_source_is_skipped_for_other_targets_and_feed_warnings_are_kept(client):
+    a = create_target(client)
+    b = create_target(client, name="Beto Ruiz", aliases=[], excludedTerms=[])
+    app = client.app
+    pausing = PausingConnector()
+    worker = IngestionWorker(app.state.db, [pausing, PartialFeedConnector()], LexiconAnalyzer(), app.state.bus,
+                             IngestionSettings())
+
+    client.portal.call(worker.run_once)
+    client.portal.call(worker.run_once)
+
+    assert pausing.calls == 1  # el segundo objetivo y la segunda ronda ya no consultan X
+    states = {s["source"]: s for s in client.get(f"/api/targets/{a['id']}/connectors").json()}
+    states_b = {s["source"]: s for s in client.get(f"/api/targets/{b['id']}/connectors").json()}
+    assert "402" in (states.get("x") or states_b.get("x"))["lastError"]
+    assert states["rss"]["lastError"] == "heraldodemexico.com.mx/rss: 403"
+    assert len(client.get(f"/api/targets/{a['id']}/mentions").json()) == 1
