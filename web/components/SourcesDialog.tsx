@@ -22,7 +22,9 @@ function state(s: SourceStatus): { label: string; className: string } {
 }
 
 /** Estado de cada fuente y canal de avisos, para no tener que revisar los registros del servidor. */
-export function SourcesDialog({ onClose, onLoaded }: { onClose: () => void; onLoaded?: (errors: number) => void }) {
+export function SourcesDialog({ onClose, onLoaded, isAdmin }: {
+  onClose: () => void; onLoaded?: (errors: number) => void; isAdmin: boolean;
+}) {
   const [data, setData] = useState<SourcesStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,10 +66,10 @@ export function SourcesDialog({ onClose, onLoaded }: { onClose: () => void; onLo
                   <code>{e.error}</code>
                 </div>
               )))}
-              <p className="muted" style={{ fontSize: 12 }}>
+              {isAdmin && <p className="muted" style={{ fontSize: 12 }}>
                 Un 401 o 403 casi siempre es una llave mal copiada o un plan que no incluye esa función. El error se borra
                 solo cuando la siguiente consulta funciona.
-              </p>
+              </p>}
             </>
           )}
 
@@ -79,9 +81,11 @@ export function SourcesDialog({ onClose, onLoaded }: { onClose: () => void; onLo
               </span>
             ))}
           </div>
-          <p className="muted" style={{ fontSize: 12 }}>
-            Las llaves se ponen en el archivo .env del servidor; después hay que correr <code>minos up -d</code>.
-          </p>
+          {isAdmin && (
+            <p className="muted" style={{ fontSize: 12 }}>
+              Las llaves se ponen en el archivo .env del servidor; después hay que correr <code>minos up -d</code>.
+            </p>
+          )}
           <button type="button" className="ghost" onClick={load}>Actualizar</button>
         </>
       )}

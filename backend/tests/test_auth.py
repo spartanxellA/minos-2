@@ -1,5 +1,6 @@
 """Inicio de sesión, roles, bloqueo por intentos, origen y administración de cuentas."""
 import asyncio
+import uuid
 
 import pytest
 from conftest import POSTGRES_URL, migrate, needs_postgres, reset_postgres
@@ -98,6 +99,37 @@ def test_roles_limit_what_each_account_can_do(app):
 
         with viewer.websocket_connect(f"/ws/targets/{t['id']}"):
             pass  # el lector sí ve en vivo
+
+
+def test_only_admins_see_raw_source_errors(app):
+    from minos import db as minos_db
+
+    with TestClient(app()) as admin, TestClient(app()) as viewer, TestClient(app()) as analyst:
+        login(admin, *ADMIN)
+        for email, role in (("lector@minos.mx", "viewer"), ("analista@minos.mx", "analyst")):
+            admin.post("/api/users", json={"email": email, "name": role, "role": role, "password": PASSWORD})
+        login(viewer, "lector@minos.mx", PASSWORD)
+        login(analyst, "analista@minos.mx", PASSWORD)
+        t = admin.post("/api/targets", json={"name": "Ana López", "kind": "Person"}).json()
+        raw = ("Client error '429 Too Many Requests' for url 'https://www.googleapis.com/youtube/v3/search?q=Ana&key=***'")
+
+        async def fail():
+            async with admin.app.state.db.session() as s:
+                s.add(minos_db.ConnectorState(target_id=uuid.UUID(t["id"]), source="youtube", last_error=raw))
+                await s.commit()
+        admin.portal.call(fail)
+
+        def youtube_error(c):
+            [s] = [s for s in c.get("/api/sources").json()["sources"] if s["source"] == "youtube"]
+            [e] = s["errors"]
+            [state] = [x for x in c.get(f"/api/targets/{t['id']}/connectors").json() if x["source"] == "youtube"]
+            return e["error"], state["lastError"]
+
+        assert youtube_error(admin) == (raw, raw)
+        for c in (viewer, analyst):
+            shown, state = youtube_error(c)
+            assert "googleapis" not in shown and "googleapis" not in state
+            assert "límite de consultas (429)" in shown
 
 
 def test_repeated_failures_lock_the_account(app):

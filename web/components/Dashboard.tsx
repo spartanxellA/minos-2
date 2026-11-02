@@ -195,7 +195,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
         </div>
       )}
       {dialog === "users" && <UsersDialog me={user} onClose={() => setDialog(null)} />}
-      {dialog === "sources" && <SourcesDialog onClose={() => setDialog(null)} onLoaded={setSourceErrors} />}
+      {dialog === "sources" && <SourcesDialog isAdmin={can(user, "admin")} onClose={() => setDialog(null)} onLoaded={setSourceErrors} />}
       {dialog === "password" && <PasswordDialog onClose={() => setDialog(null)} />}
       {dialog === "audit" && <AuditDialog onClose={() => setDialog(null)} />}
       {dialog === "targets" && <TargetsDialog user={user} onClose={() => setDialog(null)} onChanged={targetChanged} />}
