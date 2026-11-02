@@ -76,6 +76,25 @@ jobs:
             -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://localhost:5080/api/auth/login > /dev/null
           curl -fsS -b cookies http://localhost:5080/api/surveys > /dev/null
           curl -fsS http://localhost:3000 > /dev/null
+      - name: Respaldar y restaurar la base real (deploy/backup.sh y deploy/restore.sh)
+        env:
+          MINOS_COMPOSE: docker compose
+          BACKUP_RCLONE_REMOTE: /tmp/copia-externa
+          BACKUP_PASSPHRASE: clave-de-prueba-ci
+        run: |
+          sudo apt-get install -y -q rclone > /dev/null
+          bash -n deploy/backup.sh deploy/restore.sh deploy/backup-common.sh
+          deploy/backup.sh
+          day=$(date +%F)
+          test -s backups/minos-$day.dump && test -s /tmp/copia-externa/daily/minos-$day.tar.enc
+          before=$(docker compose exec -T db psql -U minos -d minos -tAc 'SELECT count(*) FROM users')
+          # Servidor "perdido": sin respaldos locales, se restaura desde la copia externa cifrada.
+          rm -rf backups
+          deploy/restore.sh "$day" --yes
+          test "$(docker compose exec -T db psql -U minos -d minos -tAc 'SELECT count(*) FROM users')" = "$before"
+          docker compose up -d --wait --wait-timeout 180
+          curl -fsS -c cookies2 -H 'content-type: application/json' \
+            -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://localhost:5080/api/auth/login > /dev/null
       - name: Registros si algo falló
         if: failure()
         run: docker compose logs

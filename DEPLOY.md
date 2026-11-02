@@ -86,27 +86,94 @@ Si hay muchos objetivos o fuentes: `minos up -d --scale worker=3`. Con 4 GB cabe
 
 ## Respaldos
 
-`deploy/backup.sh` guarda la base en `backups/` y conserva 14 días. Para que corra todos los días a las 3:30:
+Hay tres capas; con las tres siempre hay de dónde restaurar:
 
-```bash
-crontab -e
-# agrega la línea:
-30 3 * * * /opt/minos-2/deploy/backup.sh >> /var/log/minos-backup.log 2>&1
-```
+| Capa | Qué guarda | Dónde | Cuánto tiempo |
+| --- | --- | --- | --- |
+| Código | todo el programa y las migraciones | GitHub (cada PR fusionado) | siempre |
+| `deploy/backup.sh` | base completa + `.env` + versión del código | `/opt/minos-2/backups/` y copia externa cifrada | 14 días aquí; 30 diarios y 12 mensuales fuera |
+| Backups de DigitalOcean | el Droplet entero (disco completo) | DigitalOcean | según el plan del panel |
 
-Copia la carpeta `backups/` fuera del servidor de vez en cuando (o activa los respaldos del proveedor del VPS).
+### Configurar (una sola vez)
 
-Para restaurar uno (reemplaza todo lo que haya en la base):
+1. **Crear dónde guardar la copia externa.** En DigitalOcean: *Spaces Object Storage → Create Space*, en una región
+   distinta a la del Droplet si se puede, acceso **privado** (sin CDN). Luego *Spaces Keys → Generate New Key*, con
+   acceso solo a ese Space. Anota el nombre del Space, el endpoint (por ejemplo `nyc3.digitaloceanspaces.com`), la
+   llave y el secreto. Funciona igual con Backblaze B2 o AWS S3 (ver `.env.example`).
+2. **Instalar rclone** (sube los archivos): `apt install -y rclone`.
+3. **Llenar en `.env`:** `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY` y
+   `BACKUP_PASSPHRASE` (genera una con `openssl rand -base64 32`).
+4. **Guardar fuera del servidor**, en un gestor de contraseñas: `BACKUP_PASSPHRASE`, y la llave y el secreto del
+   Space. Si el servidor se pierde, esas tres cosas bastan para recuperarlo todo; sin la frase, la copia externa no
+   se puede abrir.
+5. **Aviso si falla (recomendado):** crea una cuenta gratis en [healthchecks.io](https://healthchecks.io), un check
+   con periodo de 1 día y gracia de 2 horas, y pon su URL en `BACKUP_PING_URL`. Si un día el respaldo falla o no
+   corre, te llega un correo.
+6. **Probar y programar:**
 
 ```bash
 cd /opt/minos-2
-minos stop api worker
-minos exec -T db psql -U minos -d postgres -c "DROP DATABASE minos" -c "CREATE DATABASE minos"
-minos exec -T db psql -U minos -d minos -c "CREATE EXTENSION IF NOT EXISTS timescaledb" -c "SELECT timescaledb_pre_restore()"
-minos exec -T db pg_restore -U minos -d minos < backups/minos-AAAA-MM-DD.dump
-minos exec -T db psql -U minos -d minos -c "SELECT timescaledb_post_restore()"
-minos start api worker
+deploy/backup.sh --check          # revisa la configuración y que se pueda escribir en el Space
+deploy/backup.sh                  # primer respaldo ahora
+deploy/backup.sh --install-cron   # todos los días a las 3:30 (hora del servidor, UTC = 21:30 en CDMX)
 ```
+
+### Qué hace cada noche
+
+1. `pg_dump` de la base a `backups/minos-AAAA-MM-DD.dump` y comprueba que el archivo se pueda leer.
+2. Copia el `.env` a `backups/env-AAAA-MM-DD` y escribe `backups/manifest-AAAA-MM-DD.txt` con el commit del código,
+   la migración de la base y las sumas sha256.
+3. Empaqueta los tres, los cifra (AES-256) y los sube a `<Space>/minos/daily/`. Después lo baja y lo descifra para
+   confirmar que la copia sirve. El día 1 de cada mes deja además una copia en `monthly/`.
+4. Borra lo viejo: aquí más de `BACKUP_KEEP_DAYS` días; fuera, diarios de más de `BACKUP_REMOTE_KEEP_DAYS` días y
+   mensuales de más de `BACKUP_REMOTE_KEEP_MONTHS` meses.
+5. Avisa a `BACKUP_PING_URL` si terminó bien o falló.
+
+Para revisar: `tail /var/log/minos-backup.log` o `deploy/restore.sh list`.
+
+### Restaurar la base
+
+```bash
+cd /opt/minos-2
+deploy/restore.sh list            # fechas disponibles, aquí y en la copia externa
+deploy/restore.sh 2026-11-02      # pide escribir RESTAURAR
+```
+
+Usa el archivo local si está y si no lo baja de la copia externa. Antes de reemplazar nada guarda la base actual en
+`backups/antes-de-restaurar-<fecha y hora>.dump` (se puede volver a ella con los mismos pasos), hace los pasos que
+pide TimescaleDB, y al arrancar de nuevo `migrate` aplica las migraciones que el respaldo no tenga.
+
+### Si se pierde el servidor completo
+
+- **Lo más rápido:** en el panel de DigitalOcean, *Droplet → Backups → Restore Droplet* (o crear un Droplet nuevo
+  desde ese backup). Vuelve todo como estaba el día del backup. Si el backup del Droplet es más viejo que el último
+  respaldo nocturno, después restaura la base con `deploy/restore.sh` para recuperar los días que falten.
+- **Sin backup del Droplet (o en otro proveedor):** con la frase y las llaves del Space guardadas en el gestor de
+  contraseñas.
+
+```bash
+# 1. Servidor nuevo con Docker y el código (pasos 1 y 2 de esta guía), y rclone
+apt install -y rclone
+cd /opt/minos-2
+# 2. Bajar el último respaldo con las llaves del gestor de contraseñas (no hace falta .env todavía)
+BACKUP_S3_ENDPOINT=nyc3.digitaloceanspaces.com BACKUP_S3_BUCKET=nombre-del-space \
+BACKUP_S3_ACCESS_KEY=... BACKUP_S3_SECRET_KEY=... BACKUP_PASSPHRASE='...' deploy/restore.sh list
+#    (mismas variables) deploy/restore.sh fetch AAAA-MM-DD
+# 3. Recuperar el .env de ese día y restaurar la base
+cp backups/env-AAAA-MM-DD .env && chmod 600 .env
+minos up -d --build
+deploy/restore.sh AAAA-MM-DD
+deploy/backup.sh --install-cron
+```
+
+Si la IP cambió, actualiza el registro A del dominio. Para abrir un respaldo a mano en cualquier computadora:
+`openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in minos-AAAA-MM-DD.tar.enc | tar -xf -` (pide la frase).
+
+### Ensayo
+
+Una vez al mes conviene comprobar que todo sirve: `deploy/restore.sh list` debe mostrar respaldos de los últimos
+días, y `deploy/restore.sh fetch <ayer>` debe terminar sin errores (solo baja y revisa, no cambia nada). El CI
+también respalda y restaura una base real de TimescaleDB en cada cambio.
 
 ## Si algo falla
 
