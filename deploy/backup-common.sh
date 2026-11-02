@@ -41,7 +41,7 @@ remote_setup() { # deja en DEST el destino para rclone (no usar dentro de $(...)
   export RCLONE_CONFIG_MINOSS3_TYPE=s3
   RCLONE_CONFIG_MINOSS3_PROVIDER="$(envget BACKUP_S3_PROVIDER)"
   export RCLONE_CONFIG_MINOSS3_PROVIDER="${RCLONE_CONFIG_MINOSS3_PROVIDER:-DigitalOcean}"
-  RCLONE_CONFIG_MINOSS3_ENDPOINT="$(envget BACKUP_S3_ENDPOINT)"
+  RCLONE_CONFIG_MINOSS3_ENDPOINT="$(endpoint)"
   RCLONE_CONFIG_MINOSS3_REGION="$(envget BACKUP_S3_REGION)"
   RCLONE_CONFIG_MINOSS3_ACCESS_KEY_ID="$(envget BACKUP_S3_ACCESS_KEY)"
   RCLONE_CONFIG_MINOSS3_SECRET_ACCESS_KEY="$(envget BACKUP_S3_SECRET_KEY)"
@@ -53,12 +53,20 @@ remote_setup() { # deja en DEST el destino para rclone (no usar dentro de $(...)
   DEST="minoss3:$(envget BACKUP_S3_BUCKET)/${prefix:-minos}"
 }
 
+endpoint() { # BACKUP_S3_ENDPOINT sin https:// ni el nombre del bucket delante (error común al copiarlo del panel)
+  local e bucket
+  e="$(envget BACKUP_S3_ENDPOINT)"; bucket="$(envget BACKUP_S3_BUCKET)"
+  e="${e#https://}"; e="${e#http://}"; e="${e%/}"
+  [ -n "$bucket" ] && e="${e#"$bucket".}"
+  printf '%s' "$e"
+}
+
 remote_label() { # destino para mostrar en registros, sin llaves
   local custom prefix
   custom="$(envget BACKUP_RCLONE_REMOTE)"
   if [ -n "$custom" ]; then printf '%s' "${custom%/}"; return; fi
   prefix="$(envget BACKUP_S3_PREFIX)"
-  printf 's3://%s/%s (%s)' "$(envget BACKUP_S3_BUCKET)" "${prefix:-minos}" "$(envget BACKUP_S3_ENDPOINT)"
+  printf 's3://%s/%s (%s)' "$(envget BACKUP_S3_BUCKET)" "${prefix:-minos}" "$(endpoint)"
 }
 
 require_remote_tools() {
