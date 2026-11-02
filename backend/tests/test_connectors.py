@@ -1,10 +1,17 @@
 """Conectores contra respuestas grabadas (httpx.MockTransport), sin salir a internet."""
 import json
+from datetime import UTC, datetime, timedelta
 
 import httpx
-
 from minos.config import BlueskySettings, RssSettings, XSettings, YouTubeSettings
-from minos.connectors import BlueskyConnector, ConnectorCursor, RssConnector, XConnector, YouTubeConnector
+from minos.connectors import (
+    BlueskyConnector,
+    ConnectorCursor,
+    RssConnector,
+    XConnector,
+    YouTubeConnector,
+)
+from minos.connectors.base import Backoff, SourceUnavailable, retry_after
 from minos.domain.targets import MonitoredTarget
 
 TARGET = MonitoredTarget(name="Ana López")
@@ -126,3 +133,96 @@ async def test_bluesky_opens_session_and_maps_posts():
     assert m.engagement.shares == 3
     assert m.language == "es"
     assert cursor.value.startswith("2026-10-25T10:00:00")
+
+
+# --- Pausas y reintentos ante 429/402/403 ---------------------------------------------------------------
+
+TARGET_B = MonitoredTarget(name="Beto Ruiz")
+
+
+def test_retry_after_reads_seconds_http_date_and_x_reset():
+    now = datetime(2026, 11, 2, 23, 0, tzinfo=UTC)
+    assert retry_after(httpx.Response(429, headers={"Retry-After": "120"}), now) == timedelta(seconds=120)
+    assert retry_after(httpx.Response(429, headers={"Retry-After": "Mon, 02 Nov 2026 23:10:00 GMT"}), now) == timedelta(minutes=10)
+    reset = str(int((now + timedelta(minutes=7)).timestamp()))
+    assert retry_after(httpx.Response(429, headers={"x-rate-limit-reset": reset}), now) == timedelta(minutes=7)
+    assert retry_after(httpx.Response(429), now) is None
+
+
+def test_backoff_doubles_until_cap_and_clears_on_success():
+    b, now = Backoff(), datetime(2026, 11, 2, tzinfo=UTC)
+    assert b.pause("k", httpx.Response(429), now) == now + timedelta(minutes=15)
+    assert b.pause("k", httpx.Response(429), now) == now + timedelta(minutes=30)
+    assert b.paused_until("k", now) is not None
+    b.ok("k")
+    assert b.paused_until("k", now) is None
+    assert b.pause("k", httpx.Response(500), now) is None
+
+
+async def test_rss_shared_feed_is_downloaded_once_for_all_targets_with_browser_headers():
+    http, requests = stub(lambda r: httpx.Response(200, text=FEED))
+    connector = RssConnector(http, RssSettings(use_google_news_search=False, feeds=["https://medio.mx/rss"],
+                                               min_gap_per_host=0))
+    await collect(connector, ConnectorCursor("2026-10-01T00:00:00+00:00"))
+    [d async for d in connector.fetch(TARGET_B, ConnectorCursor("2026-10-01T00:00:00+00:00"))]
+
+    assert len(requests) == 1
+    assert requests[0].headers["user-agent"].startswith("Mozilla/5.0")
+    assert "rss" in requests[0].headers["accept"]
+
+
+async def test_rss_402_pauses_the_feed_and_reports_what_to_do():
+    http, requests = stub(lambda r: httpx.Response(402))
+    connector = RssConnector(http, RssSettings(use_google_news_search=False, feeds=["https://rss.app/feeds/abc.xml"],
+                                               min_gap_per_host=0))
+    first = ConnectorCursor()
+    assert await collect(connector, first) == []
+    assert "402" in first.warnings[0] and "RSS_FEEDS" in first.warnings[0]
+
+    second = ConnectorCursor()
+    await collect(connector, second)
+    assert len(requests) == 1  # en pausa: ya no se vuelve a pedir
+    assert "en pausa" in second.warnings[0]
+
+
+async def test_rss_429_pauses_the_whole_site_respecting_retry_after():
+    http, requests = stub(lambda r: httpx.Response(429, headers={"Retry-After": "600"}))
+    feeds = ["https://www.eluniversal.com.mx/a/rss.xml", "https://www.eluniversal.com.mx/b/rss.xml"]
+    connector = RssConnector(http, RssSettings(use_google_news_search=False, feeds=feeds, min_gap_per_host=0))
+    cursor = ConnectorCursor()
+    await collect(connector, cursor)
+    assert len(requests) == 1  # el segundo feed del mismo sitio no se pide
+    assert "sitio sigue en pausa" in cursor.warnings[1]
+
+
+async def test_x_402_pauses_connector_for_every_target():
+    http, _ = stub(lambda r: httpx.Response(402, json={"title": "Payment Required"}))
+    connector = XConnector(http, XSettings(bearer_token="t"))
+    try:
+        await collect(connector, ConnectorCursor())
+        raise AssertionError("debió fallar")
+    except SourceUnavailable as ex:
+        assert "créditos" in str(ex)
+    assert connector.paused_until is not None
+
+
+async def test_youtube_quota_exceeded_pauses_until_pacific_midnight():
+    body = {"error": {"code": 403, "errors": [{"reason": "quotaExceeded"}]}}
+    http, _ = stub(lambda r: httpx.Response(403, json=body))
+    connector = YouTubeConnector(http, YouTubeSettings(api_key="k"))
+    try:
+        await collect(connector, ConnectorCursor())
+        raise AssertionError("debió fallar")
+    except SourceUnavailable as ex:
+        assert "cuota" in str(ex)
+    until = connector.paused_until
+    assert until is not None and timedelta(0) < until - datetime.now(UTC) <= timedelta(hours=25)
+
+
+def test_youtube_spreads_daily_quota_across_targets():
+    connector = YouTubeConnector(httpx.AsyncClient(), YouTubeSettings(api_key="k"))
+    connector.plan_round(1)
+    assert connector.poll_interval == timedelta(minutes=30)
+    connector.plan_round(10)  # 10 × 101 unidades × n consultas ≤ 9,000 al día
+    assert connector.poll_interval > timedelta(hours=2)
+    assert 10 * 101 * (timedelta(days=1) / connector.poll_interval) <= 9_000 + 1

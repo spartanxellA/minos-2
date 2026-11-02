@@ -50,9 +50,16 @@ class IngestionWorker:
         async with self._db.session() as session:
             targets = (await session.scalars(select(db.Target).where(db.Target.enabled.is_(True)))).all()
 
+        for connector in connectors:
+            if plan := getattr(connector, "plan_round", None):
+                plan(len(targets))
+
         for target_row in targets:
             target = target_row.to_domain()
             for connector in connectors:
+                # Sin créditos o sin cuota no tiene caso consultar cada objetivo: el error ya quedó registrado.
+                if (until := getattr(connector, "paused_until", None)) and until > datetime.now(UTC):
+                    continue
                 # Con varias réplicas de workers, solo una consulta cada fuente de cada objetivo a la vez.
                 lock = f"ingest:{target.id}:{connector.source}"
                 if not await self._bus.try_lock(lock, self._settings.lock_ttl.total_seconds()):
@@ -77,7 +84,8 @@ class IngestionWorker:
             try:
                 added = await self._ingest(session, connector, target, cursor)
                 state.value = cursor.value
-                state.last_error = None
+                # La ronda sirvió, pero algún feed pudo fallar: se deja a la vista en «Fuentes».
+                state.last_error = "; ".join(dict.fromkeys(cursor.warnings))[:2000] or None
                 state.last_run_at = datetime.now(UTC)
                 await session.commit()
             except asyncio.CancelledError:

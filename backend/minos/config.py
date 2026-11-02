@@ -28,6 +28,12 @@ class RssSettings(BaseModel):
     google_news_locale: str = "hl=es-419&gl=MX&ceid=MX:es-419"
     feeds: list[str] = Field(default_factory=list)
     poll_interval: Duration = timedelta(minutes=5)
+    # Varios medios (y servicios como Cloudflare) rechazan con 403 a lectores que no se presentan como navegador.
+    user_agent: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    )
+    # Respiro entre dos consultas seguidas al mismo sitio.
+    min_gap_per_host: Duration = timedelta(seconds=1)
 
 
 class XSettings(BaseModel):
@@ -42,7 +48,11 @@ class YouTubeSettings(BaseModel):
     region_code: str = "MX"
     relevance_language: str = "es"
     # search.list cuesta 100 unidades; con la cuota gratuita de 10,000 al día conviene no bajar de 30 min.
+    # Es el mínimo: con muchos objetivos el intervalo se alarga solo para no agotar daily_quota.
     poll_interval: Duration = timedelta(minutes=30)
+    daily_quota: int = 10_000
+    # Parte de la cuota que usa la búsqueda automática (deja margen para otros usos de la misma llave).
+    quota_share: float = 0.9
 
 
 class BlueskySettings(BaseModel):
