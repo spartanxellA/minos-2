@@ -103,8 +103,9 @@ def test_without_baseline_volume_does_not_add_risk():
 
 
 def test_combines_media_and_survey_with_default_weights():
+    # 0.8 × 50 + 0.2 × 25 = 45: el cuestionario pesa 20 %.
     r = reputation_index(media_score=50, survey_score=25)
-    assert r.score == 40
+    assert r.score == 45
     assert r.level == RiskLevel.MEDIUM
 
 

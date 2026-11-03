@@ -138,8 +138,8 @@ class RiskEngineSettings(BaseModel):
     baseline_days: int = 28
     # Días mínimos de historia antes de que el volumen anómalo cuente (evita falsos picos al dar de alta un objetivo).
     min_baseline_days: int = 7
-    media_weight: float = 0.6
-    survey_weight: float = 0.4
+    media_weight: float = 0.8
+    survey_weight: float = 0.2
     # Un cambio de tendencia o un pico se sigue cumpliendo en cada recálculo; se registra y avisa una vez en este lapso.
     alert_cooldown: Duration = timedelta(hours=6)
 

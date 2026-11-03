@@ -73,10 +73,10 @@ def test_survey_response_is_scored_and_moves_the_index(client):
     assert r.status_code == 200, r.text
     assert r.json()["score"] == 100
     latest = client.get(f"/api/targets/{t['id']}/risk/latest").json()
-    # Sin menciones M = 0, así que IRR = 0.6 × 0 + 0.4 × 100.
-    assert latest["index"] == 40
+    # Sin menciones M = 0, así que IRR = 0.8 × 0 + 0.2 × 100.
+    assert latest["index"] == 20
     assert latest["surveyScore"] == 100
-    assert latest["label"] == "Riesgo medio"
+    assert latest["label"] == "Riesgo bajo"
 
 
 def test_survey_history_returns_latest_answers_first(client):
@@ -310,7 +310,7 @@ def test_lasting_alerts_are_recorded_and_notified_once_per_cooldown(client):
             await session.commit()
     client.portal.call(clear_alerts)
 
-    for _ in range(3):  # el índice sigue 40 puntos arriba en cada recálculo
+    for _ in range(3):  # el índice sigue 20 puntos arriba en cada recálculo (el salto mínimo es 15)
         client.portal.call(engine.recompute, target_id)
     client.portal.call(notifier.drain)
 
@@ -319,7 +319,7 @@ def test_lasting_alerts_are_recorded_and_notified_once_per_cooldown(client):
     [notice] = inbox.got
     assert notice.target_name == "Ana López"
     assert notice.title == "Cambio de tendencia"
-    assert notice.index == 40
+    assert notice.index == 20
     assert notice.dashboard_url == f"https://minos.example/?target={t['id']}"
 
 
