@@ -426,7 +426,8 @@ def test_raw_file_upload_and_bad_file_keeps_the_list(app):
         r = admin.post(url, params={"name": "PEP México", "category": "pep"}, content=rows.encode("cp1252"))
         assert r.status_code == 201 and r.json()["entries"] == 4500 and r.json()["added"] == 4500
         r = admin.post(url, params={"name": "PEP México", "category": "pep"}, content=rows.encode())
-        assert r.json() == {"slug": "propia-pep-mexico", "entries": 4500, "added": 0, "changed": 0, "removed": 0}
+        assert {k: r.json()[k] for k in ("slug", "entries", "added", "changed", "unchanged", "removed")} == {
+            "slug": "propia-pep-mexico", "entries": 4500, "added": 0, "changed": 0, "unchanged": 4500, "removed": 0}
 
         # Un archivo que no se puede leer no borra la lista que ya estaba.
         r = admin.post(url, params={"name": "PEP México"}, content=b"a,b\n1,2\n")
@@ -478,3 +479,167 @@ def test_international_pep_file_layout():
     # El orden nacional sigue igual, aunque el estatus traiga basura al final.
     [r] = parse_custom_csv(b"SALVADOR EQUIHUA|UNIDAD JURIDICA|SECRETARIA DE LAS MUJERES|||MX|1},\n", "x")
     assert (r.nationalities, r.status, r.programs) == (["MX"], "Activo", ["UNIDAD JURIDICA (SECRETARIA DE LAS MUJERES)"])
+
+
+PEP_BASE = (
+    "LUIS RUIZ PEREZ|SENADOR|SENADO DE LA REPUBLICA|RUPL700101AB1|1970-01-01|MX|1,\n"
+    "ANDREA SOTO DIAZ|PRESIDENTA MUNICIPAL|AYUNTAMIENTO DE TEPIC|||MX|1,\n"
+    "MARIO LUNA GIL|DIPUTADO LOCAL|CONGRESO DE NAYARIT|||MX|1,\n"
+    "MARIO LUNA GIL|REGIDOR|AYUNTAMIENTO DE XALISCO|||MX|0,\n"
+    "ROSA PAZ LEON|DIRECTORA|SECRETARIA DE SALUD||02/02/1980|MX|1,\n"
+)
+# Archivo de actualizaciones: mismo formato, solo altas y cambios. Quien deja el cargo llega con estatus 0.
+PEP_UPDATE = (
+    "LUIS RUIZ PEREZ|SENADOR|SENADO DE LA REPUBLICA|RUPL700101AB1|1970-01-01|MX|0,\n"  # RFC: dejó el cargo
+    "ANDREA SOTO DIAZ|PRESIDENTA MUNICIPAL|AYUNTAMIENTO DE TEPIC|||MX|0,\n"  # sin RFC: mismo nombre y cargo
+    "ROSA PAZ LEON|SUBSECRETARIA|SECRETARIA DE SALUD||02/02/1980|MX|1,\n"  # sin RFC, con fecha: cambió de cargo
+    "MARIO LUNA GIL|DIPUTADO LOCAL|CONGRESO DE NAYARIT|||MX|1,\n"  # sin cambio
+    "JORGE VEGA MORA|GOBERNADOR|GOBIERNO DE COLIMA|VEMJ650505CD2|1965-05-05|MX|1,\n"  # alta
+)
+
+
+def test_update_file_adds_and_changes_without_removing(app):
+    with TestClient(app()) as admin:
+        login(admin, *ADMIN)
+        luis = admin.post("/api/targets", json={"name": "Luis Ruiz Pérez", "kind": "Person"}).json()
+        url = "/api/watchlists/custom/file"
+        r = admin.post(url, params={"name": "PEP México"}, content=PEP_BASE.encode())
+        assert r.json()["entries"] == 5 and r.json()["mode"] == "full"
+        runtime = admin.app.state.runtime
+        admin.portal.call(runtime.screener.cycle)
+        [m] = admin.get(f"/api/targets/{luis['id']}/screening").json()["matches"]
+        admin.post(f"/api/screening/matches/{m['id']}/review", json={"decision": "confirmed", "note": "Mismo RFC"})
+        assert admin.get(f"/api/targets/{luis['id']}/risk/latest").json()["watchlistImpact"] == 10
+
+        # Una actualización de una lista que no existe se rechaza: no se crea una lista con solo las novedades.
+        r = admin.post(url, params={"name": "PEP Otra", "mode": "update"}, content=PEP_UPDATE.encode())
+        assert r.status_code == 404 and "completa" in r.json()["detail"]
+
+        r = admin.post(url, params={"name": "PEP México", "mode": "update", "fileName": "lirppe03112026.csv"},
+                       content=PEP_UPDATE.encode())
+        assert r.status_code == 201
+        body = r.json()
+        assert {k: body[k] for k in ("mode", "rows", "added", "changed", "statusChanged", "unchanged", "removed",
+                                     "entries")} == {
+            "mode": "update", "rows": 5, "added": 1, "changed": 3, "statusChanged": 2, "unchanged": 1, "removed": 0,
+            "entries": 6}
+        assert admin.get("/api/watchlists").json()[-1]["entryCount"] == 6
+
+        # El mismo archivo otra vez no cambia nada (ni la versión de la lista).
+        again = admin.post(url, params={"name": "PEP México", "mode": "update"}, content=PEP_UPDATE.encode()).json()
+        assert (again["added"], again["changed"], again["unchanged"]) == (0, 0, 5)
+
+        # Historial de cargas y detalle descargable.
+        uploads = admin.get("/api/watchlists/custom/propia-pep-mexico/uploads").json()
+        assert [u["mode"] for u in uploads] == ["update", "update", "full"]
+        assert uploads[1]["fileName"] == "lirppe03112026.csv" and uploads[1]["statusChanged"] == 2
+        detail = admin.get(f"/api/watchlists/uploads/{uploads[1]['id']}/changes.csv").text
+        assert "Cambio de estatus,LUIS RUIZ PEREZ,RUPL700101AB1|" in detail and ",Estatus,Activo,Inactivo" in detail
+        assert "Otro cambio,ROSA PAZ LEON" in detail and "SUBSECRETARIA (SECRETARIA DE SALUD)" in detail
+        assert "Alta,JORGE VEGA MORA" in detail and "MARIO LUNA GIL" not in detail
+
+        # La coincidencia confirmada toma el estatus nuevo: el PEP inactivo pesa la mitad y queda un aviso.
+        admin.portal.call(runtime.screener.cycle)
+        [m] = admin.get(f"/api/targets/{luis['id']}/screening").json()["matches"]
+        assert m["entry"]["status"] == "Inactivo" and m["status"] == "confirmed"
+        assert admin.get(f"/api/targets/{luis['id']}/risk/latest").json()["watchlistImpact"] == 5
+        alerts = admin.get(f"/api/targets/{luis['id']}/alerts").json()
+        assert any(a["kind"] == "WatchlistStatusChanged" and "Activo → Inactivo" in a["message"] for a in alerts)
+        [h] = admin.get(f"/api/screening/matches/{m['id']}/history").json()
+        assert h["change"] == "status" and h["fields"]["status"] == ["Activo", "Inactivo"]
+        assert h["fileName"] == "lirppe03112026.csv"
+
+        events = admin.get("/api/audit", params={"action": "watchlist."}).json()["events"]
+        assert events[0]["action"] == "watchlist.updated" and events[0]["detail"]["mode"] == "update"
+
+
+def test_update_keeps_the_key_of_a_person_who_changed_position(database):
+    from minos.watchlists.sync import save_list
+
+    async def scenario():
+        parse = lambda text: list(parse_custom_csv(text.encode(), "propia-pep"))  # noqa: E731
+        await save_list(database, "propia-pep", parse(PEP_BASE), "v1", datetime.now(UTC), name="PEP", category="pep")
+        async with database.session() as s:
+            before = dict((await s.execute(select(db.WatchlistEntry.name, db.WatchlistEntry.id)
+                                           .where(db.WatchlistEntry.name == "ROSA PAZ LEON"))).all())
+        counts, _ = await save_list(database, "propia-pep", parse(PEP_UPDATE), "v2", datetime.now(UTC),
+                                    name="PEP", category="pep", mode="update")
+        async with database.session() as s:
+            rosa = (await s.scalars(select(db.WatchlistEntry).where(db.WatchlistEntry.name == "ROSA PAZ LEON"))).all()
+            mario = (await s.scalars(select(db.WatchlistEntry).where(db.WatchlistEntry.name == "MARIO LUNA GIL"))).all()
+        return before, counts, rosa, mario
+
+    before, counts, rosa, mario = run(scenario())
+    # Rosa cambió de cargo: es el mismo registro (toma la llave del cargo nuevo), no una persona nueva.
+    [r] = rosa
+    assert r.id == before["ROSA PAZ LEON"] and r.programs == ["SUBSECRETARIA (SECRETARIA DE SALUD)"]
+    assert r.external_id == next(x.external_id for x in parse_custom_csv(PEP_UPDATE.encode(), "p") if x.name == r.name)
+    assert counts.rekeyed == 1
+    # Mario tiene dos cargos: los dos siguen en la lista.
+    assert len(mario) == 2 and counts.removed == 0
+
+
+def test_real_national_file_with_birth_date_in_the_rfc_column(database):
+    """El archivo PEP nacional trae en ~19 mil filas la fecha en la columna del RFC y el RFC en la de la fecha."""
+    from minos.watchlists.sync import save_list
+    rows = ("AARON IRIZAR LOPEZ|EXSENADOR|SENADO DE LA REPUBLICA|28/02/1950|IALA500228BK1|MX|0,\n"
+            "ABDIES PINEDA MORIN|EXDIPUTADO|H CONGRESO DE LA UNION|31/10/1957|PIMA571031A70|MX|0,\n"
+            "OTRA PERSONA|REGIDORA|AYUNTAMIENTO|28/02/1950||MX|1,\n")
+    aaron, abdies, otra = parse_custom_csv(rows.encode(), "p")
+    assert (aaron.identifiers, aaron.birth_dates) == (["IALA500228BK1"], ["28/02/1950"])
+    assert aaron.external_id.startswith("IALA500228BK1|")
+    assert abdies.identifiers == ["PIMA571031A70"] and otra.identifiers == [] and otra.birth_dates == ["28/02/1950"]
+
+    async def scenario():
+        # Lo que dejó la versión anterior: la fecha como llave y como documento.
+        async with database.session() as s:
+            s.add(db.WatchlistSource(slug="propia-pep", name="PEP", category="pep", custom=True, entry_count=2))
+            for ext, name, rfc, birth in [("28/02/1950", "AARON IRIZAR LOPEZ", "28/02/1950", "IALA500228BK1"),
+                                          ("31/10/1957", "ABDIES PINEDA MORIN", "31/10/1957", "PIMA571031A70")]:
+                s.add(db.WatchlistEntry(source="propia-pep", external_id=ext, kind="person", name=name, aliases=[],
+                                        birth_dates=[birth], nationalities=["MX"], identifiers=[rfc], programs=[],
+                                        status="Inactivo", fingerprint="x"))
+            s.add(db.ScreeningMatch(target_id=__import__("uuid").uuid4(), source="propia-pep", external_id="28/02/1950",
+                                    category="pep", source_name="PEP", listed_name="AARON IRIZAR LOPEZ",
+                                    matched_name="x", score=99, strength="strong", reasons=[], entry={},
+                                    entry_fingerprint="x", status="confirmed"))
+            await s.commit()
+        counts, _ = await save_list(database, "propia-pep", parse_custom_csv(rows.encode(), "propia-pep"), "v2",
+                                    datetime.now(UTC), name="PEP", category="pep")
+        async with database.session() as s:
+            keys = sorted((await s.scalars(select(db.WatchlistEntry.external_id))).all())
+            match = (await s.scalars(select(db.ScreeningMatch))).one()
+        return counts, keys, match
+
+    counts, keys, match = run(scenario())
+    # Las dos personas conservan su registro con la llave correcta (RFC) y la coincidencia confirmada la sigue.
+    assert counts.rekeyed == 2 and counts.removed == 0 and counts.added == 1
+    assert [k.split("|")[0] for k in keys] == ["IALA500228BK1", "PIMA571031A70", "otra persona"]
+    assert match.external_id == keys[0]
+
+
+def test_two_positions_with_the_same_rfc_and_namesakes_without_data(database):
+    from minos.watchlists.sync import save_list
+    base = ("ANA MORA RIOS|SENADORA|SENADO|MORA800101AB1|01/01/1980|MX|1,\n"
+            "ANA MORA RIOS|CONSEJERA|PARTIDO X|MORA800101AB1|01/01/1980|MX|1,\n"
+            "JUAN PEREZ LOPEZ|REGIDOR|AYUNTAMIENTO DE TEPIC|||MX|1,\n")
+    update = ("ANA MORA RIOS|SENADORA|SENADO|MORA800101AB1|01/01/1980|MX|0,\n"  # deja solo uno de sus dos cargos
+              "JUAN PEREZ LOPEZ|DIPUTADO|CONGRESO DE COLIMA|||MX|1,\n")  # sin fecha ni RFC: puede ser otro Juan
+
+    async def scenario():
+        parse = lambda text: parse_custom_csv(text.encode(), "propia-pep")  # noqa: E731
+        await save_list(database, "propia-pep", parse(base), "v1", datetime.now(UTC), name="PEP", category="pep")
+        counts, _ = await save_list(database, "propia-pep", parse(update), "v2", datetime.now(UTC), name="PEP",
+                                    category="pep", mode="update")
+        async with database.session() as s:
+            rows = (await s.execute(select(db.WatchlistEntry.name, db.WatchlistEntry.programs, db.WatchlistEntry.status)
+                                    .order_by(db.WatchlistEntry.id))).all()
+        return counts, rows
+
+    counts, rows = run(scenario())
+    assert (counts.added, counts.status_changed, counts.rekeyed) == (1, 1, 0)
+    assert [(n, p[0], st) for n, p, st in rows] == [
+        ("ANA MORA RIOS", "SENADORA (SENADO)", "Inactivo"), ("ANA MORA RIOS", "CONSEJERA (PARTIDO X)", "Activo"),
+        ("JUAN PEREZ LOPEZ", "REGIDOR (AYUNTAMIENTO DE TEPIC)", "Activo"),
+        ("JUAN PEREZ LOPEZ", "DIPUTADO (CONGRESO DE COLIMA)", "Activo"),
+    ]

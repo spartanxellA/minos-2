@@ -28,6 +28,7 @@ from .sync import record_fingerprint
 log = logging.getLogger(__name__)
 
 ALERT_KIND = "WatchlistMatch"
+STATUS_ALERT_KIND = "WatchlistStatusChanged"
 MAX_MATCHES = 50
 # Con más coincidencias nuevas que esto en una vuelta, se manda un solo aviso en lugar de uno por coincidencia.
 ALERTS_EACH = 3
@@ -158,6 +159,7 @@ class Screener:
         now = datetime.now(UTC)
         S = db.ScreeningMatch
         raised: list[db.ScreeningMatch] = []
+        status_notes: list[db.AlertRecord] = []
         confirmed_changed = False
         async with self._db.session() as session:
             sources = {s.slug: s for s in (await session.scalars(select(db.WatchlistSource))).all()}
@@ -186,6 +188,18 @@ class Screener:
                     confirmed_changed |= m.status == "confirmed"
                     if m.status == "pending":
                         raised.append(m)
+                elif m.status == "confirmed" and m.entry_fingerprint != fp:
+                    # El registro de una coincidencia confirmada cambió en la lista (p. ej. el PEP dejó el cargo y
+                    # pasó a "Inactivo"): el índice se recalcula y se avisa si cambió el estatus.
+                    confirmed_changed = True
+                    before, after = (m.entry or {}).get("status"), res.record.status
+                    if before != after:
+                        status_notes.append(db.AlertRecord(
+                            target_id=target.id, at=now, kind=STATUS_ALERT_KIND,
+                            title="Cambió el estatus en una lista",
+                            message=f"«{res.listed_name[:200]}» en {src.name if src else res.record.source}: "
+                                    f"{before or 'sin estatus'} → {after or 'sin estatus'}.",
+                        ))
                 m.category = src.category if src else "other"
                 m.source_name = src.name if src else res.record.source
                 m.listed_name, m.matched_name = res.listed_name[:500], res.matched_name[:500]
@@ -213,6 +227,7 @@ class Screener:
                                        f"«{raised[0].listed_name}» en {raised[0].source_name} "
                                        f"({raised[0].score:.0f}%). Un analista debe confirmarlas o descartarlas.")
             ]
+            alerts += status_notes
             session.add_all(alerts)
             await session.commit()
             summary = await screening_summary(session, target.id)

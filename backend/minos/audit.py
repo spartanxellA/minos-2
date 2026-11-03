@@ -43,6 +43,7 @@ ACTIONS = {
     "audit.exported": "Bitácora exportada",
     "screening.reviewed": "Coincidencia en lista revisada",
     "watchlist.uploaded": "Lista propia cargada",
+    "watchlist.updated": "Lista propia actualizada (altas y cambios)",
     "watchlist.deleted": "Lista propia borrada",
 }
 

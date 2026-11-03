@@ -88,11 +88,47 @@ class CustomListInput(Camel):
     category: Literal["pep", "sanctions", "tax", "debarment", "other"] = "pep"
     # Contenido del archivo CSV tal cual (el tablero lo lee en el navegador).
     csv: str = Field(min_length=1, max_length=50_000_000)
+    # full reemplaza la lista; update solo agrega y actualiza (archivo de actualizaciones).
+    mode: Literal["full", "update"] = "full"
+    file_name: str | None = Field(default=None, max_length=255)
 
 
 class CustomListResult(Camel):
     slug: str
+    mode: Literal["full", "update"] = "full"
+    upload_id: int | None = None
+    # Filas leídas del archivo.
+    rows: int = 0
+    # Registros de la lista después de la carga.
     entries: int
     added: int
+    # Incluye los cambios de estatus.
     changed: int
+    status_changed: int = 0
+    unchanged: int = 0
     removed: int
+
+
+class UploadOut(Camel):
+    id: int
+    mode: str
+    file_name: str | None
+    at: datetime
+    uploaded_by: str | None
+    rows: int
+    added: int
+    changed: int
+    status_changed: int
+    unchanged: int
+    removed: int
+    entries: int
+
+
+class ChangeOut(Camel):
+    at: datetime
+    # added, status, changed o removed.
+    change: str
+    name: str
+    fields: dict
+    file_name: str | None = None
+    mode: str | None = None

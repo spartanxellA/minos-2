@@ -10,6 +10,7 @@ import itertools
 import json
 import logging
 from collections.abc import AsyncIterator, Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
@@ -19,8 +20,8 @@ from .. import db
 from ..bus import Bus
 from ..config import WatchlistSettings
 from ..connectors.base import redact_secrets
-from ..domain.screening import WatchlistRecord
-from .sources import OFFICIAL_SOURCES, OfficialSource
+from ..domain.screening import WatchlistRecord, ascii_fold
+from .sources import LOOKS_LIKE_CURP, LOOKS_LIKE_DATE, LOOKS_LIKE_RFC, OFFICIAL_SOURCES, OfficialSource
 
 log = logging.getLogger(__name__)
 
@@ -52,42 +53,182 @@ async def batches(records: Iterable[WatchlistRecord], size: int = BATCH) -> Asyn
         yield batch
 
 
-async def store_entries(session, slug: str, records: Iterable[WatchlistRecord] | AsyncIterator[list[WatchlistRecord]]
-                        ) -> tuple[int, int, int, int]:
-    """Deja en la base exactamente los registros recibidos. Devuelve (total, nuevos, modificados, borrados)."""
-    E = db.WatchlistEntry
-    existing = {ext: (id_, fp) for id_, ext, fp in (await session.execute(
-        select(E.id, E.external_id, E.fingerprint).where(E.source == slug)
-    )).all()}
+# Campos que se comparan para el historial de cada registro (en este orden se muestran).
+TRACKED_FIELDS = ("status", "name", "programs", "birth_dates", "identifiers", "nationalities", "aliases")
+
+
+@dataclass
+class StoreCounts:
+    """Resultado de una carga. changed incluye los cambios de estatus (status_changed es una parte de changed)."""
+    rows: int = 0
+    added: int = 0
+    changed: int = 0
+    status_changed: int = 0
+    unchanged: int = 0
+    removed: int = 0
+    entries: int = 0
+    # Registros que ya estaban con otra llave (cambio de cargo o llave de una versión anterior) y se reconocieron.
+    rekeyed: int = 0
+
+    def as_tuple(self) -> tuple[int, int, int, int]:
+        return self.entries, self.added, self.changed, self.removed
+
+
+def _is_doc(value: str) -> bool:
+    return bool(LOOKS_LIKE_RFC.fullmatch(value) or LOOKS_LIKE_CURP.fullmatch(value))
+
+
+def _person_key(name: str, birth: str) -> str:
+    """Nombre sin acentos + fecha de nacimiento: el inicio de la llave de las filas PEP sin RFC ni CURP."""
+    return f"{ascii_fold(name)}|{birth}"
+
+
+def _diff(old, row: dict) -> dict:
+    out = {}
+    for f in TRACKED_FIELDS:
+        before, after = getattr(old, f), row[f]
+        if isinstance(before, list) or isinstance(after, list):
+            before, after = list(before or []), list(after or [])
+        if before != after:
+            out[f] = [before, after]
+    return out
+
+
+async def store_entries(session, slug: str, records: Iterable[WatchlistRecord] | AsyncIterator[list[WatchlistRecord]],
+                        *, mode: str = "full", upload_id: int | None = None) -> StoreCounts:
+    """Guarda los registros de una lista.
+
+    full: deja en la base exactamente los registros recibidos (los que no vienen se borran).
+    update: archivo de actualizaciones; agrega los nuevos y actualiza los que cambiaron, sin borrar a nadie.
+
+    La llave de cada fila es RFC/CURP + cargo, o nombre + fecha de nacimiento + cargo si no trae documentos. Si la
+    llave no existe pero hay exactamente una persona con el mismo RFC/CURP (o, sin documentos, el mismo nombre y
+    fecha) que aún no apareció en el archivo, es esa persona con otro cargo: toma la llave nueva y sus coincidencias
+    e historial la siguen. Sin documentos ni fecha no se adivina: puede ser un homónimo, y el archivo de
+    actualizaciones ya marca con estatus 0 el cargo que se deja.
+
+    Con upload_id, cada alta, cambio y retiro queda en el historial (watchlist_changes). En la primera carga de una
+    lista no se anotan las altas: serían cientos de miles de filas que solo dicen "estaba en la primera lista".
+    """
+    E, C = db.WatchlistEntry, db.WatchlistChange
+    existing: dict[str, tuple[int, str]] = {}
+    # Para reconocer a una persona que ya estaba con otra llave: por RFC/CURP, o por nombre + fecha de nacimiento si
+    # no tiene documentos. Solo en listas propias (las oficiales traen su propio id).
+    by_doc: dict[str, list[str]] = {}
+    by_person: dict[str, list[str]] = {}
+    cargo_of: dict[str, list[str]] = {}
+    result = await session.stream(select(E.id, E.external_id, E.fingerprint, E.name, E.birth_dates, E.identifiers,
+                                         E.programs).where(E.source == slug).execution_options(yield_per=5000))
+    async for part in result.partitions():
+        for id_, ext, fp, name, births, ids, programs in part:
+            existing[ext] = (id_, fp)
+            if upload_id is None or not (births or ids):
+                continue
+            values = [*(ids or []), *(births or [])]  # las llaves viejas traen la fecha y el RFC invertidos
+            docs = [v for v in values if _is_doc(v)]
+            for d in docs:
+                by_doc.setdefault(d, []).append(ext)
+            birth = next((v for v in values if LOOKS_LIKE_DATE.fullmatch(v)), "")
+            if birth and not docs:
+                by_person.setdefault(_person_key(name, birth), []).append(ext)
+            if docs or birth:
+                cargo_of[ext] = list(programs or [])
+    log_added = upload_id is not None and bool(existing)
+    renames: list[tuple[str, str]] = []
+    now = datetime.now(UTC)
     seen: set[str] = set()
-    new = changed = 0
+    counts = StoreCounts()
     chunks = records if hasattr(records, "__aiter__") else batches(records)
     async for chunk in chunks:
-        inserts = []
+        inserts, updates, history = [], [], []
         for r in chunk:
+            counts.rows += 1
             ext = r.external_id[:200]
+            if ext not in existing and ext not in seen and (by_doc or by_person):
+                if r.identifiers:
+                    candidates = {c for d in r.identifiers for c in by_doc.get(d, ())}
+                elif r.birth_dates:
+                    candidates = set(by_person.get(_person_key(r.name, r.birth_dates[0]), ()))
+                else:
+                    # Sin documentos ni fecha, el nombre solo no basta: puede ser un homónimo.
+                    candidates = set()
+                candidates = [c for c in candidates if c in existing and c not in seen]
+                if len(candidates) > 1:
+                    # Varios cargos de la misma persona: es el que tiene el mismo cargo.
+                    candidates = [c for c in candidates if cargo_of.get(c) == list(r.programs)]
+                if len(candidates) == 1:
+                    # Es la misma persona con otra llave (cambió de cargo, o una llave de la versión anterior): toma la
+                    # llave nueva y sus coincidencias e historial la siguen.
+                    old_ext = candidates[0]
+                    existing[ext] = existing.pop(old_ext)
+                    renames.append((old_ext, ext))
             if ext in seen:
                 continue
             seen.add(ext)
             row = _entry_row(slug, ext, r)
             if ext not in existing:
                 inserts.append(row)
+                if log_added:
+                    history.append({"source": slug, "external_id": ext, "name": row["name"], "change": "added",
+                                    "fields": {"status": [None, row["status"]]} if row["status"] else {}})
             elif existing[ext][1] != row["fingerprint"]:
-                changed += 1
-                await session.execute(update(E).where(E.id == existing[ext][0]).values(**row))
+                updates.append((existing[ext][0], row))
+            else:
+                counts.unchanged += 1
+        if renames:
+            for old_ext, new_ext in renames:
+                await session.execute(update(E).where(E.source == slug, E.external_id == old_ext)
+                                      .values(external_id=new_ext))
+                for model in (db.ScreeningMatch, C):
+                    await session.execute(update(model).where(model.source == slug, model.external_id == old_ext)
+                                          .values(external_id=new_ext))
+            counts.rekeyed += len(renames)
+            renames.clear()
+        if updates:
+            cols = [getattr(E, f) for f in TRACKED_FIELDS]
+            olds = {o.id: o for o in (await session.execute(
+                select(E.id, *cols).where(E.id.in_([i for i, _ in updates])))).all()}
+            for id_, row in updates:
+                fields = _diff(olds[id_], row) if id_ in olds else {}
+                counts.changed += 1
+                counts.status_changed += "status" in fields
+                if upload_id is not None and fields:
+                    history.append({"source": slug, "external_id": row["external_id"], "name": row["name"],
+                                    "change": "status" if "status" in fields else "changed", "fields": fields})
+            for id_, row in updates:
+                await session.execute(update(E).where(E.id == id_).values(**row))
         if inserts:
-            new += len(inserts)
+            counts.added += len(inserts)
             await session.execute(insert(E), inserts)
-    gone = [id_ for ext, (id_, _) in existing.items() if ext not in seen]
-    for i in range(0, len(gone), BATCH):
-        await session.execute(delete(E).where(E.id.in_(gone[i:i + BATCH])))
-    return len(seen), new, changed, len(gone)
+        if history:
+            await session.execute(insert(C), [dict(h, upload_id=upload_id, at=now) for h in history])
+    if mode == "full":
+        gone = [id_ for ext, (id_, _) in existing.items() if ext not in seen]
+        for i in range(0, len(gone), BATCH):
+            ids = gone[i:i + BATCH]
+            if upload_id is not None:
+                rows = (await session.execute(select(E.external_id, E.name, E.status).where(E.id.in_(ids)))).all()
+                await session.execute(insert(C), [
+                    {"upload_id": upload_id, "source": slug, "external_id": ext, "name": name, "change": "removed",
+                     "fields": {"status": [st, None]} if st else {}, "at": now} for ext, name, st in rows])
+            await session.execute(delete(E).where(E.id.in_(ids)))
+        counts.removed = len(gone)
+        counts.entries = len(seen)
+    else:
+        counts.entries = len(existing) + counts.added
+    return counts
 
 
 async def save_list(database: db.Database, slug: str,
                     records: Iterable[WatchlistRecord] | AsyncIterator[list[WatchlistRecord]], version: str,
                     now: datetime, *, official: OfficialSource | None = None, name: str | None = None,
-                    category: str | None = None, uploaded_by: str | None = None) -> tuple[int, int, int, int]:
+                    category: str | None = None, uploaded_by: str | None = None, mode: str = "full",
+                    file_name: str | None = None) -> tuple[StoreCounts, int | None]:
+    """Guarda una lista. Las propias dejan registro de la carga y del historial; devuelve (conteos, id de la carga).
+
+    En una actualización la versión de la lista cambia solo si algo cambió: así los objetivos se vuelven a revisar
+    (y las coincidencias confirmadas toman el estatus nuevo) sin trabajo de más cuando el archivo no trae novedades.
+    """
     async with database.session() as session:
         row = await session.get(db.WatchlistSource, slug)
         if row is None:
@@ -99,12 +240,31 @@ async def save_list(database: db.Database, slug: str,
         else:
             row.name, row.category, row.uploaded_by = name or row.name, category or row.category, uploaded_by
         await session.flush()
-        counts = await store_entries(session, slug, records)
-        row.version, row.entry_count = version, counts[0]
-        row.last_checked_at, row.last_changed_at, row.last_error = now, now, None
+        upload = None
+        if official is None:
+            upload = db.WatchlistUpload(source=slug, mode=mode, file_name=(file_name or None) and file_name[:255],
+                                        at=now, uploaded_by=uploaded_by)
+            session.add(upload)
+            await session.flush()
+        counts = await store_entries(session, slug, records, mode=mode, upload_id=upload.id if upload else None)
+        touched = counts.added or counts.changed or counts.removed
+        if mode == "update":
+            if touched:
+                row.version = hashlib.sha256(f"{row.version or ''}|{version}".encode()).hexdigest()
+                row.last_changed_at = now
+        else:
+            row.version, row.last_changed_at = version, now
+        row.entry_count = counts.entries
+        row.last_checked_at, row.last_error = now, None
+        if upload is not None:
+            for f in ("rows", "added", "changed", "status_changed", "unchanged", "removed", "entries"):
+                setattr(upload, f, getattr(counts, f))
+        upload_id = upload.id if upload else None
         await session.commit()
-    log.info("Lista %s: %d registros (%d nuevos, %d cambiados, %d retirados)", slug, *counts)
-    return counts
+    log.info("Lista %s (%s): %d registros (%d nuevos, %d cambiados [%d de estatus], %d sin cambio, %d retirados)",
+             slug, mode, counts.entries, counts.added, counts.changed, counts.status_changed, counts.unchanged,
+             counts.removed)
+    return counts, upload_id
 
 
 class WatchlistSync:

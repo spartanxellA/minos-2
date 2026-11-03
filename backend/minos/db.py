@@ -357,6 +357,51 @@ class WatchlistEntry(Base):
         )
 
 
+class WatchlistUpload(Base):
+    """Cada carga de una lista propia: completa (reemplaza la lista) o de actualización (solo altas y cambios)."""
+
+    __tablename__ = "watchlist_uploads"
+    __table_args__ = (Index("ix_watchlist_uploads_source_at", "source", "at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(ForeignKey("watchlist_sources.slug", ondelete="CASCADE"))
+    # full o update.
+    mode: Mapped[str] = mapped_column(String(16))
+    file_name: Mapped[str | None] = mapped_column(String(255))
+    at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    uploaded_by: Mapped[str | None] = mapped_column(String(254))
+    rows: Mapped[int] = mapped_column(default=0)
+    added: Mapped[int] = mapped_column(default=0)
+    status_changed: Mapped[int] = mapped_column(default=0)
+    changed: Mapped[int] = mapped_column(default=0)
+    unchanged: Mapped[int] = mapped_column(default=0)
+    removed: Mapped[int] = mapped_column(default=0)
+    # Registros de la lista después de la carga.
+    entries: Mapped[int] = mapped_column(default=0)
+
+
+class WatchlistChange(Base):
+    """Historial de un registro de lista propia: alta, cambio de estatus, otro cambio o retiro, con la carga que lo
+    trajo. Así se sabe desde cuándo una persona dejó el cargo aunque la lista ya solo diga "Inactivo"."""
+
+    __tablename__ = "watchlist_changes"
+    __table_args__ = (
+        Index("ix_watchlist_changes_entry", "source", "external_id"),
+        Index("ix_watchlist_changes_upload", "upload_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    upload_id: Mapped[int] = mapped_column(ForeignKey("watchlist_uploads.id", ondelete="CASCADE"))
+    source: Mapped[str] = mapped_column(String(64))
+    external_id: Mapped[str] = mapped_column(String(200))
+    name: Mapped[str] = mapped_column(String(500))
+    # added, status, changed o removed.
+    change: Mapped[str] = mapped_column(String(16))
+    # {"status": ["Activo", "Inactivo"], "programs": [[...], [...]]}
+    fields: Mapped[dict] = mapped_column(Json, default=dict)
+    at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+
+
 class ScreeningMatch(Base):
     """Posible coincidencia de un objetivo con un registro de una lista. Guarda una copia del registro tal como
     estaba, porque la lista puede cambiar o retirarlo. Solo las confirmadas y vigentes (active) suben el riesgo."""

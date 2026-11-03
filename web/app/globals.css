@@ -382,3 +382,13 @@ form.deactivate input { flex: 1 1 260px; min-width: 0; }
   .geo-controls > * { flex: 1 1 100%; }
   .geo-controls .seg button { flex: 1; }
 }
+
+/* Cargas de listas propias: resultado, historial de cargas e historial de cada registro. */
+.upload-result { font-size: 13px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, currentColor 8%, transparent); }
+.upload-result a { margin-left: 4px; }
+.upload-history { margin-top: 12px; }
+.upload-history > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.upload-history h3 { margin: 0; }
+.entry-history { margin-top: 6px; font-size: 12px; }
+.entry-history ol { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; }
+.entry-history li { border-left: 2px solid var(--accent); padding-left: 8px; }

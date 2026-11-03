@@ -1,19 +1,24 @@
 """Rutas de listas negras: resultado por objetivo, revisión de coincidencias y listas propias."""
+import csv
 import hashlib
+import io
 import re
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import audit, db
+from ..audit import _cell
 from ..auth import CurrentUser, Role, current_user, require_role
 from ..domain.screening import EntryKind, ascii_fold
-from .schemas import CustomListInput, CustomListResult, MatchOut, ReviewInput, ScreeningOut, WatchlistOut
+from .schemas import (
+    ChangeOut, CustomListInput, CustomListResult, MatchOut, ReviewInput, ScreeningOut, UploadOut, WatchlistOut,
+)
 from .screener import screening_summary
 from .sources import CATEGORY_LABEL, OFFICIAL_SOURCES, parse_custom_csv
 from .sync import batches, save_list
@@ -114,14 +119,18 @@ MAX_UPLOAD_BYTES = 300 * 1024 * 1024
 
 @watchlist_router.post("/watchlists/custom", response_model=CustomListResult, status_code=status.HTTP_201_CREATED)
 async def upload_custom(body: CustomListInput, session: Session, request: Request, me: Admin):
-    """Carga o reemplaza una lista propia (PEP, UIF, SESNA…) desde un CSV. Una lista con el mismo nombre se reemplaza."""
-    return await _save_custom(body.name, body.category, body.csv.encode("utf-8"), session, request, me)
+    """Carga una lista propia (PEP, UIF, SESNA…) desde un CSV. En modo full una lista con el mismo nombre se
+    reemplaza; en modo update solo se agregan y actualizan los registros del archivo."""
+    return await _save_custom(body.name, body.category, body.csv.encode("utf-8"), session, request, me,
+                              mode=body.mode, file_name=body.file_name)
 
 
 @watchlist_router.post("/watchlists/custom/file", response_model=CustomListResult, status_code=status.HTTP_201_CREATED)
 async def upload_custom_file(
     session: Session, request: Request, me: Admin, name: Annotated[str, Query(min_length=2, max_length=200)],
     category: Annotated[Literal["pep", "sanctions", "tax", "debarment", "other"], Query()] = "pep",
+    mode: Annotated[Literal["full", "update"], Query()] = "full",
+    file_name: Annotated[str | None, Query(alias="fileName", max_length=255)] = None,
 ):
     """Lo mismo, con el archivo tal cual en el cuerpo (sin JSON): así entran listas de cientos de MB."""
     data = bytearray()
@@ -130,13 +139,21 @@ async def upload_custom_file(
         if len(data) > MAX_UPLOAD_BYTES:
             raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                                 f"El archivo pasa de {MAX_UPLOAD_BYTES // 2**20} MB.")
-    return await _save_custom(name, category, bytes(data), session, request, me)
+    return await _save_custom(name, category, bytes(data), session, request, me, mode=mode, file_name=file_name)
 
 
 async def _save_custom(name: str, category: str, data: bytes, session: AsyncSession, request: Request,
-                       me: CurrentUser) -> CustomListResult:
+                       me: CurrentUser, *, mode: str = "full", file_name: str | None = None) -> CustomListResult:
     name = name.strip()
     slug = custom_slug(name)
+    if mode == "update":
+        current = await session.get(db.WatchlistSource, slug)
+        if current is None or not current.custom:
+            raise HTTPException(status.HTTP_404_NOT_FOUND,
+                                f"No existe la lista «{name}». Carga primero la lista completa y después sus "
+                                "actualizaciones.")
+        # Una actualización conserva el nombre y el tipo de la lista.
+        name, category = current.name, current.category
     records = parse_custom_csv(data, slug)
     if category == "pep":
         # Una lista PEP es de personas, aunque el archivo no traiga tipo, RFC ni CURP.
@@ -155,13 +172,18 @@ async def _save_custom(name: str, category: str, data: bytes, session: AsyncSess
         async for chunk in chunks:
             yield chunk
 
-    counts = await save_list(request.app.state.db, slug, all_chunks(), hashlib.sha256(data).hexdigest(),
-                             datetime.now(UTC), name=name, category=category, uploaded_by=me.email)
-    audit.record(session, request, "watchlist.uploaded", me, entity_type="watchlist", entity_id=slug,
-                 entity_label=name, detail={"category": category, "entries": counts[0], "added": counts[1],
-                                            "changed": counts[2], "removed": counts[3]})
+    c, upload_id = await save_list(request.app.state.db, slug, all_chunks(), hashlib.sha256(data).hexdigest(),
+                                   datetime.now(UTC), name=name, category=category, uploaded_by=me.email, mode=mode,
+                                   file_name=file_name)
+    audit.record(session, request, "watchlist.updated" if mode == "update" else "watchlist.uploaded", me,
+                 entity_type="watchlist", entity_id=slug, entity_label=name,
+                 detail={"category": category, "mode": mode, "file": file_name, "uploadId": upload_id,
+                         "rows": c.rows, "entries": c.entries, "added": c.added, "changed": c.changed,
+                         "statusChanged": c.status_changed, "unchanged": c.unchanged, "removed": c.removed})
     await session.commit()
-    return CustomListResult(slug=slug, entries=counts[0], added=counts[1], changed=counts[2], removed=counts[3])
+    return CustomListResult(slug=slug, mode=mode, upload_id=upload_id, rows=c.rows, entries=c.entries, added=c.added,
+                            changed=c.changed, status_changed=c.status_changed, unchanged=c.unchanged,
+                            removed=c.removed)
 
 
 @watchlist_router.delete("/watchlists/custom/{slug}", status_code=status.HTTP_204_NO_CONTENT)
@@ -181,3 +203,62 @@ async def delete_custom(slug: str, session: Session, request: Request, me: Admin
     await session.commit()
     for target_id in affected:
         await request.app.state.risk_engine.recompute(target_id)
+
+
+@watchlist_router.get("/watchlists/custom/{slug}/uploads", response_model=list[UploadOut])
+async def list_uploads(slug: str, session: Session, limit: Annotated[int, Query(ge=1, le=200)] = 50):
+    """Cargas de una lista propia, la más reciente primero: completas y de actualización, con sus conteos."""
+    if await session.get(db.WatchlistSource, slug) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lista no encontrada")
+    U = db.WatchlistUpload
+    rows = (await session.scalars(select(U).where(U.source == slug).order_by(U.at.desc(), U.id.desc()).limit(limit))).all()
+    return [UploadOut.model_validate(u) for u in rows]
+
+
+CHANGE_LABEL = {"added": "Alta", "status": "Cambio de estatus", "changed": "Otro cambio", "removed": "Retirado"}
+FIELD_LABEL = {"status": "Estatus", "name": "Nombre", "programs": "Cargo", "birth_dates": "Nacimiento",
+               "identifiers": "Documentos", "nationalities": "País", "aliases": "Alias"}
+
+
+def _plain(v) -> str:
+    if v is None:
+        return ""
+    return " · ".join(str(x) for x in v) if isinstance(v, list) else str(v)
+
+
+@watchlist_router.get("/watchlists/uploads/{upload_id}/changes.csv")
+async def upload_changes_csv(upload_id: int, session: Session, request: Request, me: Analyst):
+    """Detalle de una carga en CSV: cada alta, cambio de estatus, otro cambio o retiro, con el antes y el después."""
+    upload = await session.get(db.WatchlistUpload, upload_id)
+    if upload is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Carga no encontrada")
+    C = db.WatchlistChange
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["cambio", "nombre", "llave", "campo", "antes", "despues"])
+    result = await session.stream_scalars(select(C).where(C.upload_id == upload_id).order_by(C.id))
+    async for c in result:
+        fields = c.fields or {}
+        if not fields:
+            w.writerow([_cell(x) for x in (CHANGE_LABEL.get(c.change, c.change), c.name, c.external_id, "", "", "")])
+        for f, (before, after) in fields.items():
+            w.writerow([_cell(x) for x in (CHANGE_LABEL.get(c.change, c.change), c.name, c.external_id,
+                                           FIELD_LABEL.get(f, f), _plain(before), _plain(after))])
+    stamp = upload.at.strftime("%Y%m%d-%H%M")
+    return Response("\ufeff" + out.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"content-disposition": f'attachment; filename="minos-{upload.source}-{stamp}.csv"'})
+
+
+@watchlist_router.get("/screening/matches/{match_id}/history", response_model=list[ChangeOut])
+async def match_history(match_id: int, session: Session):
+    """Historial en la lista del registro de una coincidencia (altas, cambios de estatus y de cargo)."""
+    m = await session.get(db.ScreeningMatch, match_id)
+    if m is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Coincidencia no encontrada")
+    C, U = db.WatchlistChange, db.WatchlistUpload
+    rows = (await session.execute(
+        select(C, U.file_name, U.mode).join(U, U.id == C.upload_id)
+        .where(C.source == m.source, C.external_id == m.external_id).order_by(C.at.desc(), C.id.desc()).limit(100)
+    )).all()
+    return [ChangeOut(at=c.at, change=c.change, name=c.name, fields=c.fields or {}, file_name=file_name, mode=mode)
+            for c, file_name, mode in rows]
