@@ -179,8 +179,20 @@ Cada objetivo (persona, empresa, institución o área de gobierno) se revisa con
   el nombre (`name`/`nombre`, o `nombre(s)` + apellidos). Se usan también `alias`, `birth_date`, `nationality`, `rfc`,
   `curp`, `id_num`, `list`, `position`, `department`, `program`, `publication_date`, `status` y `location`. También
   acepta el archivo PEP separado por `|` y sin encabezado, en el orden nombre | cargo | dependencia | RFC | fecha de
-  nacimiento | país | estatus (1 activo, 0 inactivo). En una lista PEP los registros sin tipo se toman como personas. Una
-  lista con el mismo nombre se reemplaza.
+  nacimiento | país | estatus (1 activo, 0 inactivo). Si una fila trae la fecha en la columna del RFC y el RFC en la de
+  la fecha (pasa en unas 19 mil filas del archivo nacional), se acomodan solos. En una lista PEP los registros sin tipo
+  se toman como personas.
+- Dos formas de subir una lista propia: **lista completa** (una lista con el mismo nombre se reemplaza y quien no viene
+  en el archivo sale) o **actualización** (`mode=update`: archivo solo con altas y cambios, en el mismo formato; agrega
+  y actualiza sin borrar a nadie; quien deja el cargo llega con estatus 0 y pasa a "Inactivo").
+- Cada fila se identifica por RFC/CURP + cargo, o por nombre + fecha de nacimiento + cargo si no trae documentos. Si la
+  llave no existe pero hay exactamente una persona con el mismo RFC/CURP (o, sin documentos, el mismo nombre y fecha),
+  es la misma persona con otro cargo: toma la llave nueva y sus coincidencias la siguen. Sin documentos ni fecha no se
+  adivina (puede ser un homónimo).
+- Cada carga queda en `watchlist_uploads` (altas, cambios de estatus, otros cambios, sin cambio, retirados) y cada
+  cambio de un registro en `watchlist_changes` con su fecha: el tablero muestra el historial de cargas de cada lista
+  (con el detalle en CSV) y el historial de cada persona en la ficha de la coincidencia. Si cambia el estatus de una
+  coincidencia confirmada, se recalcula el índice (un PEP inactivo pesa la mitad) y queda una alerta.
 - Coincidencia (`minos.domain.screening`): nombres sin acentos, títulos ni formas jurídicas, en cualquier orden, con
   tolerancia a errores de ortografía (Jaro-Winkler y una clave fonética para el español) y a un segundo apellido
   ausente. Se muestran las de 80 % o más. Un RFC, CURP o pasaporte igual da 100 %; un RFC distinto resta 30, una fecha

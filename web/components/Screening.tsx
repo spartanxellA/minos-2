@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api, type MatchStatus, type Screening, type ScreeningMatch, type Target } from "@/lib/api";
+import { api, type EntryChange, type MatchStatus, type Screening, type ScreeningMatch, type Target } from "@/lib/api";
 import { Modal } from "./AccountDialogs";
 
 const date = (iso: string | null | undefined) =>
@@ -151,6 +151,7 @@ export function MatchItem({ match: m, canReview, onChanged, showTarget }: {
         {facts.filter(([, v]) => v).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
       </dl>
       {e.url && <a href={e.url} target="_blank" rel="noreferrer">Ver en la fuente oficial ↗</a>}
+      <EntryHistory matchId={m.id} />
       <div className="review">
         <span className={`state ${m.status}`}>{MATCH_STATUS[m.status]}{!m.active && " · ya no aparece en la lista"}</span>
         {m.reviewedAt && <span className="muted"> · {m.reviewedByEmail} · {date(m.reviewedAt)}</span>}
@@ -167,6 +168,52 @@ export function MatchItem({ match: m, canReview, onChanged, showTarget }: {
       )}
       {error && <p className="error">{error}</p>}
     </article>
+  );
+}
+
+const CHANGE_LABEL: Record<EntryChange["change"], string> = {
+  added: "Alta en la lista", status: "Cambio de estatus", changed: "Cambio de datos", removed: "Salió de la lista",
+};
+const FIELD_LABEL: Record<string, string> = {
+  status: "Estatus", name: "Nombre", programs: "Cargo", birth_dates: "Nacimiento", identifiers: "Documentos",
+  nationalities: "País", aliases: "Alias",
+};
+const plain = (v: unknown) => (v == null || (Array.isArray(v) && !v.length) ? "—" : Array.isArray(v) ? v.join(" · ") : String(v));
+
+/** Cambios del registro en las cargas de la lista (p. ej. cuándo pasó de Activo a Inactivo). */
+function EntryHistory({ matchId }: { matchId: number }) {
+  const [items, setItems] = useState<EntryChange[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle() {
+    setOpen(!open);
+    if (!items && !open) {
+      api.matchHistory(matchId).then(setItems).catch((err) => setError((err as Error).message));
+    }
+  }
+
+  return (
+    <div className="entry-history">
+      <button type="button" className="link" onClick={toggle} aria-expanded={open}>
+        {open ? "Ocultar historial en la lista" : "Historial en la lista"}
+      </button>
+      {open && (error ? <p className="error">{error}</p> : !items ? <p className="muted">Cargando…</p> : items.length === 0 ? (
+        <p className="muted">Sin cambios registrados desde que se cargó la lista.</p>
+      ) : (
+        <ol>
+          {items.map((h, i) => (
+            <li key={i}>
+              <b>{date(h.at)}</b> · {CHANGE_LABEL[h.change]}
+              {h.fileName && <span className="muted"> · {h.fileName}</span>}
+              {Object.entries(h.fields).filter(([, [a, b]]) => h.change !== "added" || b != null).map(([f, [a, b]]) => (
+                <div key={f} className="muted">{FIELD_LABEL[f] ?? f}: {h.change === "added" ? plain(b) : <>{plain(a)} → {plain(b)}</>}</div>
+              ))}
+            </li>
+          ))}
+        </ol>
+      ))}
+    </div>
   );
 }
 

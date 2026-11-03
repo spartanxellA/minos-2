@@ -372,6 +372,11 @@ def _custom_rows(data: bytes) -> tuple[list[str], Iterable[list[str]]]:
     return _rows_after_header(text, is_header)
 
 
+LOOKS_LIKE_DATE = re.compile(r"\d{1,4}[/-]\d{1,2}[/-]\d{1,4}")
+# RFC de persona física (13) o moral (12): letras, fecha aaMMdd y homoclave.
+LOOKS_LIKE_RFC = re.compile(r"[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}")
+LOOKS_LIKE_CURP = re.compile(r"[A-Z]{4}\d{6}[HMX][A-Z]{5}[A-Z0-9]\d")
+
 # El archivo PEP marca el estatus con 1 (activo) o 0 (inactivo: ya no ocupa el cargo, pesa la mitad en el índice).
 STATUS_CODES = {"1": "Activo", "0": "Inactivo"}
 
@@ -412,7 +417,13 @@ def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
         name = get("name") or _join(get("given"), get("last1"), get("last2"))
         if not name:
             continue
-        rfc, curp = get("rfc").upper(), get("curp").upper()
+        rfc, curp, birth = get("rfc").upper(), get("curp").upper(), get("birth")
+        # En el archivo PEP nacional real unas 19 mil filas traen la fecha de nacimiento en la columna del RFC y el
+        # RFC en la de la fecha. Se acomoda por contenido: una fecha nunca es RFC y un RFC nunca es fecha.
+        if LOOKS_LIKE_DATE.fullmatch(rfc) and not LOOKS_LIKE_DATE.fullmatch(birth):
+            rfc, birth = birth.upper() if LOOKS_LIKE_RFC.fullmatch(birth.upper()) else "", rfc
+        elif LOOKS_LIKE_RFC.fullmatch(birth.upper()) and not rfc:
+            rfc, birth = birth.upper(), ""
         kind_text = ascii_fold(get("kind"))
         if any(w in kind_text for w in ("moral", "empresa", "entidad", "organizacion", "company", "entity")) or len(rfc) == 12:
             kind = EntryKind.ORGANIZATION
@@ -423,15 +434,16 @@ def parse_custom_csv(data: bytes, source: str) -> Iterator[WatchlistRecord]:
         position = _join(get("position"), f"({get('agency')})" if get("agency") else None)
         # Sin id, RFC ni CURP, la misma persona aparece una vez por cada cargo: el cargo entra en la llave para que
         # no dependa del orden de las filas y la lista del día siguiente conserve las mismas llaves.
-        external = get("id") or curp or rfc or f"{ascii_fold(name)}|{get('birth')}" + (
-            f"|{hashlib.sha1(ascii_fold(position).encode()).hexdigest()[:12]}" if position else "")
+        # Con RFC o CURP también: una misma persona puede tener dos cargos en la lista con el mismo RFC.
+        cargo = f"|{hashlib.sha1(ascii_fold(position).encode()).hexdigest()[:12]}" if position else ""
+        external = get("id") or ((curp or rfc) + cargo if curp or rfc else f"{ascii_fold(name)}|{birth}{cargo}")
         if external in seen:
             external = f"{external}#{number}"
         seen.add(external)
         yield WatchlistRecord(
             source=source, external_id=external[:200], kind=kind, name=name,
             aliases=[a.strip() for a in re.split(r"[;|]", get("aliases")) if a.strip() and a.strip() != name],
-            birth_dates=[get("birth")] if get("birth") else [],
+            birth_dates=[birth] if birth else [],
             nationalities=[get("nationality")] if get("nationality") else [],
             identifiers=[x for x in (rfc, curp) if x],
             programs=[x for x in (get("list"), position, get("reason")) if x],

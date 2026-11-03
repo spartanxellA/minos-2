@@ -217,6 +217,42 @@ export interface Watchlist {
   uploadedBy: string | null;
 }
 
+export type UploadMode = "full" | "update";
+
+export interface UploadResult {
+  slug: string;
+  mode: UploadMode;
+  uploadId: number | null;
+  rows: number;
+  entries: number;
+  added: number;
+  /** Incluye los cambios de estatus. */
+  changed: number;
+  statusChanged: number;
+  unchanged: number;
+  removed: number;
+}
+
+export interface WatchlistUpload extends Omit<UploadResult, "slug" | "uploadId"> {
+  id: number;
+  fileName: string | null;
+  at: string;
+  uploadedBy: string | null;
+}
+
+export type EntryChangeKind = "added" | "status" | "changed" | "removed";
+
+export interface EntryChange {
+  at: string;
+  change: EntryChangeKind;
+  name: string;
+  fields: Record<string, [unknown, unknown]>;
+  fileName: string | null;
+  mode: UploadMode | null;
+}
+
+export const uploadChangesCsvUrl = (uploadId: number) => `${API_URL}/api/watchlists/uploads/${uploadId}/changes.csv`;
+
 export const WATCHLIST_CATEGORIES: Record<string, string> = {
   pep: "Persona políticamente expuesta", sanctions: "Sanciones", tax: "Fiscal (SAT)", debarment: "Inhabilitación", other: "Otra",
 };
@@ -456,10 +492,13 @@ export const api = {
     request<ScreeningMatch>(`/api/screening/matches/${id}/review`, { method: "POST", json: { decision, note } }),
   watchlists: () => get<Watchlist[]>("/api/watchlists"),
   // El archivo va tal cual (sin JSON): el servidor detecta UTF-8, Windows-1252 o UTF-16 y aguanta listas de cientos de MB.
-  uploadWatchlist: (name: string, category: string, file: Blob) =>
-    request<{ slug: string; entries: number; added: number; changed: number; removed: number }>(
-      `/api/watchlists/custom/file?${new URLSearchParams({ name, category })}`,
+  // mode "update": archivo de actualizaciones (solo altas y cambios); no borra a quien no viene en el archivo.
+  uploadWatchlist: (name: string, category: string, file: File, mode: UploadMode = "full") =>
+    request<UploadResult>(
+      `/api/watchlists/custom/file?${new URLSearchParams({ name, category, mode, fileName: file.name })}`,
       { method: "POST", body: file, headers: { "content-type": "application/octet-stream" } }),
+  watchlistUploads: (slug: string) => get<WatchlistUpload[]>(`/api/watchlists/custom/${slug}/uploads`),
+  matchHistory: (matchId: number) => get<EntryChange[]>(`/api/screening/matches/${matchId}/history`),
   deleteWatchlist: (slug: string) => request<void>(`/api/watchlists/custom/${slug}`, { method: "DELETE" }),
 
   me: () => get<Me>("/api/auth/me"),
