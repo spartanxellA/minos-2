@@ -137,17 +137,21 @@ function UploadForm({ lists, onUploaded }: { lists: Watchlist[]; onUploaded: () 
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const listName = mode === "update" ? target : name.trim();
+  const NEW = "__nueva__";
+  const [replace, setReplace] = useState(custom[0]?.name ?? NEW);
+  const replacing = mode === "full" && replace !== NEW ? custom.find((w) => w.name === replace) : undefined;
+  const listName = mode === "update" ? target : replacing ? replacing.name : name.trim();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!file || !listName) return;
+    if (replacing && !confirm(`Se reemplaza «${replacing.name}» (${fmt.format(replacing.entryCount)} registros): quien no venga en el archivo sale de la lista.\n\nSi el archivo trae solo altas y cambios, cancela y elige «Actualización».`)) return;
     setBusy(true);
     setError(null);
     setResult(null);
     try {
       if (!file.size) throw new Error(`El archivo «${file.name}» está vacío.`);
-      setResult(await api.uploadWatchlist(listName, category, file, mode));
+      setResult(await api.uploadWatchlist(listName, replacing ? replacing.category : category, file, mode));
       onUploaded();
     } catch (err) {
       setError((err as Error).message);
@@ -192,12 +196,24 @@ function UploadForm({ lists, onUploaded }: { lists: Watchlist[]; onUploaded: () 
         </label>
       ) : (
         <>
-          <label>Nombre de la lista<input required value={name} onChange={(e) => setName(e.target.value)} placeholder="PEP México" /></label>
-          <label>Tipo
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {Object.entries(WATCHLIST_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </label>
+          {custom.length > 0 && (
+            <label>Lista
+              <select value={replace} onChange={(e) => setReplace(e.target.value)}>
+                {custom.map((w) => <option key={w.slug} value={w.name}>Reemplazar «{w.name}» ({fmt.format(w.entryCount)})</option>)}
+                <option value={NEW}>Nueva lista…</option>
+              </select>
+            </label>
+          )}
+          {!replacing && (
+            <>
+              <label>Nombre de la lista<input required value={name} onChange={(e) => setName(e.target.value)} placeholder="PEP México" /></label>
+              <label>Tipo
+                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                  {Object.entries(WATCHLIST_CATEGORIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </label>
+            </>
+          )}
         </>
       )}
       <label>Archivo<input type="file" required accept=".csv,.json,.txt,.psv,.dat,text/csv,text/plain,application/json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
@@ -213,7 +229,7 @@ function UploadForm({ lists, onUploaded }: { lists: Watchlist[]; onUploaded: () 
           </div>
         </div>
       )}
-      <button type="submit" disabled={busy || !listName}>
+      <button type="submit" disabled={busy}>
         {busy ? "Cargando… (una lista grande tarda unos minutos)" : mode === "update" ? "Aplicar actualización" : "Cargar"}
       </button>
     </form>
