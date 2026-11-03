@@ -40,7 +40,7 @@ export function SurveyCard({ targetId, targetName, surveyScore, canAnswer = true
     <section className="card span-3">
       <h2>Cuestionario de riesgo</h2>
       {history === null ? <div className="empty">Cargando…</div> : !latest ? (
-        <p className="muted">Sin contestar. Mientras tanto el índice usa solo medios; el cuestionario aporta el 40 %.</p>
+        <p className="muted">Sin contestar. Mientras tanto el índice usa solo medios; el cuestionario aporta el 20 %.</p>
       ) : (
         <>
           <div className="kpi">{latest.score?.toFixed(1)} <small>/ 100</small></div>

@@ -169,8 +169,8 @@ def media_risk(
 
 @dataclass(frozen=True)
 class IndexWeights:
-    media: float = 0.6
-    survey: float = 0.4
+    media: float = 0.8
+    survey: float = 0.2
 
 
 @dataclass(frozen=True)
@@ -182,7 +182,7 @@ class ReputationIndexResult:
 
 
 def reputation_index(media_score: float, survey_score: float | None, weights: IndexWeights = IndexWeights()) -> ReputationIndexResult:
-    """IRR de 0 a 100. Con cuestionario: 0.6 M + 0.4 C; sin cuestionario (empresas, gobierno, países): IRR = M."""
+    """IRR de 0 a 100. Con cuestionario: 0.8 M + 0.2 C; sin cuestionario (empresas, gobierno, países): IRR = M."""
     if survey_score is None:
         score = media_score
     else:

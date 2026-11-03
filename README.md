@@ -217,7 +217,7 @@ Cada objetivo (persona, empresa, institución o área de gobierno) se revisa con
   tablero (tarjeta "Cuestionario de riesgo"), por secciones y precargado con las últimas respuestas. Como en 1.6,
   hay que contestar todas las preguntas: una sin contestar bajaría la sección por debajo de 0. Al guardar se
   recalcula el IRR y el tablero lo recibe en vivo. Historial: `GET /api/targets/{id}/survey-responses`.
-- `IRR = 0.6 M + 0.4 C`; sin cuestionario, `IRR = M`. Umbrales heredados: ≤ 25 bajo, ≤ 50 medio, > 50 alto.
+- `IRR = 0.8 M + 0.2 C`; sin cuestionario, `IRR = M`. Umbrales heredados: ≤ 25 bajo, ≤ 50 medio, > 50 alto.
 - Después se suman las coincidencias confirmadas en listas negras (ver arriba).
 - Los pesos se configuran con `MINOS_RISK_ENGINE__MEDIA_WEIGHT` y `MINOS_RISK_ENGINE__SURVEY_WEIGHT`. Son un punto
   de partida para calibrar con datos históricos.
