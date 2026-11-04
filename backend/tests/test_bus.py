@@ -96,3 +96,22 @@ async def test_memory_bus_batches_pending_recomputes():
         await memory.request_recompute(t)
     assert await memory.next_recompute(0.1) == {t1, t2}
     assert await memory.next_recompute(0.01) == set()
+
+
+@pytest.mark.parametrize("kind", ["memory", "redis"])
+async def test_counters_expire_and_are_shared_by_every_api_instance(redis, kind):
+    a, b = (MemoryBus(),) * 2 if kind == "memory" else (bus(redis, "api-1"), bus(redis, "api-2"))
+    assert [await a.hit("login:ip:x", 0.3), await b.hit("login:ip:x", 0.3), await a.hit("login:ip:x", 0.3)] == [1, 2, 3]
+    await asyncio.sleep(0.4)
+    assert await b.hit("login:ip:x", 60) == 1  # venció y empezó de nuevo
+
+    assert await a.blocked_for("login:lock:ip:x") == 0
+    await a.block("login:lock:ip:x", 60)
+    assert 59 < await b.blocked_for("login:lock:ip:x") <= 60
+
+    await b.block("login:lock:pair:e1:i1", 60)
+    await b.block("login:lock:pair:e1:i2", 60)
+    await b.block("login:lock:pair:e2:i1", 60)
+    await a.forget("login:lock:pair:e1:")
+    assert [await b.blocked_for(k) for k in ("login:lock:pair:e1:i1", "login:lock:pair:e1:i2")] == [0, 0]
+    assert await b.blocked_for("login:lock:pair:e2:i1") > 0

@@ -1,6 +1,7 @@
 """Rutas de inicio de sesión (/api/auth) y de administración de cuentas (/api/users)."""
+import math
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -14,6 +15,8 @@ from .auth import (
     _DUMMY_HASH, ROLE_LABEL, CurrentUser, Role, active_user, close_idle_session, create_user, current_user,
     end_sessions, hash_password, new_session_token, normalize_email, require_role, token_hash, verify_password,
 )
+from .login_guard import LoginGuard, Trip
+from .notifications import SecurityNotice
 from .schemas import Camel
 
 
@@ -113,29 +116,45 @@ async def login(body: LoginInput, request: Request, response: Response, session:
     email = normalize_email(body.email)
     user = await session.scalar(select(db.User).where(db.User.email == email))
 
+    ip = audit.client_ip(request) or "desconocida"
+    guard = login_guard(request)
+
     def failed(reason: str) -> None:
         # Sin sesión no se sabe quién es: se anota el correo que escribió, no la cuenta como autora.
         audit.record(session, request, "auth.login_failed", actor_email=email, success=False,
                      entity_type="user", entity_id=user and user.id, entity_label=email, detail={"reason": reason})
 
-    if user is not None and user.locked_until and user.locked_until > now:
-        failed("locked")
+    def too_many(seconds: int) -> HTTPException:
+        # Mismo mensaje para correos con y sin cuenta y para bloqueos por correo o por IP.
+        minutes = max(math.ceil(seconds / 60), 1)
+        return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Demasiados intentos. Vuelve a intentar en {minutes} min.",
+                             headers={"Retry-After": str(max(seconds, 1))})
+
+    blocked = await guard.retry_after(email, ip)
+    if blocked is None and user is not None and user.locked_until and user.locked_until > now:
+        blocked = ("locked", math.ceil((user.locked_until - now).total_seconds()))  # bloqueo guardado por versiones anteriores
+    if blocked is not None:
+        failed(blocked[0])
         await session.commit()
-        minutes = max(int((user.locked_until - now).total_seconds() // 60) + 1, 1)
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Demasiados intentos. Vuelve a intentar en {minutes} min.")
+        raise too_many(blocked[1])
+
     ok = verify_password(body.password, user.password_hash if user else _DUMMY_HASH)
     if user is None or not ok or not user.active:
         failed("unknown_account" if user is None else "wrong_password" if not ok else "inactive")
-        if user is not None and not ok:
-            user.failed_logins += 1
-            if user.failed_logins >= a.max_failed_logins:
-                user.locked_until = now + a.lockout
-                user.failed_logins = 0
-                audit.record(session, request, "auth.locked", actor_email=email, success=False, entity_type="user", entity_id=user.id,
-                             entity_label=user.email, detail={"until": user.locked_until.isoformat()})
+        for trip in await guard.failure(email, ip):
+            until = (now + timedelta(seconds=trip.seconds)).isoformat()
+            if trip.scope == "ip":
+                audit.record(session, request, "auth.ip_blocked", actor_email=email, success=False,
+                             entity_type="ip", entity_label=ip, detail={"until": until})
+            else:
+                audit.record(session, request, "auth.locked", actor_email=email, success=False, entity_type="user",
+                             entity_id=user and user.id, entity_label=email, detail={"until": until, "scope": trip.scope})
+            if trip.scope != "pair":
+                await _security_alert(request, guard, trip, email, ip, now)
         await session.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Correo o contraseña incorrectos.")
 
+    await guard.success(email, ip)
     user.failed_logins = 0
     user.locked_until = None
     user.last_login_at = now
@@ -151,6 +170,32 @@ async def login(body: LoginInput, request: Request, response: Response, session:
         secure=not settings.is_development, path="/",
     )
     return _me_out(request, user)
+
+
+def login_guard(request: Request) -> LoginGuard:
+    return LoginGuard(request.app.state.bus, request.app.state.settings.auth)
+
+
+async def _security_alert(request: Request, guard: LoginGuard, trip: Trip, email: str, ip: str, now: datetime) -> None:
+    """Avisa por los canales de notificaciones (correo, webhook, WhatsApp) de un bloqueo por correo o por IP."""
+    runtime = getattr(request.app.state, "runtime", None)
+    notifier = runtime and runtime.notifier
+    if notifier is None or not notifier.channels or not await guard.may_alert():
+        return
+    a = request.app.state.settings.auth
+    minutes = math.ceil(trip.seconds / 60)
+    if trip.scope == "ip":
+        title = "IP bloqueada por intentos de inicio de sesión"
+        message = (f"La IP {ip} falló {a.ip_max_failed_logins} inicios de sesión en "
+                   f"{math.ceil(a.ip_window.total_seconds() / 60)} min (último correo probado: {email}). "
+                   f"Queda bloqueada {minutes} min.")
+    else:
+        title = "Correo bloqueado por intentos de inicio de sesión"
+        message = (f"El correo {email} tuvo {a.account_max_failed_logins} intentos fallidos en "
+                   f"{math.ceil(a.account_window.total_seconds() / 60)} min desde varias IP (la última: {ip}). "
+                   f"Queda bloqueado {minutes} min.")
+    notifier.dispatch([SecurityNotice(at=now, kind=f"login.{trip.scope}", title=title, message=message,
+                                      dashboard_url=notifier.home_link)])
 
 
 async def _close_abandoned_sessions(session: AsyncSession, request: Request, now: datetime) -> None:
@@ -274,6 +319,7 @@ async def update_user(user_id: uuid.UUID, body: UserUpdate, request: Request, se
         user.password_hash = hash_password(body.password)
         user.failed_logins = 0
         user.locked_until = None
+        await login_guard(request).unlock(user.email)
     if body.active is False or body.password:
         await end_sessions(session, user.id)  # el rol se lee en cada petición; esto cierra sus sesiones abiertas
     changes = audit.diff(before, audit.user_snapshot(user))

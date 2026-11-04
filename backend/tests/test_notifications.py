@@ -142,3 +142,17 @@ async def test_email_on_port_465_uses_implicit_tls(monkeypatch):
     monkeypatch.setattr(notifications.smtplib, "SMTP_SSL", FakeSSL)
     await EmailChannel(EmailSettings(host="h", port=465, from_addr="f@x", to=["t@x"]), 5).send(NOTICE)
     assert used == [465]
+
+
+def test_security_notices_go_through_the_same_channels():
+    from minos.notifications import SecurityNotice
+
+    notice = SecurityNotice(at=datetime(2026, 11, 4, 4, tzinfo=UTC), kind="login.ip",
+                            title="IP bloqueada por intentos de inicio de sesión",
+                            message="La IP 203.0.113.9 falló 20 inicios de sesión.", dashboard_url="https://minos.example/")
+    assert notice.subject == "[minOS] Seguridad · IP bloqueada por intentos de inicio de sesión"
+    body = json.loads(WebhookChannel(None, WebhookSettings(urls=["https://hook"])).body(notice))
+    assert body["security"]["kind"] == "login.ip" and "203.0.113.9" in body["text"]
+    wa = WhatsAppChannel(None, WhatsAppSettings(access_token="t", phone_number_id="1", to=["52"])).payload(notice, "52")
+    params = [p["text"] for p in wa["template"]["components"][0]["parameters"]]
+    assert params[0] == "minOS (seguridad)" and "https://minos.example/" in params[2]

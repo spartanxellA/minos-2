@@ -197,7 +197,9 @@ también respalda y restaura una base real de TimescaleDB en cada cambio.
 - **No abre el sitio o el certificado falla:** revisa que el dominio apunte a la IP (`ping`) y que los puertos 80 y
   443 estén abiertos en `ufw` y en el firewall del proveedor. `minos logs caddy` dice qué pasó con Let's Encrypt.
 - **Olvidaste la contraseña o la cuenta quedó bloqueada:**
-  `minos run --rm migrate python -m minos.users password tu@correo.com`
+  `minos run --rm migrate python -m minos.users password tu@correo.com` (también quita los bloqueos por intentos).
+  Un bloqueo por intentos desde otra IP no te impide entrar desde la tuya; los bloqueos vencen solos en 15 minutos.
+  Caddy no acepta `X-Forwarded-For` de fuera, así que la IP que cuenta es la real de quien se conecta.
 - **`deploy/backup.sh --check` falla:**
   - `x509: certificate is valid for *.internal.digitalocean.com`: el endpoint lleva el nombre del Space al principio
     (la dirección sale duplicada, `minos.minos.sfo3...`). Deja solo `BACKUP_S3_ENDPOINT=sfo3.digitaloceanspaces.com`.

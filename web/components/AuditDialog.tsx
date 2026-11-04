@@ -11,7 +11,7 @@ const FIELD_LABEL: Record<string, string> = {
 };
 const REASON_LABEL: Record<string, string> = {
   wrong_password: "contraseña incorrecta", unknown_account: "correo sin cuenta", inactive: "cuenta desactivada",
-  locked: "cuenta bloqueada",
+  locked: "correo bloqueado por intentos", ip_blocked: "IP bloqueada por intentos",
 };
 const GROUPS: [string, string][] = [
   ["auth.", "Sesiones (todas)"], ["user.", "Cuentas (todas)"], ["target.", "Objetivos (todos)"],
@@ -43,7 +43,11 @@ function dayStart(day: string, next = false) {
 function summary(e: AuditEvent): string | null {
   const d = e.detail ?? {};
   if (e.action === "auth.login_failed") return REASON_LABEL[String(d.reason)] ?? String(d.reason ?? "");
-  if (e.action === "auth.locked" && d.until) return `hasta ${when(String(d.until))}`;
+  if (e.action === "auth.locked" && d.until) {
+    const scope = d.scope === "account" ? "desde varias IP · " : d.scope === "pair" ? "desde esta IP · " : "";
+    return `${scope}hasta ${when(String(d.until))}`;
+  }
+  if (e.action === "auth.ip_blocked" && d.until) return `hasta ${when(String(d.until))}`;
   if (e.action === "survey.submitted") {
     const score = d.score === null || d.score === undefined ? "" : ` · ${d.score} puntos`;
     return `${d.survey ?? d.surveyId}${score}`;

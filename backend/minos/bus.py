@@ -7,10 +7,13 @@ Tres piezas, cada una en memoria (un solo proceso) o en Redis (API y workers por
 - Cola de recálculo: la ingesta pide recalcular un objetivo (Redis Stream minos:recompute, grupo risk-engine), y
   solo una réplica del motor de riesgo lo atiende.
 - Candados: evitan que dos réplicas de workers consulten la misma fuente para el mismo objetivo a la vez.
+- Contadores con vencimiento: cuentan intentos fallidos de inicio de sesión (por IP, por correo) y guardan los
+  bloqueos, compartidos por todas las réplicas de la API.
 """
 import asyncio
 import json
 import logging
+import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
@@ -20,6 +23,7 @@ from pydantic import BaseModel
 log = logging.getLogger(__name__)
 
 LIVE_CHANNEL = "minos:live"
+COUNTER_PREFIX = "minos:rl:"
 RECOMPUTE_STREAM = "minos:recompute"
 RECOMPUTE_GROUP = "risk-engine"
 MAX_BLOCK_MS = 2_000
@@ -64,6 +68,22 @@ class Bus(ABC):
     async def release(self, key: str) -> None:
         return None
 
+    @abstractmethod
+    async def hit(self, key: str, window_seconds: float) -> int:
+        """Suma uno al contador; el contador se borra solo window_seconds después del primer golpe. Da el total."""
+
+    @abstractmethod
+    async def block(self, key: str, ttl_seconds: float) -> None:
+        """Marca key durante ttl_seconds."""
+
+    @abstractmethod
+    async def blocked_for(self, key: str) -> float:
+        """Segundos que le quedan a la marca (o al contador) key; 0 si no hay."""
+
+    @abstractmethod
+    async def forget(self, prefix: str) -> None:
+        """Borra contadores y marcas cuya llave empieza con prefix."""
+
     async def close(self) -> None:
         return None
 
@@ -74,6 +94,30 @@ class MemoryBus(Bus):
     def __init__(self) -> None:
         self._listeners: list[Deliver] = []
         self._queue: asyncio.Queue[uuid.UUID] = asyncio.Queue()
+        self._counters: dict[str, tuple[int, float]] = {}  # llave → (cuenta, vence en time.monotonic())
+
+    def _alive(self, key: str) -> tuple[int, float] | None:
+        entry = self._counters.get(key)
+        if entry is not None and entry[1] <= time.monotonic():
+            del self._counters[key]
+            return None
+        return entry
+
+    async def hit(self, key: str, window_seconds: float) -> int:
+        count, expires = self._alive(key) or (0, time.monotonic() + window_seconds)
+        self._counters[key] = (count + 1, expires)
+        return count + 1
+
+    async def block(self, key: str, ttl_seconds: float) -> None:
+        self._counters[key] = (1, time.monotonic() + ttl_seconds)
+
+    async def blocked_for(self, key: str) -> float:
+        entry = self._alive(key)
+        return max(entry[1] - time.monotonic(), 0.0) if entry else 0.0
+
+    async def forget(self, prefix: str) -> None:
+        for key in [k for k in self._counters if k.startswith(prefix)]:
+            del self._counters[key]
 
     async def publish(self, target_id, event, data) -> None:
         message = encode_event(event, data)
@@ -209,6 +253,27 @@ class RedisBus(Bus):
                     await pipe.execute()
             except WatchError:
                 pass
+
+    async def hit(self, key: str, window_seconds: float) -> int:
+        name = COUNTER_PREFIX + key
+        async with self._redis.pipeline(transaction=True) as pipe:
+            pipe.incr(name)
+            # NX: el plazo corre desde el primer golpe; INCR y PEXPIRE van juntos para que no quede sin vencimiento.
+            pipe.pexpire(name, max(int(window_seconds * 1000), 1), nx=True)
+            count, _ = await pipe.execute()
+        return int(count)
+
+    async def block(self, key: str, ttl_seconds: float) -> None:
+        await self._redis.set(COUNTER_PREFIX + key, "1", px=max(int(ttl_seconds * 1000), 1))
+
+    async def blocked_for(self, key: str) -> float:
+        ms = await self._redis.pttl(COUNTER_PREFIX + key)
+        return ms / 1000 if ms and ms > 0 else 0.0
+
+    async def forget(self, prefix: str) -> None:
+        keys = [k async for k in self._redis.scan_iter(match=COUNTER_PREFIX + prefix + "*", count=500)]
+        if keys:
+            await self._redis.delete(*keys)
 
     async def close(self) -> None:
         await self._redis.aclose()

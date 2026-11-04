@@ -208,9 +208,19 @@ class AuthSettings(BaseModel):
     # Sin actividad de la persona durante este lapso la sesión se cierra (el tablero avisa antes). 0 = nunca.
     idle_timeout: Duration = timedelta(minutes=30)
     cookie_name: str = "minos_session"
-    # Intentos fallidos seguidos antes de bloquear la cuenta un rato.
+    # Protección contra fuerza bruta (contadores en Redis, iguales para correos con y sin cuenta):
+    # - max_failed_logins fallos con el mismo correo desde la misma IP bloquean ese correo en esa IP durante lockout.
+    # - account_max_failed_logins fallos con el mismo correo desde cualquier IP en account_window bloquean el correo
+    #   para todos durante lockout (ataque repartido en muchas IP).
+    # - ip_max_failed_logins fallos desde una IP, con cualquier correo, en ip_window bloquean esa IP durante lockout.
     max_failed_logins: int = 5
     lockout: Duration = timedelta(minutes=15)
+    account_max_failed_logins: int = 30
+    account_window: Duration = timedelta(hours=1)
+    ip_max_failed_logins: int = 20
+    ip_window: Duration = timedelta(minutes=15)
+    # Avisos de seguridad (bloqueos de IP y de correo) por los canales de notificaciones; como mucho tantos por hora.
+    security_alerts_per_hour: int = 6
     min_password_length: int = 10
     # Primer administrador: se crea al arrancar si todavía no hay ninguna cuenta. Después se puede borrar del .env.
     bootstrap_admin_email: str = ""

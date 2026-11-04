@@ -16,7 +16,9 @@ from sqlalchemy import select
 
 from . import audit, db
 from .auth import Role, create_user, end_sessions, hash_password, normalize_email
+from .bus import create_bus
 from .config import get_settings
+from .login_guard import LoginGuard
 
 
 TERMINAL = {"via": "terminal del servidor (python -m minos.users)"}
@@ -31,6 +33,18 @@ def _ask_password(minimum: int) -> str:
     if len(password) < minimum:
         sys.exit(f"La contraseña debe tener al menos {minimum} caracteres.")
     return password
+
+
+async def _unlock(settings, email: str) -> None:
+    """Quita los bloqueos por intentos de ese correo (viven en Redis, no en la base)."""
+    bus = create_bus(settings.redis_url)
+    try:
+        await LoginGuard(bus, settings.auth).unlock(email)
+    except Exception as ex:  # sin Redis a la mano: el bloqueo vence solo
+        print(f"Aviso: no se pudieron quitar los bloqueos por intentos ({ex}); vencen solos en "
+              f"{int(settings.auth.lockout.total_seconds() // 60)} min.", file=sys.stderr)
+    finally:
+        await bus.close()
 
 
 async def main(argv: list[str] | None = None) -> None:
@@ -71,6 +85,7 @@ async def main(argv: list[str] | None = None) -> None:
                 existing.active = True
                 existing.failed_logins = 0
                 existing.locked_until = None
+                await _unlock(settings, email)
                 await end_sessions(session, existing.id)
                 audit.record(session, None, "user.updated", audit.SYSTEM, entity_type="user", entity_id=existing.id,
                              entity_label=existing.email, changes=audit.diff(before, audit.user_snapshot(existing)),
