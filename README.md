@@ -85,8 +85,14 @@ docker compose run --rm migrate python -m minos.users add tu@correo.com --role a
 docker compose run --rm migrate python -m minos.users password tu@correo.com   # olvidó su contraseña o quedó bloqueada
 ```
 
-Seguridad: contraseñas con scrypt y mínimo 10 caracteres; tras 5 intentos fallidos la cuenta se bloquea 15 minutos;
-desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
+Seguridad: contraseñas con scrypt y mínimo 10 caracteres. Contra fuerza bruta, con contadores en Redis que valen igual
+para correos con y sin cuenta (un bloqueo no revela qué correos existen) y que responden `429` con `Retry-After`:
+5 fallos con un correo desde una IP bloquean ese correo en esa IP 15 minutos (la persona dueña sigue entrando desde la
+suya); 30 fallos con un correo desde varias IP en una hora lo bloquean para todos; 20 fallos desde una IP con cualquier
+correo en 15 minutos bloquean esa IP. Los bloqueos de correo y de IP quedan en Auditoría y avisan por los canales de
+notificaciones (máximo 6 avisos por hora). Se ajustan con `MINOS_AUTH__MAX_FAILED_LOGINS`, `__LOCKOUT`,
+`__ACCOUNT_MAX_FAILED_LOGINS`, `__ACCOUNT_WINDOW`, `__IP_MAX_FAILED_LOGINS`, `__IP_WINDOW` y
+`__SECURITY_ALERTS_PER_HOUR`. Desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
 WebSocket se rechazan si vienen de otro sitio. Con `AUTH_MODE=off` no se pide contraseña, solo en development.
 
 ### Mantenimiento de objetivos

@@ -25,7 +25,8 @@ from .schemas import Camel
 ACTIONS = {
     "auth.login": "Inicio de sesión",
     "auth.login_failed": "Inicio de sesión fallido",
-    "auth.locked": "Cuenta bloqueada por intentos",
+    "auth.locked": "Correo bloqueado por intentos",
+    "auth.ip_blocked": "IP bloqueada por intentos",
     "auth.logout": "Cierre de sesión",
     "auth.idle_timeout": "Sesión cerrada por inactividad",
     "auth.password_changed": "Cambio de contraseña propia",

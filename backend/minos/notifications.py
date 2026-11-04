@@ -1,6 +1,7 @@
 """Avisos de alertas fuera del tablero: correo, webhook (Slack, Teams o un sistema propio) y WhatsApp.
 
 El motor de riesgo entrega cada alerta nueva al Notifier, que la manda en segundo plano por los canales configurados.
+La API también avisa por ahí de bloqueos por intentos de inicio de sesión (SecurityNotice).
 Un canal que falla solo deja un registro; no detiene a los demás ni al motor."""
 import asyncio
 import hashlib
@@ -51,6 +52,40 @@ class AlertNotice:
         lines.append(f"Tablero: {self.dashboard_url}")
         return "\n".join(lines)
 
+    def payload(self) -> dict:
+        alert = asdict(self) | {"target_id": str(self.target_id), "at": self.at.isoformat()}
+        return {"text": self.text, "alert": alert}
+
+    def whatsapp_params(self) -> list[str]:
+        return [self.target_name, self.title, f"{self.message} Índice {self.index:.0f}/100. {self.dashboard_url}"]
+
+
+@dataclass(frozen=True)
+class SecurityNotice:
+    """Aviso de seguridad de la plataforma (no de un objetivo): p. ej. una IP bloqueada por intentos de entrar."""
+    at: datetime
+    kind: str
+    title: str
+    message: str
+    dashboard_url: str
+
+    @property
+    def subject(self) -> str:
+        return f"[minOS] Seguridad · {self.title}"
+
+    @property
+    def text(self) -> str:
+        return "\n".join([self.title, self.message, f"Detalle en Auditoría (menú de la cuenta): {self.dashboard_url}"])
+
+    def payload(self) -> dict:
+        return {"text": self.text, "security": asdict(self) | {"at": self.at.isoformat()}}
+
+    def whatsapp_params(self) -> list[str]:
+        return ["minOS (seguridad)", self.title, f"{self.message} {self.dashboard_url}"]
+
+
+Notice = AlertNotice | SecurityNotice
+
 
 class Channel(ABC):
     name: str
@@ -60,7 +95,7 @@ class Channel(ABC):
     def is_configured(self) -> bool: ...
 
     @abstractmethod
-    async def send(self, notice: AlertNotice) -> None: ...
+    async def send(self, notice: Notice) -> None: ...
 
 
 class EmailChannel(Channel):
@@ -74,7 +109,7 @@ class EmailChannel(Channel):
     def is_configured(self) -> bool:
         return bool(self._s.host and self._s.from_addr and self._s.to)
 
-    def message(self, notice: AlertNotice) -> EmailMessage:
+    def message(self, notice: Notice) -> EmailMessage:
         msg = EmailMessage()
         msg["Subject"] = notice.subject
         msg["From"] = self._s.from_addr
@@ -95,7 +130,7 @@ class EmailChannel(Channel):
                 server.login(self._s.username, self._s.password)
             server.send_message(msg)
 
-    async def send(self, notice: AlertNotice) -> None:
+    async def send(self, notice: Notice) -> None:
         # smtplib bloquea; corre en un hilo para no detener el ciclo de eventos.
         await asyncio.to_thread(self._send_sync, self.message(notice))
 
@@ -111,11 +146,10 @@ class WebhookChannel(Channel):
     def is_configured(self) -> bool:
         return bool(self._s.urls)
 
-    def body(self, notice: AlertNotice) -> bytes:
-        alert = asdict(notice) | {"target_id": str(notice.target_id), "at": notice.at.isoformat()}
-        return json.dumps({"text": notice.text, "alert": alert}, ensure_ascii=False).encode()
+    def body(self, notice: Notice) -> bytes:
+        return json.dumps(notice.payload(), ensure_ascii=False).encode()
 
-    async def send(self, notice: AlertNotice) -> None:
+    async def send(self, notice: Notice) -> None:
         body = self.body(notice)
         headers = {"content-type": "application/json"}
         if self._s.secret:
@@ -137,9 +171,9 @@ class WhatsAppChannel(Channel):
     def is_configured(self) -> bool:
         return bool(self._s.access_token and self._s.phone_number_id and self._s.to)
 
-    def payload(self, notice: AlertNotice, to: str) -> dict:
+    def payload(self, notice: Notice, to: str) -> dict:
         # Las variables de plantilla no admiten saltos de línea ni más de 4 espacios seguidos.
-        params = [notice.target_name, notice.title, f"{notice.message} Índice {notice.index:.0f}/100. {notice.dashboard_url}"]
+        params = notice.whatsapp_params()
         return {
             "messaging_product": "whatsapp",
             "to": to,
@@ -153,7 +187,7 @@ class WhatsAppChannel(Channel):
             },
         }
 
-    async def send(self, notice: AlertNotice) -> None:
+    async def send(self, notice: Notice) -> None:
         for to in self._s.to:
             response = await self._http.post(
                 f"{self._s.graph_url}/{self._s.phone_number_id}/messages", json=self.payload(notice, to),
@@ -190,7 +224,11 @@ class Notifier:
     def dashboard_link(self, target_id: uuid.UUID) -> str:
         return f"{self._settings.dashboard_url.rstrip('/')}/?target={target_id}"
 
-    def dispatch(self, notices: list[AlertNotice]) -> None:
+    @property
+    def home_link(self) -> str:
+        return self._settings.dashboard_url.rstrip("/") + "/"
+
+    def dispatch(self, notices: list[Notice]) -> None:
         """Manda en segundo plano, para que un servidor lento no frene el recálculo de los demás objetivos."""
         for notice in notices:
             for channel in self._channels:
@@ -198,7 +236,7 @@ class Notifier:
                 self._tasks.add(task)
                 task.add_done_callback(self._tasks.discard)
 
-    async def _send(self, channel: Channel, notice: AlertNotice) -> None:
+    async def _send(self, channel: Channel, notice: Notice) -> None:
         try:
             await asyncio.wait_for(channel.send(notice), self._settings.timeout.total_seconds())
             log.info("Aviso por %s: %s", channel.name, notice.subject)
