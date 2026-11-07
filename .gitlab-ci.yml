@@ -65,10 +65,12 @@ docker:
     - docker:27-dind
   variables:
     DOCKER_TLS_CERTDIR: /certs
-    # Los puertos del stack se publican en el servicio dind, no en el contenedor del job.
-    STACK_HOST: docker
   before_script:
     - apk add --no-cache bash curl coreutils findutils tar openssl rclone git > /dev/null
+    # Los puertos del stack se publican en el servicio dind (host "docker"), no en el contenedor del job. curl sigue
+    # pidiendo localhost y se conecta a dind por debajo: la cookie de sesión es Secure y curl solo la devuelve por
+    # http a localhost.
+    - printf 'connect-to = localhost:5080:docker:5080\nconnect-to = localhost:3000:docker:3000\n' > "$HOME/.curlrc"
   script:
     # Cuenta de administrador para la prueba
     - printf 'ADMIN_EMAIL=ci@minos.test\nADMIN_PASSWORD=clave-de-prueba-ci\n' > .env
@@ -79,13 +81,13 @@ docker:
     # Levantar el stack y esperar a que la API responda
     - |
       docker compose up -d --wait --wait-timeout 180
-      curl -fsS http://$STACK_HOST:5080/health
+      curl -fsS http://localhost:5080/health
       # Sin sesión la API responde 401; con la cuenta creada al arrancar, entra.
-      test "$(curl -s -o /dev/null -w '%{http_code}' http://$STACK_HOST:5080/api/surveys)" = 401
+      test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5080/api/surveys)" = 401
       curl -fsS -c cookies -H 'content-type: application/json' \
-        -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://$STACK_HOST:5080/api/auth/login > /dev/null
-      curl -fsS -b cookies http://$STACK_HOST:5080/api/surveys > /dev/null
-      curl -fsS http://$STACK_HOST:3000 > /dev/null
+        -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://localhost:5080/api/auth/login > /dev/null
+      curl -fsS -b cookies http://localhost:5080/api/surveys > /dev/null
+      curl -fsS http://localhost:3000 > /dev/null
     # Respaldar y restaurar la base real (deploy/backup.sh y deploy/restore.sh)
     - |
       export MINOS_COMPOSE="docker compose" BACKUP_RCLONE_REMOTE=/tmp/copia-externa BACKUP_PASSPHRASE=clave-de-prueba-ci
@@ -100,7 +102,7 @@ docker:
       test "$(docker compose exec -T db psql -U minos -d minos -tAc 'SELECT count(*) FROM users')" = "$before"
       docker compose up -d --wait --wait-timeout 180
       curl -fsS -c cookies2 -H 'content-type: application/json' \
-        -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://$STACK_HOST:5080/api/auth/login > /dev/null
+        -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://localhost:5080/api/auth/login > /dev/null
   after_script:
     # Registros si algo falló
     - if [ "$CI_JOB_STATUS" = failed ]; then docker compose logs; fi
