@@ -26,8 +26,21 @@ Conéctate con `ssh root@IP` y corre:
 apt update && apt upgrade -y
 curl -fsSL https://get.docker.com | sh          # Docker y docker compose
 ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443 && ufw --force enable
-git clone https://github.com/spartanxellA/minos-2.git /opt/minos-2
 ```
+
+El repositorio es privado en GitLab. Crea una llave de despliegue de solo lectura en el servidor:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/minos_gitlab -N "" -C "minos-servidor" && cat ~/.ssh/minos_gitlab.pub
+```
+
+Agrega esa línea en GitLab, en Settings → Repository → Deploy keys, sin marcar "Grant write permissions". Luego clona:
+
+```bash
+git clone -c core.sshCommand="ssh -i ~/.ssh/minos_gitlab -o IdentitiesOnly=yes" git@gitlab.com:aen-group1/minos-2.git /opt/minos-2
+```
+
+La primera vez SSH pregunta por la huella de `gitlab.com`; debe ser `SHA256:eUXGGm1YGsMAS7vkcx6JOJdOGHPem5gQp4taiCfCLB8`.
 
 Con 2 GB de RAM agrega 2 GB de memoria de intercambio (swap) para que la construcción no se quede sin memoria:
 
@@ -35,9 +48,6 @@ Con 2 GB de RAM agrega 2 GB de memoria de intercambio (swap) para que la constru
 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
-
-Si el repositorio es privado, clónalo con un token de GitHub de solo lectura
-(`git clone https://TOKEN@github.com/spartanxellA/minos-2.git /opt/minos-2`) o con una llave de despliegue.
 
 ## 3. Configurar
 
