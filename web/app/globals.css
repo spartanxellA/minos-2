@@ -169,8 +169,11 @@ dialog.idle-warning .countdown { font-variant-numeric: tabular-nums; }
 table.sources { width: 100%; }
 table.sources td.error { color: var(--neg); font-weight: 600; }
 table.sources td.ok { color: var(--pos); font-weight: 600; }
+table.sources td.warn { color: var(--warn); font-weight: 600; }
 .source-error { font-size: 13px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .source-error code { display: block; margin-top: 4px; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--muted); }
+.source-error.warn { border-left: 3px solid var(--warn); padding-left: 8px; }
+.source-error.warn code { color: var(--warn); }
 .pill-outline { display: inline-block; font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; }
 .pill-outline.ok { border-color: var(--pos); color: var(--pos); }
 

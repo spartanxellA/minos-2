@@ -187,6 +187,15 @@ class SourceError(Camel):
     _redact = field_validator("error")(redact_secrets)
 
 
+class SourceWarning(Camel):
+    """Aviso de un feed (p. ej. en pausa) una sola vez, con los objetivos a los que afecta."""
+    text: str
+    targets: list[str]
+    at: datetime | None
+
+    _redact = field_validator("text")(redact_secrets)
+
+
 class SourceStatus(Camel):
     source: str
     configured: bool
@@ -194,6 +203,7 @@ class SourceStatus(Camel):
     last_mention_at: datetime | None = None
     mentions_last_day: int = 0
     errors: list[SourceError] = Field(default_factory=list)
+    warnings: list[SourceWarning] = Field(default_factory=list)
 
 
 class ChannelStatus(Camel):

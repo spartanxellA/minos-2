@@ -11,7 +11,7 @@ from .. import db
 from ..analysis import MentionAnalyzer
 from ..bus import Bus
 from ..config import IngestionSettings
-from ..connectors import ConnectorCursor, MentionConnector, redact_secrets
+from ..connectors import ConnectorCursor, MentionConnector, join_warnings, redact_secrets
 from ..domain.mentions import MentionDraft, fingerprint
 from ..domain.targets import MonitoredTarget, is_relevant
 from ..geo.locate import locate_draft
@@ -84,8 +84,8 @@ class IngestionWorker:
             try:
                 added = await self._ingest(session, connector, target, cursor)
                 state.value = cursor.value
-                # La ronda sirvió, pero algún feed pudo fallar: se deja a la vista en «Fuentes».
-                state.last_error = "; ".join(dict.fromkeys(cursor.warnings))[:2000] or None
+                # La ronda sirvió, pero algún feed pudo fallar: queda como aviso (no error) en «Fuentes».
+                state.last_error = join_warnings(cursor.warnings)
                 state.last_run_at = datetime.now(UTC)
                 await session.commit()
             except asyncio.CancelledError:

@@ -60,6 +60,8 @@ class RssConnector(MentionConnector):
         self._validators: dict[str, dict[str, str]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._last_hit: dict[str, float] = {}
+        # Código HTTP que causó cada pausa (por sitio o por feed), para explicar el aviso mientras dure.
+        self._pause_codes: dict[str, int] = {}
         self._headers = {
             "User-Agent": settings.user_agent,
             "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
@@ -123,7 +125,7 @@ class RssConnector(MentionConnector):
             # Un 429 suele valer para todo el sitio; un 402/403/404 solo para ese feed.
             for key in (host, url):
                 if until := self._backoff.paused_until(key, now):
-                    cursor.warnings.append(self._pause_note(url, key, until))
+                    cursor.warnings.append(self._pause_note(url, key, until, self._pause_codes.get(key)))
                     return None
             await self._space(host)
             headers = dict(self._headers)
@@ -141,8 +143,9 @@ class RssConnector(MentionConnector):
             if response.is_error:
                 self._fail(url, host, response, cursor)
                 return None
-            self._backoff.ok(host)
-            self._backoff.ok(url)
+            for key in (host, url):
+                self._backoff.ok(key)
+                self._pause_codes.pop(key, None)
             if shared:
                 self._cache[url] = (now, response.content)
                 self._validators[url] = {
@@ -167,16 +170,19 @@ class RssConnector(MentionConnector):
             log.warning("No se pudo leer el feed %s: %s", url, code)
             cursor.warnings.append(f"{_label(url)}: respondió {code}")
             return
-        advice = _FEED_ADVICE.get(code) if url in self._settings.feeds else None
-        note = f"{_label(url)}: {code}, {PAUSE_HINTS[code]}. En pausa hasta {local_time(until)}"
-        if advice:
-            note += f"; {advice}"
+        self._pause_codes[key] = code
+        note = self._pause_note(url, key, until, code)
         log.warning("Feed %s: %s", url, note)
         cursor.warnings.append(note)
 
-    def _pause_note(self, url: str, key: str, until: datetime) -> str:
-        scope = "el sitio" if key != url else "el feed"
-        return f"{_label(url)}: {scope} sigue en pausa hasta {local_time(until)}"
+    def _pause_note(self, url: str, key: str, until: datetime, code: int | None) -> str:
+        """Aviso de un feed en pausa: el mismo texto para cada objetivo y ronda, así «Fuentes» lo muestra una vez."""
+        scope = "Todo el sitio en pausa" if key != url else "En pausa"
+        reason = f"{code}, {PAUSE_HINTS[code]}. " if code in PAUSE_HINTS else ""
+        note = f"{_label(url)}: {reason}{scope} hasta {local_time(until)}"
+        if advice := _FEED_ADVICE.get(code) if url in self._settings.feeds else None:
+            note += f"; {advice}"
+        return note
 
 
 def _label(url: str) -> str:

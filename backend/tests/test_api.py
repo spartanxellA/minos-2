@@ -367,5 +367,12 @@ def test_paused_source_is_skipped_for_other_targets_and_feed_warnings_are_kept(c
     states = {s["source"]: s for s in client.get(f"/api/targets/{a['id']}/connectors").json()}
     states_b = {s["source"]: s for s in client.get(f"/api/targets/{b['id']}/connectors").json()}
     assert "402" in (states.get("x") or states_b.get("x"))["lastError"]
-    assert states["rss"]["lastError"] == "heraldodemexico.com.mx/rss: 403"
+    assert states["rss"]["lastError"] == "Aviso: heraldodemexico.com.mx/rss: 403"
     assert len(client.get(f"/api/targets/{a['id']}/mentions").json()) == 1
+
+    # En «Fuentes» el feed caído es un aviso, uno solo para todos los objetivos, y no un error.
+    rss = next(s for s in client.get("/api/sources").json()["sources"] if s["source"] == "rss")
+    assert rss["errors"] == []
+    [warning] = rss["warnings"]
+    assert warning["text"] == "heraldodemexico.com.mx/rss: 403"
+    assert sorted(warning["targets"]) == sorted([a["name"], b["name"]])

@@ -132,6 +132,34 @@ def test_only_admins_see_raw_source_errors(app):
             assert "límite de consultas (429)" in shown
 
 
+def test_feed_warnings_are_grouped_and_summarized_without_the_url_for_non_admins(app):
+    from minos import db as minos_db
+
+    with TestClient(app()) as admin, TestClient(app()) as viewer:
+        login(admin, *ADMIN)
+        admin.post("/api/users", json={"email": "lector@minos.mx", "name": "l", "role": "viewer", "password": PASSWORD})
+        login(viewer, "lector@minos.mx", PASSWORD)
+        targets = [admin.post("/api/targets", json={"name": n, "kind": "Person"}).json() for n in ("Ana", "Beto")]
+        note = ("rss.app/feeds/x.xml: 402, la fuente pide pago (plan vencido o sin créditos). En pausa hasta 08/11 16:15; "
+                "renueva el plan del servicio o quita el feed de RSS_FEEDS")
+
+        async def warn():
+            async with admin.app.state.db.session() as s:
+                for t in targets:
+                    s.add(minos_db.ConnectorState(target_id=uuid.UUID(t["id"]), source="rss", last_error=f"Aviso: {note}"))
+                await s.commit()
+        admin.portal.call(warn)
+
+        def rss(c):
+            return next(s for s in c.get("/api/sources").json()["sources"] if s["source"] == "rss")
+
+        [w] = rss(admin)["warnings"]
+        assert w["text"] == note and sorted(w["targets"]) == ["Ana", "Beto"] and rss(admin)["errors"] == []
+        [w] = rss(viewer)["warnings"]
+        assert "rss.app" not in w["text"] and "pide pago (402)" not in w["text"] and "(402)" in w["text"]
+        assert len(w["targets"]) == 2
+
+
 def test_repeated_failures_lock_the_account(app):
     with TestClient(app()) as c:
         for _ in range(3):
