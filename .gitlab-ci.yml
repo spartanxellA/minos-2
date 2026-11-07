@@ -80,7 +80,14 @@ docker:
     - docker compose build
     # Levantar el stack y esperar a que la API responda
     - |
-      docker compose up -d --wait --wait-timeout 180
+      # El worker no tiene healthcheck y el Compose de docker:27 falla con --wait por eso: se levanta todo, se espera a
+      # los servicios con healthcheck y se comprueba aparte que el worker siga corriendo.
+      up() {
+        docker compose up -d
+        docker compose up -d --wait --wait-timeout 180 db redis nlp api web
+        docker compose ps --status running --services | grep -qx worker
+      }
+      up
       curl -fsS http://localhost:5080/health
       # Sin sesión la API responde 401; con la cuenta creada al arrancar, entra.
       test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5080/api/surveys)" = 401
@@ -100,7 +107,7 @@ docker:
       rm -rf backups
       deploy/restore.sh "$day" --yes
       test "$(docker compose exec -T db psql -U minos -d minos -tAc 'SELECT count(*) FROM users')" = "$before"
-      docker compose up -d --wait --wait-timeout 180
+      up
       curl -fsS -c cookies2 -H 'content-type: application/json' \
         -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://localhost:5080/api/auth/login > /dev/null
   after_script:
