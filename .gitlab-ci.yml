@@ -1,0 +1,107 @@
+# Mismas pruebas que .github/workflows/ci.yml, para GitLab: en cada merge request y en main.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"
+
+stages: [test]
+
+python:
+  stage: test
+  image: python:3.12
+  services:
+    # Mismo motor que docker-compose: las pruebas de migraciones y de la API corren también sobre TimescaleDB.
+    - name: timescale/timescaledb:latest-pg16
+      alias: db
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    POSTGRES_USER: minos
+    POSTGRES_PASSWORD: minos
+    POSTGRES_DB: minos
+    MINOS_TEST_POSTGRES_URL: postgresql+asyncpg://minos:minos@db:5432/minos
+    MINOS_TEST_REDIS_URL: redis://redis:6379/0
+    PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+  cache:
+    key: pip
+    paths: [.cache/pip]
+  script:
+    - pip install -e nlp[dev] -e "backend[dev]"
+    # GitLab no tiene health-cmd para los servicios: se espera a que la base acepte conexiones.
+    - |
+      python - <<'EOF'
+      import asyncio, asyncpg
+      async def wait():
+          for _ in range(60):
+              try:
+                  await (await asyncpg.connect("postgresql://minos:minos@db:5432/minos")).close()
+                  return
+              except Exception:
+                  await asyncio.sleep(2)
+          raise SystemExit("La base de pruebas no arrancó")
+      asyncio.run(wait())
+      EOF
+    - pytest -q nlp
+    - pytest -q backend
+
+web:
+  stage: test
+  image: node:22
+  cache:
+    key:
+      files: [web/package-lock.json]
+    paths: [.cache/npm]
+  before_script:
+    - cd web
+  script:
+    - npm ci --cache "$CI_PROJECT_DIR/.cache/npm" --prefer-offline
+    - npm run typecheck
+    - npm run build
+
+docker:
+  stage: test
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: /certs
+    # Los puertos del stack se publican en el servicio dind, no en el contenedor del job.
+    STACK_HOST: docker
+  before_script:
+    - apk add --no-cache bash curl coreutils findutils tar openssl rclone git > /dev/null
+  script:
+    # Cuenta de administrador para la prueba
+    - printf 'ADMIN_EMAIL=ci@minos.test\nADMIN_PASSWORD=clave-de-prueba-ci\n' > .env
+    # Revisar la configuración del servidor (docker-compose.prod.yml)
+    - DOMAIN=minos.example.com ACME_EMAIL=ci@example.com docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+    # Construir las imágenes de docker-compose
+    - docker compose build
+    # Levantar el stack y esperar a que la API responda
+    - |
+      docker compose up -d --wait --wait-timeout 180
+      curl -fsS http://$STACK_HOST:5080/health
+      # Sin sesión la API responde 401; con la cuenta creada al arrancar, entra.
+      test "$(curl -s -o /dev/null -w '%{http_code}' http://$STACK_HOST:5080/api/surveys)" = 401
+      curl -fsS -c cookies -H 'content-type: application/json' \
+        -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://$STACK_HOST:5080/api/auth/login > /dev/null
+      curl -fsS -b cookies http://$STACK_HOST:5080/api/surveys > /dev/null
+      curl -fsS http://$STACK_HOST:3000 > /dev/null
+    # Respaldar y restaurar la base real (deploy/backup.sh y deploy/restore.sh)
+    - |
+      export MINOS_COMPOSE="docker compose" BACKUP_RCLONE_REMOTE=/tmp/copia-externa BACKUP_PASSPHRASE=clave-de-prueba-ci
+      bash -n deploy/backup.sh deploy/restore.sh deploy/backup-common.sh
+      deploy/backup.sh
+      day=$(date +%F)
+      test -s backups/minos-$day.dump && test -s /tmp/copia-externa/daily/minos-$day.tar.enc
+      before=$(docker compose exec -T db psql -U minos -d minos -tAc 'SELECT count(*) FROM users')
+      # Servidor "perdido": sin respaldos locales, se restaura desde la copia externa cifrada.
+      rm -rf backups
+      deploy/restore.sh "$day" --yes
+      test "$(docker compose exec -T db psql -U minos -d minos -tAc 'SELECT count(*) FROM users')" = "$before"
+      docker compose up -d --wait --wait-timeout 180
+      curl -fsS -c cookies2 -H 'content-type: application/json' \
+        -d '{"email":"ci@minos.test","password":"clave-de-prueba-ci"}' http://$STACK_HOST:5080/api/auth/login > /dev/null
+  after_script:
+    # Registros si algo falló
+    - if [ "$CI_JOB_STATUS" = failed ]; then docker compose logs; fi
+    - docker compose down -v
