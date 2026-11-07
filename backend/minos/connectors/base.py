@@ -42,6 +42,23 @@ class ConnectorCursor:
     warnings: list[str] = field(default_factory=list)
 
 
+#: Prefijo de last_error cuando la ronda sirvió y solo quedaron avisos (un feed en pausa), no un error de la fuente.
+WARNING_PREFIX = "Aviso: "
+
+
+def join_warnings(warnings: list[str]) -> str | None:
+    """Avisos de una ronda como last_error: sin repetidos, uno por línea y con el prefijo de aviso."""
+    text = "\n".join(dict.fromkeys(warnings))
+    return f"{WARNING_PREFIX}{text}"[:2000] if text else None
+
+
+def split_warnings(error: str) -> list[str] | None:
+    """Los avisos guardados en last_error, o None si es un error de verdad."""
+    if not error.startswith(WARNING_PREFIX):
+        return None
+    return [w for w in error.removeprefix(WARNING_PREFIX).splitlines() if w.strip()]
+
+
 class MentionConnector(ABC):
     #: Identificador corto de la fuente: "rss", "x", "youtube", "bluesky".
     source: str

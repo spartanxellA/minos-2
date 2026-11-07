@@ -177,12 +177,14 @@ async def test_rss_402_pauses_the_feed_and_reports_what_to_do():
                                                min_gap_per_host=0))
     first = ConnectorCursor()
     assert await collect(connector, first) == []
-    assert "402" in first.warnings[0] and "RSS_FEEDS" in first.warnings[0]
+    [note] = first.warnings
+    assert note.startswith("rss.app/feeds/abc.xml: 402, la fuente pide pago")
+    assert "En pausa hasta" in note and note.endswith("renueva el plan del servicio o quita el feed de RSS_FEEDS")
 
     second = ConnectorCursor()
     await collect(connector, second)
     assert len(requests) == 1  # en pausa: ya no se vuelve a pedir
-    assert "en pausa" in second.warnings[0]
+    assert second.warnings == [note]  # mismo motivo y consejo, así «Fuentes» lo agrupa en un solo aviso
 
 
 async def test_rss_429_pauses_the_whole_site_respecting_retry_after():
@@ -192,7 +194,8 @@ async def test_rss_429_pauses_the_whole_site_respecting_retry_after():
     cursor = ConnectorCursor()
     await collect(connector, cursor)
     assert len(requests) == 1  # el segundo feed del mismo sitio no se pide
-    assert "sitio sigue en pausa" in cursor.warnings[1]
+    assert cursor.warnings[1].startswith("eluniversal.com.mx/b/rss.xml: 429, demasiadas consultas")
+    assert "Todo el sitio en pausa hasta" in cursor.warnings[1]
 
 
 async def test_x_402_pauses_connector_for_every_target():

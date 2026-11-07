@@ -11,11 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import audit, db
 from .auth import CurrentUser, Role, current_user, require_role, session_alive, websocket_user
+from .connectors import WARNING_PREFIX, split_warnings
+from .connectors.base import PAUSE_HINTS
 from .domain.mentions import Sentiment
 from .schemas import (
     AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, DeactivateInput, Influencer, MentionOut, RiskOut,
     SentimentCorrection, SourceError,
-    SourceSentimentCount, SourceStatus, SourcesOut, SurveyResponseOut, SurveySubmission, SurveySummary, TargetInput,
+    SourceSentimentCount, SourceStatus, SourcesOut, SourceWarning, SurveyResponseOut, SurveySubmission, SurveySummary,
+    TargetInput,
     TargetOut, TopicCount,
 )
 from .surveys import SurveyCatalog, SurveyDefinition
@@ -297,8 +300,26 @@ async def connector_states(target_id: uuid.UUID, session: Session, me: Me):
 _HTTP_STATUS = re.compile(r"\b([1-5]\d\d) [A-Z][A-Za-z ]+")
 
 
+_FEED_CODE = re.compile(r": ([1-5]\d\d)\b")
+
+
+def public_source_warning(warning: str) -> str:
+    """Resumen de un aviso de feed sin la dirección del feed ni el consejo para el administrador."""
+    m = _FEED_CODE.search(warning)
+    code = int(m.group(1)) if m else None
+    if code in PAUSE_HINTS:
+        return f"Un feed de noticias está en pausa ({code}): {PAUSE_HINTS[code]}. Se reanuda solo."
+    if "sin respuesta" in warning:
+        return "Un feed de noticias no respondió. Se vuelve a intentar solo más tarde."
+    if code:
+        return f"Un feed de noticias respondió con un error ({code})."
+    return "Un feed de noticias no se pudo leer. Se vuelve a intentar solo más tarde."
+
+
 def public_source_error(error: str) -> str:
     """Resumen del error de una fuente sin detalles del servidor, para quien no es administrador."""
+    if (warnings := split_warnings(error)) is not None:
+        return WARNING_PREFIX + "; ".join(dict.fromkeys(public_source_warning(w) for w in warnings))
     m = _HTTP_STATUS.search(error)
     code = int(m.group(1)) if m else None
     if code in (401, 403):
@@ -332,11 +353,20 @@ async def source_status(session: Session, request: Request, me: Me):
     C, M, T = db.ConnectorState, db.Mention, db.Target
     last_run = dict((await session.execute(select(C.source, func.max(C.last_run_at)).group_by(C.source))).all())
     errors: dict[str, list[SourceError]] = {}
+    # Avisos por fuente y texto: un feed en pausa se muestra una vez con los objetivos afectados, no uno por objetivo.
+    warnings: dict[str, dict[str, SourceWarning]] = {}
     rows = await session.execute(
         select(C.source, C.target_id, T.name, C.last_run_at, C.last_error)
         .join(T, T.id == C.target_id).where(C.last_error.is_not(None)).order_by(T.name)
     )
     for source, target_id, name, at, error in rows:
+        if (notes := split_warnings(error)) is not None:
+            for text in dict.fromkeys(n if is_admin else public_source_warning(n) for n in notes):
+                w = warnings.setdefault(source, {}).setdefault(text, SourceWarning(text=text, targets=[], at=at))
+                w.targets.append(name)
+                if at and (w.at is None or at > w.at):
+                    w.at = at
+            continue
         shown = error if is_admin else public_source_error(error)
         errors.setdefault(source, []).append(SourceError(target_id=target_id, target_name=name, at=at, error=shown))
     since = datetime.now(UTC) - timedelta(hours=24)
@@ -353,6 +383,7 @@ async def source_status(session: Session, request: Request, me: Me):
         return SourceStatus(
             source=source, configured=configured[source], last_run_at=last_run.get(source),
             last_mention_at=last_mention, mentions_last_day=recent, errors=errors.get(source, []),
+            warnings=list(warnings.get(source, {}).values()),
         )
 
     return SourcesOut(

@@ -17,6 +17,7 @@ const ago = (iso: string | null) => {
 function state(s: SourceStatus): { label: string; className: string } {
   if (!s.configured) return { label: "Sin llave", className: "muted" };
   if (s.errors.length) return { label: "Con errores", className: "error" };
+  if (s.warnings.length) return { label: "Con avisos", className: "warn" };
   if (!s.lastRunAt && !s.lastMentionAt) return { label: "Esperando", className: "muted" };
   return { label: "Activa", className: "ok" };
 }
@@ -70,6 +71,24 @@ export function SourcesDialog({ onClose, onLoaded, isAdmin }: {
                 Un 401 o 403 casi siempre es una llave mal copiada o un plan que no incluye esa función. El error se borra
                 solo cuando la siguiente consulta funciona.
               </p>}
+            </>
+          )}
+
+          {data.sources.some((s) => s.warnings.length) && (
+            <>
+              <h3>Avisos</h3>
+              {data.sources.filter((s) => s.warnings.length).map((s) => s.warnings.map((w) => (
+                <div key={`${s.source}-${w.text}`} className="source-error warn">
+                  <strong>{SOURCE_LABEL[s.source] ?? s.source}</strong>{" "}
+                  <span className="muted" title={w.targets.join(", ")}>
+                    · afecta a {w.targets.length} {w.targets.length === 1 ? "objetivo" : "objetivos"} · {ago(w.at)}
+                  </span>
+                  <code>{w.text}</code>
+                </div>
+              )))}
+              <p className="muted" style={{ fontSize: 12 }}>
+                La fuente sigue funcionando; solo esos feeds se saltan mientras dura la pausa.
+              </p>
             </>
           )}
 

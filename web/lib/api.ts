@@ -152,6 +152,8 @@ export interface SourceStatus {
   lastMentionAt: string | null;
   mentionsLastDay: number;
   errors: { targetId: string; targetName: string; at: string | null; error: string }[];
+  /** Avisos de feeds (p. ej. en pausa), uno por texto con los objetivos afectados; no cuentan como errores. */
+  warnings: { text: string; targets: string[]; at: string | null }[];
 }
 
 export interface SourcesStatus {
