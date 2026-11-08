@@ -3,18 +3,19 @@
 import { useState } from "react";
 import { api, type EntryChange, type MatchStatus, type Screening, type ScreeningMatch, type Target } from "@/lib/api";
 import { Modal } from "./AccountDialogs";
+import { locale, msg, useI18n } from "@/lib/i18n";
 
 const date = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  iso ? new Date(iso).toLocaleString(locale(), { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
 export const SCREENING_STATE: Record<Screening["status"], { label: string; className: string }> = {
-  not_screened: { label: "Sin revisar todavía", className: "muted" },
-  clear: { label: "Sin coincidencias", className: "ok" },
-  possible: { label: "Posible coincidencia", className: "warn" },
-  confirmed: { label: "Coincidencia confirmada", className: "error" },
+  not_screened: { label: msg("Sin revisar todavía"), className: "muted" },
+  clear: { label: msg("Sin coincidencias"), className: "ok" },
+  possible: { label: msg("Posible coincidencia"), className: "warn" },
+  confirmed: { label: msg("Coincidencia confirmada"), className: "error" },
 };
 
-const MATCH_STATUS: Record<MatchStatus, string> = { pending: "Pendiente", confirmed: "Confirmada", dismissed: "Descartada" };
+const MATCH_STATUS: Record<MatchStatus, string> = { pending: msg("Pendiente"), confirmed: msg("Confirmada"), dismissed: msg("Descartada") };
 
 /** Resultado de la revisión del objetivo en listas negras (sanciones, SAT, inhabilitados, PEP). */
 export function ScreeningCard({ target, screening, canReview, onTargetSaved, onChanged }: {
@@ -25,35 +26,36 @@ export function ScreeningCard({ target, screening, canReview, onTargetSaved, onC
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useI18n();
   const state = screening ? SCREENING_STATE[screening.status] : null;
   const active = screening?.matches.filter((m) => m.active && m.status !== "dismissed") ?? [];
 
   return (
     <section className="card span-3">
-      <h2>Listas negras</h2>
-      {!screening ? <div className="empty">Cargando…</div> : (
+      <h2>{t("Listas negras")}</h2>
+      {!screening ? <div className="empty">{t("Cargando…")}</div> : (
         <>
-          <p><span className={`pill-state ${state!.className}`}>{state!.label}</span></p>
+          <p><span className={`pill-state ${state!.className}`}>{t(state!.label)}</span></p>
           {target.kind === "Country" ? (
-            <p className="muted" style={{ fontSize: 12 }}>Los países no se revisan en listas de personas y empresas.</p>
+            <p className="muted" style={{ fontSize: 12 }}>{t("Los países no se revisan en listas de personas y empresas.")}</p>
           ) : (
             <>
               <div className="drivers">
-                <span>Pendientes de revisar</span><b>{screening.pending}</b>
-                <span>Confirmadas</span><b>{screening.confirmed}</b>
-                <span>Listas consultadas</span><b>{screening.lists}</b>
-                <span>Última revisión</span><b>{screening.screenedAt ? date(screening.screenedAt) : "—"}</b>
+                <span>{t("Pendientes de revisar")}</span><b>{screening.pending}</b>
+                <span>{t("Confirmadas")}</span><b>{screening.confirmed}</b>
+                <span>{t("Listas consultadas")}</span><b>{screening.lists}</b>
+                <span>{t("Última revisión")}</span><b>{screening.screenedAt ? date(screening.screenedAt) : "—"}</b>
               </div>
               {active.slice(0, 3).map((m) => (
                 <div key={m.id} className={`hit ${m.status}`}>
                   <b>{m.listedName}</b> · {m.sourceName}
-                  <div className="muted">{Math.round(m.score)} % · {MATCH_STATUS[m.status]}</div>
+                  <div className="muted">{Math.round(m.score)} % · {t(MATCH_STATUS[m.status])}</div>
                 </div>
               ))}
             </>
           )}
           <button type="button" className="ghost" style={{ marginTop: 8 }} onClick={() => setOpen(true)}>
-            {active.length ? "Ver y revisar" : "Ver detalle"}
+            {active.length ? t("Ver y revisar") : t("Ver detalle")}
           </button>
         </>
       )}
@@ -74,24 +76,25 @@ function ScreeningDialog({ target, screening, canReview, onClose, onTargetSaved,
   onChanged: () => void;
 }) {
   const [showDismissed, setShowDismissed] = useState(false);
+  const { t, tApi } = useI18n();
   const shown = screening.matches.filter((m) => showDismissed || m.status !== "dismissed");
   const dismissed = screening.matches.length - screening.matches.filter((m) => m.status !== "dismissed").length;
 
   return (
-    <Modal title={`Listas negras · ${target.name}`} onClose={onClose} wide>
-      <p className="disclaimer">{screening.disclaimer}</p>
+    <Modal title={`${t("Listas negras")} · ${target.name}`} onClose={onClose} wide>
+      <p className="disclaimer">{tApi(screening.disclaimer)}</p>
       {target.kind !== "Country" && <IdentityForm target={target} canEdit={canReview} onSaved={onTargetSaved} />}
-      <h3>Coincidencias</h3>
+      <h3>{t("Coincidencias")}</h3>
       {shown.length === 0 ? (
         <p className="muted">
           {screening.status === "not_screened"
-            ? "Todavía no se revisa. Se revisa sola en menos de un minuto al crear o editar el objetivo."
-            : "Sin coincidencias en las listas cargadas."}
+            ? t("Todavía no se revisa. Se revisa sola en menos de un minuto al crear o editar el objetivo.")
+            : t("Sin coincidencias en las listas cargadas.")}
         </p>
       ) : shown.map((m) => <MatchItem key={m.id} match={m} canReview={canReview} onChanged={onChanged} />)}
       {dismissed > 0 && (
         <button type="button" className="ghost" onClick={() => setShowDismissed(!showDismissed)}>
-          {showDismissed ? "Ocultar descartadas" : `Ver descartadas (${dismissed})`}
+          {showDismissed ? t("Ocultar descartadas") : t("Ver descartadas ({n})", { n: dismissed })}
         </button>
       )}
     </Modal>
@@ -107,6 +110,7 @@ export function MatchItem({ match: m, canReview, onChanged, showTarget }: {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t, tApi } = useI18n();
   const e = m.entry;
 
   async function decide(decision: MatchStatus) {
@@ -124,14 +128,14 @@ export function MatchItem({ match: m, canReview, onChanged, showTarget }: {
   }
 
   const facts: [string, string | undefined][] = [
-    ["Tipo de lista", m.categoryLabel],
-    ["Alias", e.aliases?.slice(0, 6).join(" · ")],
-    ["Nacimiento", e.birthDates?.join(", ")],
-    ["Nacionalidad", e.nationalities?.join(", ")],
-    ["Documentos", e.identifiers?.join(", ")],
-    ["Programa o cargo", e.programs?.join(" · ")],
-    ["Situación", e.status ?? undefined],
-    ["En la lista desde", e.listedOn ?? undefined],
+    [t("Tipo de lista"), tApi(m.categoryLabel)],
+    [t("Alias"), e.aliases?.slice(0, 6).join(" · ")],
+    [t("Nacimiento"), e.birthDates?.join(", ")],
+    [t("Nacionalidad"), e.nationalities?.join(", ")],
+    [t("Documentos"), e.identifiers?.join(", ")],
+    [t("Programa o cargo"), e.programs?.join(" · ")],
+    [t("Situación"), e.status ?? undefined],
+    [t("En la lista desde"), e.listedOn ?? undefined],
   ];
 
   return (
@@ -142,28 +146,28 @@ export function MatchItem({ match: m, canReview, onChanged, showTarget }: {
           <b>{m.listedName}</b> <span className="muted">· {m.sourceName}</span>
         </div>
         <div className="score">
-          <span className={`tag ${m.strength === "strong" ? "severe" : ""}`}>{m.strength === "strong" ? "Fuerte" : "Posible"}</span>
+          <span className={`tag ${m.strength === "strong" ? "severe" : ""}`}>{m.strength === "strong" ? t("Fuerte") : t("Posible")}</span>
           <b>{Math.round(m.score)} %</b>
         </div>
       </header>
-      <ul className="reasons">{m.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+      <ul className="reasons">{m.reasons.map((r) => <li key={r}>{tApi(r)}</li>)}</ul>
       <dl>
         {facts.filter(([, v]) => v).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
       </dl>
-      {e.url && <a href={e.url} target="_blank" rel="noreferrer">Ver en la fuente oficial ↗</a>}
+      {e.url && <a href={e.url} target="_blank" rel="noreferrer">{t("Ver en la fuente oficial ↗")}</a>}
       <EntryHistory matchId={m.id} />
       <div className="review">
-        <span className={`state ${m.status}`}>{MATCH_STATUS[m.status]}{!m.active && " · ya no aparece en la lista"}</span>
+        <span className={`state ${m.status}`}>{t(MATCH_STATUS[m.status])}{!m.active && ` · ${t("ya no aparece en la lista")}`}</span>
         {m.reviewedAt && <span className="muted"> · {m.reviewedByEmail} · {date(m.reviewedAt)}</span>}
         {m.reviewNote && <p className="note">“{m.reviewNote}”</p>}
       </div>
       {canReview && m.active && (
         <div className="decide">
-          <input aria-label="Nota de la revisión" placeholder="Nota obligatoria: por qué es o no es la misma persona"
+          <input aria-label={t("Nota de la revisión")} placeholder={t("Nota obligatoria: por qué es o no es la misma persona")}
             value={note} onChange={(ev) => setNote(ev.target.value)} />
-          {m.status !== "confirmed" && <button type="button" disabled={busy} onClick={() => decide("confirmed")}>Confirmar</button>}
-          {m.status !== "dismissed" && <button type="button" className="ghost" disabled={busy} onClick={() => decide("dismissed")}>Descartar</button>}
-          {m.status !== "pending" && <button type="button" className="ghost" disabled={busy} onClick={() => decide("pending")}>Volver a pendiente</button>}
+          {m.status !== "confirmed" && <button type="button" disabled={busy} onClick={() => decide("confirmed")}>{t("Confirmar")}</button>}
+          {m.status !== "dismissed" && <button type="button" className="ghost" disabled={busy} onClick={() => decide("dismissed")}>{t("Descartar")}</button>}
+          {m.status !== "pending" && <button type="button" className="ghost" disabled={busy} onClick={() => decide("pending")}>{t("Volver a pendiente")}</button>}
         </div>
       )}
       {error && <p className="error">{error}</p>}
@@ -172,11 +176,11 @@ export function MatchItem({ match: m, canReview, onChanged, showTarget }: {
 }
 
 const CHANGE_LABEL: Record<EntryChange["change"], string> = {
-  added: "Alta en la lista", status: "Cambio de estatus", changed: "Cambio de datos", removed: "Salió de la lista",
+  added: msg("Alta en la lista"), status: msg("Cambio de estatus"), changed: msg("Cambio de datos"), removed: msg("Salió de la lista"),
 };
 const FIELD_LABEL: Record<string, string> = {
-  status: "Estatus", name: "Nombre", programs: "Cargo", birth_dates: "Nacimiento", identifiers: "Documentos",
-  nationalities: "País", aliases: "Alias",
+  status: msg("Estatus"), name: msg("Nombre"), programs: msg("Cargo"), birth_dates: msg("Nacimiento"), identifiers: msg("Documentos"),
+  nationalities: msg("País"), aliases: msg("Alias"),
 };
 const plain = (v: unknown) => (v == null || (Array.isArray(v) && !v.length) ? "—" : Array.isArray(v) ? v.join(" · ") : String(v));
 
@@ -185,6 +189,7 @@ function EntryHistory({ matchId }: { matchId: number }) {
   const [items, setItems] = useState<EntryChange[] | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   async function toggle() {
     setOpen(!open);
@@ -196,18 +201,18 @@ function EntryHistory({ matchId }: { matchId: number }) {
   return (
     <div className="entry-history">
       <button type="button" className="link" onClick={toggle} aria-expanded={open}>
-        {open ? "Ocultar historial en la lista" : "Historial en la lista"}
+        {open ? t("Ocultar historial en la lista") : t("Historial en la lista")}
       </button>
-      {open && (error ? <p className="error">{error}</p> : !items ? <p className="muted">Cargando…</p> : items.length === 0 ? (
-        <p className="muted">Sin cambios registrados desde que se cargó la lista.</p>
+      {open && (error ? <p className="error">{error}</p> : !items ? <p className="muted">{t("Cargando…")}</p> : items.length === 0 ? (
+        <p className="muted">{t("Sin cambios registrados desde que se cargó la lista.")}</p>
       ) : (
         <ol>
           {items.map((h, i) => (
             <li key={i}>
-              <b>{date(h.at)}</b> · {CHANGE_LABEL[h.change]}
+              <b>{date(h.at)}</b> · {t(CHANGE_LABEL[h.change])}
               {h.fileName && <span className="muted"> · {h.fileName}</span>}
               {Object.entries(h.fields).filter(([, [a, b]]) => h.change !== "added" || b != null).map(([f, [a, b]]) => (
-                <div key={f} className="muted">{FIELD_LABEL[f] ?? f}: {h.change === "added" ? plain(b) : <>{plain(a)} → {plain(b)}</>}</div>
+                <div key={f} className="muted">{FIELD_LABEL[f] ? t(FIELD_LABEL[f]) : f}: {h.change === "added" ? plain(b) : <>{plain(a)} → {plain(b)}</>}</div>
               ))}
             </li>
           ))}
@@ -224,6 +229,7 @@ function IdentityForm({ target, canEdit, onSaved }: { target: Target; canEdit: b
   const [nationality, setNationality] = useState(target.nationality ?? "");
   const [ids, setIds] = useState<Record<string, string>>({ rfc: "", curp: "", pasaporte: "", ...target.identifiers });
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const { t } = useI18n();
   const keys = person ? ["rfc", "curp", "pasaporte"] : ["rfc"];
 
   async function save(ev: React.FormEvent) {
@@ -234,7 +240,7 @@ function IdentityForm({ target, canEdit, onSaved }: { target: Target; canEdit: b
         identifiers: Object.fromEntries(Object.entries(ids).filter(([, v]) => v.trim())),
       });
       onSaved(saved);
-      setMessage({ ok: true, text: "Guardado. Se vuelve a revisar en menos de un minuto." });
+      setMessage({ ok: true, text: t("Guardado. Se vuelve a revisar en menos de un minuto.") });
     } catch (err) {
       setMessage({ ok: false, text: (err as Error).message });
     }
@@ -243,17 +249,17 @@ function IdentityForm({ target, canEdit, onSaved }: { target: Target; canEdit: b
   return (
     <form className="identity" onSubmit={save}>
       <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-        Datos para distinguir homónimos. Un RFC o CURP igual confirma casi seguro; una fecha de nacimiento distinta descarta.
+        {t("Datos para distinguir homónimos. Un RFC o CURP igual confirma casi seguro; una fecha de nacimiento distinta descarta.")}
       </p>
       <div className="fields">
         {person && (
-          <label>Fecha de nacimiento
-            <input disabled={!canEdit} placeholder="AAAA-MM-DD o AAAA" pattern="\d{4}(-\d{2}-\d{2})?" value={birth}
+          <label>{t("Fecha de nacimiento")}
+            <input disabled={!canEdit} placeholder={t("AAAA-MM-DD o AAAA")} pattern="\d{4}(-\d{2}-\d{2})?" value={birth}
               onChange={(e) => setBirth(e.target.value)} />
           </label>
         )}
-        <label>{person ? "Nacionalidad" : "País"}
-          <input disabled={!canEdit} placeholder="México" value={nationality} onChange={(e) => setNationality(e.target.value)} />
+        <label>{person ? t("Nacionalidad") : t("País")}
+          <input disabled={!canEdit} placeholder={t("México")} value={nationality} onChange={(e) => setNationality(e.target.value)} />
         </label>
         {keys.map((k) => (
           <label key={k}>{k.toUpperCase()}
@@ -261,7 +267,7 @@ function IdentityForm({ target, canEdit, onSaved }: { target: Target; canEdit: b
           </label>
         ))}
       </div>
-      {canEdit && <button type="submit">Guardar datos</button>}
+      {canEdit && <button type="submit">{t("Guardar datos")}</button>}
       {message && <span className={message.ok ? "ok" : "error"} role="status"> {message.text}</span>}
     </form>
   );

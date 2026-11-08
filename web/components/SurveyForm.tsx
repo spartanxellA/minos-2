@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type Survey, type SurveyResponse } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 /** El cuestionario de riesgo por secciones, precargado con las últimas respuestas del objetivo. */
 export function SurveyForm({ targetId, targetName, survey, previous, onClose, onSaved }: {
@@ -20,6 +21,8 @@ export function SurveyForm({ targetId, targetName, survey, previous, onClose, on
   const [showMissing, setShowMissing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Las preguntas vienen del servidor en español; su traducción está en lib/messages/survey.ts.
+  const { t, tApi } = useI18n();
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -55,10 +58,10 @@ export function SurveyForm({ targetId, targetName, survey, previous, onClose, on
     <dialog ref={dialog} className="survey" onClose={onClose} aria-labelledby="survey-title">
       <header>
         <div>
-          <h2 id="survey-title">Cuestionario de riesgo</h2>
-          <div className="meta">{targetName} · {answered} de {total} contestadas</div>
+          <h2 id="survey-title">{t("Cuestionario de riesgo")}</h2>
+          <div className="meta">{targetName} · {t("{answered} de {total} contestadas", { answered, total })}</div>
         </div>
-        <button type="button" className="ghost" onClick={() => dialog.current?.close()} aria-label="Cerrar">✕</button>
+        <button type="button" className="ghost" onClick={() => dialog.current?.close()} aria-label={t("Cerrar")}>✕</button>
       </header>
 
       <nav className="steps">
@@ -68,26 +71,26 @@ export function SurveyForm({ targetId, targetName, survey, previous, onClose, on
           return (
             <button key={s.id} type="button" className={i === step ? "on" : ""} onClick={() => setStep(i)}
               style={{ borderColor: s.color }} aria-current={i === step ? "step" : undefined}>
-              {s.name} <small className={incomplete ? "warn" : ""}>{done}/{s.questions.length}</small>
+              {tApi(s.name)} <small className={incomplete ? "warn" : ""}>{done}/{s.questions.length}</small>
             </button>
           );
         })}
       </nav>
 
       <div className="body" ref={body}>
-        {step === 0 && <p className="intro">{section.description}</p>}
+        {step === 0 && <p className="intro">{tApi(section.description)}</p>}
         {section.questions.map((q) => {
           const flagged = showMissing && q.required && !answers[q.id];
           return (
             <fieldset key={q.id} className={flagged ? "missing" : ""}>
-              <legend>{q.text}</legend>
-              {q.subtext && <div className="sub">{q.subtext}</div>}
+              <legend>{tApi(q.text)}</legend>
+              {q.subtext && <div className="sub">{tApi(q.subtext)}</div>}
               <div className="options">
                 {q.options.map((o) => (
                   <label key={o.value} className={answers[q.id] === o.value ? "on" : ""}>
                     <input type="radio" name={q.id} value={o.value} checked={answers[q.id] === o.value}
                       onChange={() => setAnswers((a) => ({ ...a, [q.id]: o.value }))} />
-                    {o.label}
+                    {tApi(o.label)}
                   </label>
                 ))}
               </div>
@@ -98,12 +101,12 @@ export function SurveyForm({ targetId, targetName, survey, previous, onClose, on
 
       <footer>
         {error && <span className="error">{error}</span>}
-        {showMissing && answered < total && <span className="error">Faltan {total - answered} respuestas.</span>}
+        {showMissing && answered < total && <span className="error">{t("Faltan {n} respuestas.", { n: total - answered })}</span>}
         <div style={{ flex: 1 }} />
-        <button type="button" className="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Anterior</button>
+        <button type="button" className="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>{t("Anterior")}</button>
         {last
-          ? <button type="button" disabled={saving} onClick={save}>{saving ? "Guardando…" : "Guardar y recalcular"}</button>
-          : <button type="button" onClick={() => setStep(step + 1)}>Siguiente</button>}
+          ? <button type="button" disabled={saving} onClick={save}>{saving ? t("Guardando…") : t("Guardar y recalcular")}</button>
+          : <button type="button" onClick={() => setStep(step + 1)}>{t("Siguiente")}</button>}
       </footer>
     </dialog>
   );

@@ -7,11 +7,12 @@ import {
 } from "@/lib/api";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
+import { locale, msg, useI18n } from "@/lib/i18n";
 
 const SENT = [
-  { key: "positive", label: "Positivo", color: "#2e7d32" },
-  { key: "neutral", label: "Neutro", color: "#8a94a0" },
-  { key: "negative", label: "Negativo", color: "#d32f2f" },
+  { key: "positive", label: msg("Positivo"), color: "#2e7d32" },
+  { key: "neutral", label: msg("Neutro"), color: "#8a94a0" },
+  { key: "negative", label: msg("Negativo"), color: "#d32f2f" },
 ] as const;
 // Sin rojo ni verde, que ya significan sentimiento y nivel de riesgo.
 export const KIND_COLOR: Record<TargetKind, string> = {
@@ -20,12 +21,11 @@ export const KIND_COLOR: Record<TargetKind, string> = {
 const SERIES = ["#1668b7", "#e07b00", "#2a9d8f", "#8e5bd0", "#c2185b", "#6d8f00", "#0097a7", "#a1662f", "#5c6bc0", "#7b8794"];
 const KINDS = Object.keys(KIND_LABEL) as TargetKind[];
 const MEDIA_SOURCES = ["rss", "x", "youtube", "bluesky", "reddit", "facebook", "instagram"];
-const fmt = new Intl.NumberFormat("es-MX");
 
 function periodLabel(p: string, long = false) {
   if (p.length === 4) return p;
   const [y, m] = p.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleString("es-MX", { month: long ? "long" : "short", year: long ? "numeric" : "2-digit" });
+  return new Date(y, m - 1, 1).toLocaleString(locale(), { month: long ? "long" : "short", year: long ? "numeric" : "2-digit" });
 }
 
 function monthsAgo(n: number) {
@@ -46,6 +46,8 @@ const riskBands = {
 /** Análisis general de todos los sujetos monitoreados: quién se menciona más, por tipo y cómo cambia por mes o año. */
 export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void }) {
   const phone = useMediaQuery(PHONE);
+  const { t, lang, nf: fmt } = useI18n();
+  const kindLabel = (k: TargetKind) => t(KIND_LABEL[k]);
   const [granularity, setGranularity] = useState<Granularity>("month");
   const [months, setMonths] = useState(12);
   const [kind, setKind] = useState<TargetKind | "">("");
@@ -89,10 +91,10 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
       axisLabel: { width: phone ? 110 : 180, overflow: "truncate" },
     },
     series: SENT.map((s) => ({
-      name: s.label, type: "bar", stack: "m", color: s.color, barMaxWidth: 22,
+      name: t(s.label), type: "bar", stack: "m", color: s.color, barMaxWidth: 22,
       data: ranked.map((r) => r[s.key]),
     })),
-  }), [ranked, phone]);
+  }), [ranked, phone, lang]);
 
   const kindChart: EChartsOption = useMemo(() => {
     const rows = data?.byKind ?? [];
@@ -102,17 +104,17 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
         trigger: "item", confine: true,
         formatter: (p: any) => {
           const r = rows[p.dataIndex];
-          return `${KIND_LABEL[r.kind]}<br/>${fmt.format(r.mentions)} menciones · ${fmt.format(r.negative)} negativas<br/>${r.targets} sujeto(s)`;
+          return `${kindLabel(r.kind)}<br/>${t("{n} menciones", { n: r.mentions })} · ${t("{n} negativas", { n: r.negative })}<br/>${t("{n} sujeto(s)", { n: r.targets })}`;
         },
       },
       xAxis: { type: "value", minInterval: 1 },
-      yAxis: { type: "category", inverse: true, data: rows.map((r) => KIND_LABEL[r.kind]) },
+      yAxis: { type: "category", inverse: true, data: rows.map((r) => kindLabel(r.kind)) },
       series: [{
         type: "bar", barMaxWidth: 22, label: { show: true, position: "right", formatter: (p: any) => fmt.format(p.value) },
         data: rows.map((r) => ({ value: r.mentions, itemStyle: { color: KIND_COLOR[r.kind] } })),
       }],
     };
-  }, [data]);
+  }, [data, lang]);
 
   const kindHistory: EChartsOption = useMemo(() => {
     const rows = data?.mentionsByKind ?? [];
@@ -121,11 +123,11 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
       grid, legend, xAxis: xPeriods, yAxis: { type: "value", minInterval: 1 },
       tooltip: { trigger: "axis", confine: true, axisPointer: { type: "shadow" } },
       series: kinds.map((k) => ({
-        name: KIND_LABEL[k], type: "bar", stack: "k", color: KIND_COLOR[k], barMaxWidth: 36,
+        name: kindLabel(k), type: "bar", stack: "k", color: KIND_COLOR[k], barMaxWidth: 36,
         data: periods.map((p) => rows.find((r) => r.kind === k && r.period === p)?.count ?? 0),
       })),
     };
-  }, [data, phone]);
+  }, [data, phone, lang]);
 
   const targetHistory: EChartsOption = useMemo(() => {
     const rows = data?.mentionsByTarget ?? [];
@@ -137,13 +139,13 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
         data: periods.map((p) => rows.find((r) => r.targetId === s.targetId && r.period === p)?.count ?? 0),
       })),
     };
-  }, [data, ranked, phone]);
+  }, [data, ranked, phone, lang]);
 
   const riskHistory: EChartsOption = useMemo(() => {
     const value = (v: number | undefined) => (v === undefined ? null : v);
     const series = riskBy === "kind"
       ? KINDS.filter((k) => data?.riskByKind.some((r) => r.kind === k)).map((k) => ({
-        name: KIND_LABEL[k], color: KIND_COLOR[k],
+        name: kindLabel(k), color: KIND_COLOR[k],
         data: periods.map((p) => value(data?.riskByKind.find((r) => r.kind === k && r.period === p)?.avg)),
       }))
       : ranked.map((s, i) => ({
@@ -152,111 +154,111 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
       }));
     return {
       grid, legend, xAxis: xPeriods, yAxis: { type: "value", min: 0, max: 100, interval: 25 },
-      tooltip: { trigger: "axis", confine: true, order: "valueDesc", valueFormatter: (v) => (v == null ? "sin dato" : Number(v).toFixed(1)) },
+      tooltip: { trigger: "axis", confine: true, order: "valueDesc", valueFormatter: (v) => (v == null ? t("sin dato") : Number(v).toFixed(1)) },
       series: series.map((s, i) => ({
         ...s, type: "line", symbolSize: 6, connectNulls: true, showSymbol: periods.length < 30,
         markArea: i === 0 ? riskBands : undefined,
       })),
     } as EChartsOption;
-  }, [data, ranked, riskBy, phone]);
+  }, [data, ranked, riskBy, phone, lang]);
 
   const range = periods.length ? `${periodLabel(periods[0], true)} – ${periodLabel(periods[periods.length - 1], true)}` : "";
   const total = data?.byKind.reduce((n, k) => n + k.mentions, 0) ?? 0;
-  const empty = <div className="empty">Sin menciones en este rango.</div>;
+  const empty = <div className="empty">{t("Sin menciones en este rango.")}</div>;
 
   return (
     <div className="analytics">
       <div className="card analytics-filters">
-        <div className="seg" role="group" aria-label="Agrupar por">
-          <button type="button" className={granularity === "month" ? "" : "ghost"} onClick={() => setGranularity("month")}>Por mes</button>
-          <button type="button" className={granularity === "year" ? "" : "ghost"} onClick={() => setGranularity("year")}>Por año</button>
+        <div className="seg" role="group" aria-label={t("Agrupar por")}>
+          <button type="button" className={granularity === "month" ? "" : "ghost"} onClick={() => setGranularity("month")}>{t("Por mes")}</button>
+          <button type="button" className={granularity === "year" ? "" : "ghost"} onClick={() => setGranularity("year")}>{t("Por año")}</button>
         </div>
         {granularity === "month" && (
-          <label>Rango
+          <label>{t("Rango")}
             <select value={months} onChange={(e) => setMonths(Number(e.target.value))}>
-              {[6, 12, 24, 36, 60].map((n) => <option key={n} value={n}>Últimos {n} meses</option>)}
+              {[6, 12, 24, 36, 60].map((n) => <option key={n} value={n}>{t("Últimos {n} meses", { n })}</option>)}
             </select>
           </label>
         )}
-        <label>Tipo de sujeto
+        <label>{t("Tipo de sujeto")}
           <select value={kind} onChange={(e) => setKind(e.target.value as TargetKind | "")}>
-            <option value="">Todos</option>
-            {KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+            <option value="">{t("Todos")}</option>
+            {KINDS.map((k) => <option key={k} value={k}>{kindLabel(k)}</option>)}
           </select>
         </label>
-        <label>Medio
+        <label>{t("Medio")}
           <select value={source} onChange={(e) => setSource(e.target.value)}>
-            <option value="">Todos</option>
-            {MEDIA_SOURCES.map((s) => <option key={s} value={s}>{SOURCE_LABEL[s] ?? s}</option>)}
+            <option value="">{t("Todos")}</option>
+            {MEDIA_SOURCES.map((s) => <option key={s} value={s}>{SOURCE_LABEL[s] ? t(SOURCE_LABEL[s]) : s}</option>)}
           </select>
         </label>
-        <label>Mostrar
+        <label>{t("Mostrar")}
           <select value={top} onChange={(e) => setTop(Number(e.target.value))}>
-            {[5, 10, 20].map((n) => <option key={n} value={n}>Top {n}</option>)}
+            {[5, 10, 20].map((n) => <option key={n} value={n}>{t("Top {n}", { n })}</option>)}
           </select>
         </label>
         <label className="check">
           <input type="checkbox" checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />
-          Incluir dados de baja
+          {t("Incluir dados de baja")}
         </label>
         <div className="muted summary">
-          {loading ? "Cargando…" : data && <>{fmt.format(total)} menciones · {range}{data.timezone !== "UTC" ? "" : " · UTC"}</>}
+          {loading ? t("Cargando…") : data && <>{t("{n} menciones", { n: total })} · {range}{data.timezone !== "UTC" ? "" : " · UTC"}</>}
         </div>
       </div>
       {error && <p className="error">{error}</p>}
 
       <div className="grid">
         <section className="card span-7">
-          <h2>Sujetos más mencionados</h2>
+          <h2>{t("Sujetos más mencionados")}</h2>
           {ranked.length ? (
             <EChart replaceSeries option={rankingChart} height={Math.max(160, ranked.length * (phone ? 30 : 28) + 48)}
               onClick={(p) => { const s = ranked[p.dataIndex]; if (s) onOpenTarget(s.targetId); }} />
           ) : empty}
-          {ranked.length > 0 && <p className="muted hint">Toca una barra para abrir el tablero de ese sujeto.</p>}
+          {ranked.length > 0 && <p className="muted hint">{t("Toca una barra para abrir el tablero de ese sujeto.")}</p>}
         </section>
 
         <section className="card span-5">
-          <h2>Menciones por tipo de sujeto</h2>
+          <h2>{t("Menciones por tipo de sujeto")}</h2>
           {total ? <EChart replaceSeries option={kindChart} height={phone ? 200 : 240} /> : empty}
         </section>
 
         <section className="card span-12">
-          <h2>Histórico de menciones por tipo ({granularity === "month" ? "mensual" : "anual"})</h2>
+          <h2>{granularity === "month" ? t("Histórico de menciones por tipo (mensual)") : t("Histórico de menciones por tipo (anual)")}</h2>
           {total ? <EChart replaceSeries option={kindHistory} height={phone ? 240 : 300} /> : empty}
         </section>
 
         <section className="card span-12">
-          <h2>Histórico de los más mencionados ({granularity === "month" ? "mensual" : "anual"})</h2>
+          <h2>{granularity === "month" ? t("Histórico de los más mencionados (mensual)") : t("Histórico de los más mencionados (anual)")}</h2>
           {ranked.length ? <EChart replaceSeries option={targetHistory} height={phone ? 260 : 320} /> : empty}
         </section>
 
         <section className="card span-12">
           <div className="card-head">
-            <h2>Evolución histórica del índice de riesgo ({granularity === "month" ? "promedio mensual" : "promedio anual"})</h2>
-            <div className="seg small" role="group" aria-label="Agrupar índice">
-              <button type="button" className={riskBy === "target" ? "" : "ghost"} onClick={() => setRiskBy("target")}>Por sujeto</button>
-              <button type="button" className={riskBy === "kind" ? "" : "ghost"} onClick={() => setRiskBy("kind")}>Por tipo</button>
+            <h2>{granularity === "month" ? t("Evolución histórica del índice de riesgo (promedio mensual)") : t("Evolución histórica del índice de riesgo (promedio anual)")}</h2>
+            <div className="seg small" role="group" aria-label={t("Agrupar índice")}>
+              <button type="button" className={riskBy === "target" ? "" : "ghost"} onClick={() => setRiskBy("target")}>{t("Por sujeto")}</button>
+              <button type="button" className={riskBy === "kind" ? "" : "ghost"} onClick={() => setRiskBy("kind")}>{t("Por tipo")}</button>
             </div>
           </div>
           {(riskBy === "kind" ? data?.riskByKind.length : data?.riskByTarget.length)
             ? <EChart replaceSeries option={riskHistory} height={phone ? 260 : 320} />
-            : <div className="empty">Sin cálculos del índice en este rango.</div>}
+            : <div className="empty">{t("Sin cálculos del índice en este rango.")}</div>}
         </section>
 
         <section className="card span-12">
-          <h2>Ranking</h2>
+          <h2>{t("Ranking")}</h2>
           <div className="scroll-x"><table className="ranking">
             <thead><tr>
-              <th className="num">#</th><th>Sujeto</th><th className="opt">Tipo</th><th className="num">Menciones</th>
-              <th className="num">Negativas</th><th className="num opt">Acusaciones graves</th><th className="num">Índice</th>
+              <th className="num">#</th><th>{t("Sujeto")}</th><th className="opt">{t("Tipo")}</th><th className="num">{t("Menciones")}</th>
+              <th className="num">{t("Negativas")}</th><th className="num opt">{t("Acusaciones graves")}</th><th className="num">{t("Índice")}</th>
             </tr></thead>
             <tbody>
               {(data?.ranking ?? []).map((s, i) => (
                 <tr key={s.targetId}>
                   <td className="num">{i + 1}</td>
                   <td><button type="button" className="link" onClick={() => onOpenTarget(s.targetId)}>{s.name}</button>
-                    {!s.enabled && <span className="muted"> · de baja</span>}</td>
-                  <td className="opt"><span className="kind-dot" style={{ background: KIND_COLOR[s.kind] }} />{KIND_LABEL[s.kind]}</td>
+                    {!s.enabled && <span className="muted"> · {t("de baja")}</span>}</td>
+                  <td className="opt"><span className="kind-dot" style={{ background: KIND_COLOR[s.kind] }} />{kindLabel(s.kind)}</td>
                   <td className="num">{fmt.format(s.mentions)}</td>
                   <td className="num" style={{ color: s.negative ? "var(--neg)" : undefined }}>
                     {fmt.format(s.negative)}{s.mentions ? ` (${Math.round((s.negative / s.mentions) * 100)}%)` : ""}

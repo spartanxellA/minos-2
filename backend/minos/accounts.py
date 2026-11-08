@@ -63,6 +63,16 @@ class MeOut(UserOut):
     auth_mode: str
     # El tablero cierra la sesión tras este lapso sin actividad y avisa antes. None = nunca.
     idle_timeout_seconds: int | None = None
+    # Idioma guardado en la cuenta; None = la persona no ha elegido (el tablero usa el del navegador).
+    language: str | None = None
+
+
+# Idiomas del tablero; los textos se traducen en el navegador.
+Language = Literal["es", "en", "fr"]
+
+
+class PreferencesInput(Camel):
+    language: Language
 
 
 class LogoutInput(Camel):
@@ -73,7 +83,8 @@ class LogoutInput(Camel):
 def _me_out(request: Request, user: db.User | CurrentUser) -> MeOut:
     a = request.app.state.settings.auth
     idle = int(a.idle_timeout.total_seconds()) if a.mode == "local" and a.idle_timeout else None
-    return MeOut(**UserOut.of(user).model_dump(), auth_mode=a.mode, idle_timeout_seconds=idle)
+    return MeOut(**UserOut.of(user).model_dump(), auth_mode=a.mode, idle_timeout_seconds=idle,
+                 language=getattr(user, "language", None))
 
 
 class UserCreate(Camel):
@@ -244,6 +255,16 @@ async def me(request: Request, user: Annotated[CurrentUser, Depends(active_user)
 @auth_router.post("/activity", status_code=status.HTTP_204_NO_CONTENT)
 async def activity(user: Annotated[CurrentUser, Depends(active_user)]):
     """El tablero avisa que la persona lo está usando (clics, teclas, toques), a lo más una vez por minuto."""
+
+
+@auth_router.put("/preferences", status_code=status.HTTP_204_NO_CONTENT)
+async def save_preferences(body: PreferencesInput, session: Session, user: Annotated[CurrentUser, Depends(current_user)]):
+    """Guarda el idioma del tablero en la cuenta, para que se respete en cualquier navegador o teléfono."""
+    row = await session.get(db.User, user.id) if user.id else None
+    if row is None:
+        return  # inicio de sesión apagado: el tablero lo guarda solo en el navegador
+    row.language = body.language
+    await session.commit()
 
 
 @auth_router.post("/password", status_code=status.HTTP_204_NO_CONTENT)

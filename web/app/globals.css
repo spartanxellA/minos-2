@@ -140,6 +140,10 @@ dialog.survey .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 }
 .account .menu .who { padding: 6px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; overflow-wrap: anywhere; }
 .account .menu button { text-align: left; }
+/* Selector de idioma: dentro del menú de la cuenta y al pie de la pantalla de entrada. */
+.account .menu .lang-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px 8px; color: var(--muted); border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.account .menu .lang-row select { flex: 1; max-width: 140px; }
+.login .login-lang { align-self: center; font-size: 13px; }
 .ok { color: var(--pos); }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 dialog.modal {
