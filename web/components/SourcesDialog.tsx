@@ -28,11 +28,21 @@ export function SourcesDialog({ onClose, onLoaded, isAdmin }: {
 }) {
   const [data, setData] = useState<SourcesStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
-  const load = () => api.sources().then((d) => {
-    setData(d);
-    onLoaded?.(d.sources.filter((s) => s.errors.length).length);
-  }).catch((err) => setError((err as Error).message));
+  // El botón «Actualizar» vuelve a leer el estado; sin indicador parecía que no hacía nada,
+  // porque casi siempre el estado no cambia entre un clic y otro.
+  const load = () => {
+    setLoading(true);
+    return api.sources().then((d) => {
+      setData(d);
+      setError(null);
+      setLoadedAt(new Date());
+      onLoaded?.(d.sources.filter((s) => s.errors.length).length);
+    }).catch((err) => setError((err as Error).message))
+      .finally(() => setLoading(false));
+  };
   useEffect(() => { load(); }, []);
 
   return (
@@ -105,7 +115,20 @@ export function SourcesDialog({ onClose, onLoaded, isAdmin }: {
               Las llaves se ponen en el archivo .env del servidor; después hay que correr <code>minos up -d</code>.
             </p>
           )}
-          <button type="button" className="ghost" onClick={load}>Actualizar</button>
+          <div className="row" style={{ alignItems: "center", gap: 12 }}>
+            <button type="button" className="ghost" onClick={load} disabled={loading}>
+              {loading ? "Actualizando…" : "Actualizar"}
+            </button>
+            {loadedAt && !loading && (
+              <span className="muted" style={{ fontSize: 12 }} aria-live="polite">
+                Actualizado a las {loadedAt.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            )}
+          </div>
+          <p className="muted" style={{ fontSize: 12 }}>
+            «Actualizar» vuelve a leer el estado. Cada fuente se consulta sola cada pocos minutos y las pausas
+            terminan solas; si nada cambió, el estado se ve igual.
+          </p>
         </>
       )}
     </Modal>
