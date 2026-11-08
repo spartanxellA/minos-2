@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { api, RISK_SURVEY, riskLevel, type Survey, type SurveyResponse } from "@/lib/api";
 import { SurveyForm } from "./SurveyForm";
+import { locale, useI18n } from "@/lib/i18n";
 
-const date = (iso: string) => new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+const date = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "2-digit", month: "short", year: "numeric" });
 
 /** Resultado del último cuestionario de riesgo del objetivo; abre el formulario para contestarlo o actualizarlo. */
 export function SurveyCard({ targetId, targetName, surveyScore, canAnswer = true }: {
@@ -17,6 +18,7 @@ export function SurveyCard({ targetId, targetName, surveyScore, canAnswer = true
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [history, setHistory] = useState<SurveyResponse[] | null>(null);
   const [open, setOpen] = useState(false);
+  const { t, tApi } = useI18n();
 
   useEffect(() => {
     api.survey(RISK_SURVEY).then(setSurvey).catch(() => {});
@@ -38,24 +40,24 @@ export function SurveyCard({ targetId, targetName, surveyScore, canAnswer = true
 
   return (
     <section className="card span-3">
-      <h2>Cuestionario de riesgo</h2>
-      {history === null ? <div className="empty">Cargando…</div> : !latest ? (
-        <p className="muted">Sin contestar. Mientras tanto el índice usa solo medios; el cuestionario aporta el 20 %.</p>
+      <h2>{t("Cuestionario de riesgo")}</h2>
+      {history === null ? <div className="empty">{t("Cargando…")}</div> : !latest ? (
+        <p className="muted">{t("Sin contestar. Mientras tanto el índice usa solo medios; el cuestionario aporta el 20 %.")}</p>
       ) : (
         <>
           <div className="kpi">{latest.score?.toFixed(1)} <small>/ 100</small></div>
           <p>
-            {level && <span className="pill" style={{ background: level.color }}>{level.label}</span>}
+            {level && <span className="pill" style={{ background: level.color }}>{t(level.label)}</span>}
             <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
               {date(latest.submittedAt)}
-              {delta != null && delta !== 0 && ` · ${delta > 0 ? "+" : ""}${delta.toFixed(1)} vs. anterior`}
+              {delta != null && delta !== 0 && ` · ${t("{delta} vs. anterior", { delta: `${delta > 0 ? "+" : ""}${delta.toFixed(1)}` })}`}
             </span>
           </p>
           {sections.map((s) => {
             const v = latest.sectionValues[s.id] ?? 0;
             return (
               <div key={s.id} style={{ fontSize: 12, marginBottom: 6 }}>
-                {s.name} · {v} <span className="muted">(peso {Math.round(s.weight * 100)} %)</span>
+                {tApi(s.name)} · {v} <span className="muted">{t("(peso {n} %)", { n: Math.round(s.weight * 100) })}</span>
                 <div className="bar"><div style={{ width: `${Math.min(Math.max(v, 0), 100)}%`, background: s.color }} /></div>
               </div>
             );
@@ -64,7 +66,7 @@ export function SurveyCard({ targetId, targetName, surveyScore, canAnswer = true
       )}
       {canAnswer && (
         <button type="button" disabled={!survey || history === null} onClick={() => setOpen(true)} style={{ marginTop: 8 }}>
-          {latest ? "Actualizar respuestas" : "Contestar cuestionario"}
+          {latest ? t("Actualizar respuestas") : t("Contestar cuestionario")}
         </button>
       )}
       {open && survey && (

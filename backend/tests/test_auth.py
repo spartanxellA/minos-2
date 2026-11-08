@@ -230,3 +230,15 @@ def test_cli_creates_accounts_and_resets_passwords(settings, monkeypatch, capsys
 def test_auth_off_is_refused_outside_development():
     with pytest.raises(RuntimeError, match="MINOS_AUTH__MODE=off"):
         create_app(Settings(env="production", auth={"mode": "off"}))
+
+
+def test_language_preference_is_saved_in_the_account(app):
+    with TestClient(app()) as c:
+        assert login(c, *ADMIN).json()["language"] is None
+        assert c.put("/api/auth/preferences", json={"language": "fr"}).status_code == 204
+        assert c.get("/api/auth/me").json()["language"] == "fr"
+        assert c.put("/api/auth/preferences", json={"language": "de"}).status_code == 422
+    with TestClient(app()) as other:  # otro navegador: la cuenta ya trae el idioma
+        assert login(other, *ADMIN).json()["language"] == "fr"
+    with TestClient(app()) as anon:
+        assert anon.put("/api/auth/preferences", json={"language": "en"}).status_code == 401

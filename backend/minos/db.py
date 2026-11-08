@@ -261,6 +261,8 @@ class User(Base):
     locked_until: Mapped[datetime | None] = mapped_column(UtcDateTime)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    # Idioma del tablero que eligió la persona ("es", "en", "fr"); sin dato, el del navegador o español.
+    language: Mapped[str | None] = mapped_column(String(5), nullable=True)
 
 
 class UserSession(Base):

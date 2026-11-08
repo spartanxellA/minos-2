@@ -2,7 +2,7 @@
 
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
-import { api, can, GEO_METHOD_LABEL, KIND_LABEL, SOURCE_LABEL, type Alert, type Me, type Mention, type Sentiment, type Target } from "@/lib/api";
+import { api, can, GEO_METHOD_LABEL, KIND_LABEL, ROLE_LABEL, SOURCE_LABEL, type Alert, type Me, type Mention, type Sentiment, type Target } from "@/lib/api";
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
 import { AuditDialog } from "./AuditDialog";
@@ -17,10 +17,10 @@ import { NewTargetForm } from "./NewTargetForm";
 import { SurveyCard } from "./SurveyCard";
 import { GeoMapCard } from "./GeoMap";
 import { Logo } from "./Logo";
+import { LanguageSelect, locale, msg, useI18n } from "@/lib/i18n";
 
-const SENT = { positive: { label: "Positivo", color: "#2e7d32" }, neutral: { label: "Neutro", color: "#8a94a0" }, negative: { label: "Negativo", color: "#d32f2f" } } as const;
-const fmt = new Intl.NumberFormat("es-MX");
-const time = (iso: string) => new Date(iso).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+const SENT = { positive: { label: msg("Positivo"), color: "#2e7d32" }, neutral: { label: msg("Neutro"), color: "#8a94a0" }, negative: { label: msg("Negativo"), color: "#d32f2f" } } as const;
+const time = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
 const NOTIFY_KEY = "minos.notify";
 
@@ -35,11 +35,12 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   // "analytics": vista general de todos los sujetos en lugar del tablero de uno.
   const [view, setView] = useState<"target" | "analytics">("target");
   const phone = useMediaQuery(PHONE);
+  const { t, tApi, lang, nf: fmt } = useI18n();
   const selectedName = targets.find((t) => t.id === selected)?.name ?? "";
 
   const onAlert = (a: Alert) => {
     if (!notify || typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    new Notification(`${a.title} · ${selectedName}`, { body: a.message, tag: a.id != null ? String(a.id) : undefined });
+    new Notification(`${tApi(a.title)} · ${selectedName}`, { body: tApi(a.message), tag: a.id != null ? String(a.id) : undefined });
   };
   const live = useLiveTarget(selected, onAlert);
   const latest = live.latest;
@@ -88,7 +89,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     yAxis: { type: "value", min: 0, max: 100, interval: 25 },
     visualMap: { show: false, dimension: 1, pieces: [{ lte: 25, color: "#2e7d32" }, { gt: 25, lte: 50, color: "#c9a800" }, { gt: 50, color: "#d32f2f" }] },
     series: [{
-      name: "Índice", type: "line", showSymbol: live.risk.length < 2, smooth: 0.2,
+      name: t("Índice"), type: "line", showSymbol: live.risk.length < 2, smooth: 0.2,
       data: live.risk.map((r) => [r.at, r.index]),
       markArea: { silent: true, itemStyle: { opacity: 0.06 }, data: [
         [{ yAxis: 0, itemStyle: { color: "#2e7d32" } }, { yAxis: 25 }],
@@ -97,22 +98,22 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       ] },
       markLine: confirmations.length ? {
         symbol: "none", lineStyle: { color: "#d32f2f", type: "dashed" },
-        label: { formatter: "Lista negra", fontSize: 10 },
+        label: { formatter: t("Lista negra"), fontSize: 10 },
         data: confirmations.map((m) => ({ xAxis: m.reviewedAt!, name: `${m.listedName} · ${m.sourceName}` })),
       } : undefined,
     }],
-  }), [live.risk, phone, live.screening]);
+  }), [live.risk, phone, live.screening, lang]);
 
   const radar: EChartsOption = useMemo(() => ({
     tooltip: { confine: true },
     radar: { indicator: [
-      { name: "Negatividad", max: 100 }, { name: "Acusaciones", max: 100 },
-      { name: "Volumen anómalo", max: 100 }, { name: "Cuestionario", max: 100 },
+      { name: t("Negatividad"), max: 100 }, { name: t("Acusaciones"), max: 100 },
+      { name: t("Volumen anómalo"), max: 100 }, { name: t("Cuestionario"), max: 100 },
     ], radius: phone ? "58%" : "48%", axisName: { fontSize: 11 } },
     series: [{ type: "radar", areaStyle: { opacity: 0.2 }, data: [{
-      name: "Factores", value: latest ? [latest.negativity * 100, latest.severity * 100, latest.volumeAnomaly * 100, latest.surveyScore ?? 0].map((v) => Math.round(v)) : [0, 0, 0, 0],
+      name: t("Factores"), value: latest ? [latest.negativity * 100, latest.severity * 100, latest.volumeAnomaly * 100, latest.surveyScore ?? 0].map((v) => Math.round(v)) : [0, 0, 0, 0],
     }] }],
-  }), [latest, phone]);
+  }), [latest, phone, lang]);
 
   const bySource: EChartsOption = useMemo(() => {
     const rows = live.breakdown?.bySourceAndSentiment ?? [];
@@ -122,13 +123,13 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       legend: { top: 0 },
       tooltip: { trigger: "axis", confine: true, axisPointer: { type: "shadow" } },
       xAxis: { type: "value" },
-      yAxis: { type: "category", data: sources.map((s) => SOURCE_LABEL[s] ?? s) },
+      yAxis: { type: "category", data: sources.map((s) => (SOURCE_LABEL[s] ? t(SOURCE_LABEL[s]) : s)) },
       series: (["positive", "neutral", "negative"] as const).map((k) => ({
-        name: SENT[k].label, type: "bar", stack: "s", color: SENT[k].color,
+        name: t(SENT[k].label), type: "bar", stack: "s", color: SENT[k].color,
         data: sources.map((s) => rows.find((r) => r.source === s && r.sentiment.toLowerCase() === k)?.count ?? 0),
       })),
     };
-  }, [live.breakdown]);
+  }, [live.breakdown, lang]);
 
   const selectedTarget = targets.find((t) => t.id === selected);
   // El selector muestra los activos; uno dado de baja solo aparece mientras está abierto (por ejemplo desde un aviso).
@@ -144,46 +145,50 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     <>
       <header className="top">
         <h1 className="brand"><Logo />min<span>OS</span> 2.0</h1>
-        <select className="target" value={selected ?? ""} onChange={(e) => { setSelected(e.target.value); setView("target"); }} aria-label="Objetivo">
-          {choices.map((t) => <option key={t.id} value={t.id}>{t.name} · {KIND_LABEL[t.kind]}{t.enabled ? "" : " (de baja)"}</option>)}
+        <select className="target" value={selected ?? ""} onChange={(e) => { setSelected(e.target.value); setView("target"); }} aria-label={t("Objetivo")}>
+          {choices.map((x) => <option key={x.id} value={x.id}>{x.name} · {t(KIND_LABEL[x.kind])}{x.enabled ? "" : ` ${t("(de baja)")}`}</option>)}
         </select>
-        <div className="status"><span className={`dot ${live.status}`} />{live.status === "live" ? "En vivo" : live.status === "connecting" ? "Conectando…" : "Sin conexión"}</div>
+        <div className="status"><span className={`dot ${live.status}`} />{live.status === "live" ? t("En vivo") : live.status === "connecting" ? t("Conectando…") : t("Sin conexión")}</div>
         <button type="button" className={`notify ${notify ? "" : "ghost"}`} onClick={toggleNotify} aria-pressed={notify}
-          title="Aviso del navegador cuando llegue una alerta del objetivo seleccionado">
-          {notify ? "Avisos activados" : "Activar avisos"}
+          title={t("Aviso del navegador cuando llegue una alerta del objetivo seleccionado")}>
+          {notify ? t("Avisos activados") : t("Activar avisos")}
         </button>
         <button type="button" className={`sources ${view === "analytics" ? "" : "ghost"}`} aria-pressed={view === "analytics"}
           onClick={() => setView(view === "analytics" ? "target" : "analytics")}
-          title="Sujetos más mencionados, por tipo, e históricos por mes y año">
-          Análisis
+          title={t("Sujetos más mencionados, por tipo, e históricos por mes y año")}>
+          {t("Análisis")}
         </button>
         <button type="button" className="ghost sources" onClick={() => setDialog("sources")}
-          title="Qué fuentes están activas, qué trajeron y cuáles fallan">
-          Fuentes{sourceErrors > 0 && <span className="badge" aria-label={`${sourceErrors} con error`}>{sourceErrors}</span>}
+          title={t("Qué fuentes están activas, qué trajeron y cuáles fallan")}>
+          {t("Fuentes")}{sourceErrors > 0 && <span className="badge" aria-label={t("{n} con error", { n: sourceErrors })}>{sourceErrors}</span>}
         </button>
         <button type="button" className="ghost sources" onClick={() => setDialog("watchlists")}
-          title="Coincidencias pendientes de revisar y estado de las listas negras">
-          Listas{pendingMatches > 0 && <span className="badge" aria-label={`${pendingMatches} pendientes`}>{pendingMatches}</span>}
+          title={t("Coincidencias pendientes de revisar y estado de las listas negras")}>
+          {t("Listas")}{pendingMatches > 0 && <span className="badge" aria-label={t("{n} pendientes", { n: pendingMatches })}>{pendingMatches}</span>}
         </button>
         <button type="button" className="ghost sources" onClick={() => setDialog("targets")}
-          title="Editar, dar de baja y reactivar objetivos">
-          Objetivos
+          title={t("Editar, dar de baja y reactivar objetivos")}>
+          {t("Objetivos")}
         </button>
         <div className="spacer" />
         {can(user, "analyst") && (
           <button type="button" className={`add ${adding ? "" : "ghost"}`} onClick={() => setAdding(!adding)} aria-expanded={adding}>
-            + Objetivo
+            {t("+ Objetivo")}
           </button>
         )}
+        {user.authMode !== "local" && <LanguageSelect />}
         {user.authMode === "local" && (
           <details className="account">
             <summary title={user.email}>{user.name}</summary>
             <div className="menu" onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}>
-              <div className="who">{user.email}<br /><span className="muted">{user.roleLabel}</span></div>
-              {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("users")}>Usuarios</button>}
-              {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("audit")}>Auditoría</button>}
-              <button type="button" className="ghost" onClick={() => setDialog("password")}>Contraseña</button>
-              <button type="button" className="ghost" onClick={onLogout}>Salir</button>
+              <div className="who">{user.email}<br /><span className="muted">{t(ROLE_LABEL[user.role])}</span></div>
+              <label className="lang-row" onClick={(e) => e.stopPropagation()}>{t("Idioma")}
+                <LanguageSelect onChange={(language) => { api.savePreferences({ language }).catch(() => {}); }} />
+              </label>
+              {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("users")}>{t("Usuarios")}</button>}
+              {can(user, "admin") && <button type="button" className="ghost" onClick={() => setDialog("audit")}>{t("Auditoría")}</button>}
+              <button type="button" className="ghost" onClick={() => setDialog("password")}>{t("Contraseña")}</button>
+              <button type="button" className="ghost" onClick={onLogout}>{t("Salir")}</button>
             </div>
           </details>
         )}
@@ -209,28 +214,28 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
           <Analytics onOpenTarget={(id) => { setSelected(id); setView("target"); window.scrollTo({ top: 0 }); }} />
         ) : !selectedTarget ? (
           <div className="card empty">
-            {targets.length > 0 ? "Todos los objetivos están dados de baja; se pueden reactivar en «Objetivos»." : can(user, "analyst")
-              ? "Agrega una persona, empresa, institución, área de gobierno o país para empezar a monitorear."
-              : "Todavía no hay objetivos. Un analista o administrador puede agregarlos."}
+            {targets.length > 0 ? t("Todos los objetivos están dados de baja; se pueden reactivar en «Objetivos».") : can(user, "analyst")
+              ? t("Agrega una persona, empresa, institución, área de gobierno o país para empezar a monitorear.")
+              : t("Todavía no hay objetivos. Un analista o administrador puede agregarlos.")}
           </div>
         ) : (
           <div className="grid">
             {!selectedTarget.enabled && (
               <div className="card span-12 disclaimer" role="status" style={{ margin: 0 }}>
-                <b>Dado de baja</b> el {selectedTarget.deactivatedAt ? new Date(selectedTarget.deactivatedAt).toLocaleDateString("es-MX", { dateStyle: "medium" }) : "—"}
-                {selectedTarget.deactivationReason && ` · “${selectedTarget.deactivationReason}”`}. Ya no se busca ni se recalcula; lo que ves es su historia.
+                <b>{t("Dado de baja")}</b> {t("el {date}", { date: selectedTarget.deactivatedAt ? new Date(selectedTarget.deactivatedAt).toLocaleDateString(locale(), { dateStyle: "medium" }) : "—" })}
+                {selectedTarget.deactivationReason && ` · “${selectedTarget.deactivationReason}”`}. {t("Ya no se busca ni se recalcula; lo que ves es su historia.")}
               </div>
             )}
             <section className="card span-3">
-              <h2>Índice de riesgo reputacional</h2>
+              <h2>{t("Índice de riesgo reputacional")}</h2>
               <div className="kpi">{latest ? latest.index.toFixed(1) : "–"} <small>/ 100</small></div>
-              {latest && <p><span className="pill" style={{ background: latest.color }}>{latest.label}</span></p>}
+              {latest && <p><span className="pill" style={{ background: latest.color }}>{tApi(latest.label)}</span></p>}
               <div className="drivers">
-                <span>Medios</span><b>{latest ? latest.mediaScore.toFixed(1) : "–"}</b>
-                <span>Cuestionario</span><b>{latest?.surveyScore != null ? latest.surveyScore.toFixed(1) : "sin contestar"}</b>
-                <span>Menciones 24 h</span><b>{latest ? fmt.format(latest.mentions) : "–"}</b>
+                <span>{t("Medios")}</span><b>{latest ? latest.mediaScore.toFixed(1) : "–"}</b>
+                <span>{t("Cuestionario")}</span><b>{latest?.surveyScore != null ? latest.surveyScore.toFixed(1) : t("sin contestar")}</b>
+                <span>{t("Menciones 24 h")}</span><b>{latest ? fmt.format(latest.mentions) : "–"}</b>
                 {latest && latest.watchlistImpact > 0 && (
-                  <><span>Listas negras</span><b style={{ color: "var(--neg)" }}>+{latest.watchlistImpact.toFixed(1)}</b></>
+                  <><span>{t("Listas negras")}</span><b style={{ color: "var(--neg)" }}>+{latest.watchlistImpact.toFixed(1)}</b></>
                 )}
               </div>
               {latest && (
@@ -239,7 +244,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
                     const v = latest[k]; const pct = latest.mentions ? (v / latest.mentions) * 100 : 0;
                     return (
                       <div key={k} style={{ fontSize: 12, marginBottom: 6 }}>
-                        {SENT[k].label} · {fmt.format(v)} ({pct.toFixed(0)}%)
+                        {t(SENT[k].label)} · {fmt.format(v)} ({pct.toFixed(0)}%)
                         <div className="bar"><div style={{ width: `${pct}%`, background: SENT[k].color }} /></div>
                       </div>
                     );
@@ -249,17 +254,17 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
             </section>
 
             <section className="card span-9">
-              <h2>Evolución del índice</h2>
-              {live.risk.length ? <EChart option={trend} height={phone ? 220 : 300} /> : <div className="empty">Esperando el primer cálculo…</div>}
+              <h2>{t("Evolución del índice")}</h2>
+              {live.risk.length ? <EChart option={trend} height={phone ? 220 : 300} /> : <div className="empty">{t("Esperando el primer cálculo…")}</div>}
             </section>
 
             <section className="card span-3">
-              <h2>Factores de riesgo</h2>
+              <h2>{t("Factores de riesgo")}</h2>
               <EChart option={radar} height={phone ? 240 : 260} />
             </section>
 
             <section className="card span-3">
-              <h2>Sentimiento por fuente (24 h)</h2>
+              <h2>{t("Sentimiento por fuente (24 h)")}</h2>
               <EChart option={bySource} height={phone ? 200 : 260} />
             </section>
 
@@ -271,19 +276,19 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
               onTargetSaved={(t) => setTargets((p) => p.map((x) => (x.id === t.id ? t : x)))} />
 
             <section className="card span-3">
-              <h2>Alertas</h2>
-              {live.alerts.length === 0 ? <div className="empty">Sin alertas</div> : (
+              <h2>{t("Alertas")}</h2>
+              {live.alerts.length === 0 ? <div className="empty">{t("Sin alertas")}</div> : (
                 <ul className="feed" style={{ maxHeight: 260 }}>
                   {live.alerts.map((a, i) => (
-                    <li key={a.id ?? i}><b>{a.title}</b><div>{a.message}</div>{a.at && <div className="meta">{time(a.at)}</div>}</li>
+                    <li key={a.id ?? i}><b>{tApi(a.title)}</b><div>{tApi(a.message)}</div>{a.at && <div className="meta">{time(a.at)}</div>}</li>
                   ))}
                 </ul>
               )}
             </section>
 
             <section className="card span-5">
-              <h2>Menciones en vivo</h2>
-              {live.mentions.length === 0 ? <div className="empty">Aún no hay menciones.</div> : (
+              <h2>{t("Menciones en vivo")}</h2>
+              {live.mentions.length === 0 ? <div className="empty">{t("Aún no hay menciones.")}</div> : (
                 <ul className="feed">
                   {live.mentions.map((m) => (
                     <li key={m.id}>
@@ -291,18 +296,18 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
                       <div className="meta">
                         {can(user, "analyst")
                           ? <SentimentPicker mention={m} onSaved={live.replaceMention} />
-                          : <span className={`tag ${m.sentiment}`}>{SENT[m.sentiment].label}</span>}
+                          : <span className={`tag ${m.sentiment}`}>{t(SENT[m.sentiment].label)}</span>}
                         {m.corrected && (
-                          <span title={`Corregido por ${m.correctedBy ?? "un analista"}; el análisis automático dijo ${SENT[m.originalSentiment ?? m.sentiment].label}`}>
-                            ✎ corregido
+                          <span title={t("Corregido por {who}; el análisis automático dijo {sentiment}", { who: m.correctedBy ?? t("un analista"), sentiment: t(SENT[m.originalSentiment ?? m.sentiment].label) })}>
+                            ✎ {t("corregido")}
                           </span>
                         )}
-                        {m.severe && <span className="tag severe">Acusación grave</span>}
+                        {m.severe && <span className="tag severe">{t("Acusación grave")}</span>}
                         {m.topic && <span>#{m.topic}</span>}
-                        <span>{SOURCE_LABEL[m.source] ?? m.source}</span>
-                        <span>{m.author}{m.followers ? ` · ${fmt.format(m.followers)} seguidores` : ""}</span>
+                        <span>{SOURCE_LABEL[m.source] ? t(SOURCE_LABEL[m.source]) : m.source}</span>
+                        <span>{m.author}{m.followers ? ` · ${t("{n} seguidores", { n: m.followers })}` : ""}</span>
                         {m.place && (
-                          <span className="place" title={`Ubicación para el mapa: ${m.placeMethod ? GEO_METHOD_LABEL[m.placeMethod] : ""}`}>⌖ {m.place}</span>
+                          <span className="place" title={t("Ubicación para el mapa: {method}", { method: m.placeMethod ? t(GEO_METHOD_LABEL[m.placeMethod]) : "" })}>⌖ {m.place}</span>
                         )}
                         <span>{time(m.publishedAt)}</span>
                       </div>
@@ -313,9 +318,9 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
             </section>
 
             <section className="card span-4">
-              <h2>Cuentas con mayor alcance (24 h)</h2>
+              <h2>{t("Cuentas con mayor alcance (24 h)")}</h2>
               <div className="scroll-x"><table>
-                <thead><tr><th>Cuenta</th><th className="num">Seguidores</th><th className="num">Menciones</th><th className="num">Negativas</th></tr></thead>
+                <thead><tr><th>{t("Cuenta")}</th><th className="num">{t("Seguidores")}</th><th className="num">{t("Menciones")}</th><th className="num">{t("Negativas")}</th></tr></thead>
                 <tbody>
                   {(live.breakdown?.influencers ?? []).map((u) => (
                     <tr key={u.author}><td>{u.author}</td><td className="num">{fmt.format(u.followers)}</td><td className="num">{u.mentions}</td><td className="num" style={{ color: u.negative ? "var(--neg)" : undefined }}>{u.negative}</td></tr>
@@ -338,10 +343,11 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
 function SentimentPicker({ mention: m, onSaved }: { mention: Mention; onSaved: (m: Mention) => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
   return (
     <>
       <select className={`tag ${m.sentiment} sentiment-picker`} value={m.sentiment} disabled={saving}
-        aria-label="Corregir sentimiento" title="Corregir sentimiento"
+        aria-label={t("Corregir sentimiento")} title={t("Corregir sentimiento")}
         onChange={(e) => {
           setSaving(true);
           setError(null);
@@ -350,7 +356,7 @@ function SentimentPicker({ mention: m, onSaved }: { mention: Mention; onSaved: (
             .catch((err: Error) => setError(err.message))
             .finally(() => setSaving(false));
         }}>
-        {(Object.keys(SENT) as Sentiment[]).map((k) => <option key={k} value={k}>{SENT[k].label}</option>)}
+        {(Object.keys(SENT) as Sentiment[]).map((k) => <option key={k} value={k}>{t(SENT[k].label)}</option>)}
       </select>
       {error && <span className="error" role="alert">{error}</span>}
     </>

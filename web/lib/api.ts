@@ -1,3 +1,5 @@
+import { locale, msg, translate, translateApi } from "./i18n";
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
 export const WS_URL = API_URL.replace(/^http/, "ws");
 
@@ -138,11 +140,11 @@ export interface SurveyResponse {
 /** El cuestionario de riesgo de minOS 1.6; el de perfil (PDSurvey) no puntúa. */
 export const RISK_SURVEY = "RASurvey";
 
-/** Umbrales heredados (≤ 25 bajo, ≤ 50 medio), los mismos que usa el backend. */
+/** Umbrales heredados (≤ 25 bajo, ≤ 50 medio), los mismos que usa el backend. La etiqueta va en español: t(). */
 export function riskLevel(score: number) {
-  if (score <= 25) return { label: "Riesgo bajo", color: "#2e7d32" };
-  if (score <= 50) return { label: "Riesgo medio", color: "#c9a800" };
-  return { label: "Riesgo alto", color: "#d32f2f" };
+  if (score <= 25) return { label: msg("Riesgo bajo"), color: "#2e7d32" };
+  if (score <= 50) return { label: msg("Riesgo medio"), color: "#c9a800" };
+  return { label: msg("Riesgo alto"), color: "#d32f2f" };
 }
 
 export interface SourceStatus {
@@ -255,13 +257,15 @@ export interface EntryChange {
 
 export const uploadChangesCsvUrl = (uploadId: number) => `${API_URL}/api/watchlists/uploads/${uploadId}/changes.csv`;
 
+// Las etiquetas de estas tablas van en español; se muestran con t(TABLA[llave]).
 export const WATCHLIST_CATEGORIES: Record<string, string> = {
-  pep: "Persona políticamente expuesta", sanctions: "Sanciones", tax: "Fiscal (SAT)", debarment: "Inhabilitación", other: "Otra",
+  pep: msg("Persona políticamente expuesta"), sanctions: msg("Sanciones"), tax: msg("Fiscal (SAT)"),
+  debarment: msg("Inhabilitación"), other: msg("Otra"),
 };
 
 export const SOURCE_LABEL: Record<string, string> = {
-  rss: "Noticias", x: "X", youtube: "YouTube", bluesky: "Bluesky", "bluesky-live": "Bluesky en vivo", reddit: "Reddit",
-  facebook: "Facebook", instagram: "Instagram", demo: "Demo",
+  rss: msg("Noticias"), x: "X", youtube: "YouTube", bluesky: "Bluesky", "bluesky-live": msg("Bluesky en vivo"), reddit: "Reddit",
+  facebook: "Facebook", instagram: "Instagram", demo: msg("Demo"),
 };
 
 export type Role = "viewer" | "analyst" | "admin";
@@ -280,6 +284,8 @@ export interface Me extends User {
   authMode: "local" | "off";
   /** Tras este lapso sin actividad se cierra la sesión (se avisa antes). null = nunca. */
   idleTimeoutSeconds?: number | null;
+  /** Idioma guardado en la cuenta; null = no ha elegido. */
+  language?: "es" | "en" | "fr" | null;
 }
 
 export interface AuditEvent {
@@ -328,7 +334,7 @@ export function auditQuery(filters: AuditFilters, extra: Record<string, string |
 
 export const auditCsvUrl = (filters: AuditFilters) => `${API_URL}/api/audit/export.csv?${auditQuery(filters)}`;
 
-export const ROLE_LABEL: Record<Role, string> = { viewer: "Lector", analyst: "Analista", admin: "Administrador" };
+export const ROLE_LABEL: Record<Role, string> = { viewer: msg("Lector"), analyst: msg("Analista"), admin: msg("Administrador") };
 const ROLE_RANK: Record<Role, number> = { viewer: 0, analyst: 1, admin: 2 };
 export const can = (user: Pick<User, "role">, role: Role) => ROLE_RANK[user.role] >= ROLE_RANK[role];
 
@@ -342,8 +348,8 @@ export class ApiError extends Error {
 }
 
 const FIELD_LABEL: Record<string, string> = {
-  name: "El nombre", category: "El tipo", csv: "El archivo", note: "La nota", reason: "El motivo",
-  birthDate: "La fecha de nacimiento", email: "El correo", password: "La contraseña",
+  name: msg("El nombre"), category: msg("El tipo"), csv: msg("El archivo"), note: msg("La nota"), reason: msg("El motivo"),
+  birthDate: msg("La fecha de nacimiento"), email: msg("El correo"), password: msg("La contraseña"),
 };
 
 /** Los 422 de validación llegan como lista ({loc, type, ctx}); se traduce el primero a una frase. */
@@ -351,16 +357,18 @@ function validationMessage(errors: { loc?: (string | number)[]; type?: string; m
   const e = errors[0];
   if (!e) return null;
   const key = String(e.loc?.at(-1) ?? "");
-  const field = FIELD_LABEL[key] ?? (key && key !== "body" ? `El campo «${key}»` : "Los datos enviados");
-  const n = (v: unknown) => new Intl.NumberFormat("es-MX").format(Number(v));
+  const field = FIELD_LABEL[key] ? translate(FIELD_LABEL[key])
+    : key && key !== "body" ? translate("El campo «{key}»", { key }) : translate("Los datos enviados");
+  const n = (v: unknown) => new Intl.NumberFormat(locale()).format(Number(v));
   switch (e.type) {
-    case "missing": return `${field} es obligatorio.`;
-    case "string_too_short": return Number(e.ctx?.min_length) <= 1 ? `${field} está vacío.` : `${field} es muy corto (mínimo ${n(e.ctx?.min_length)} caracteres).`;
-    case "string_too_long": return `${field} es muy grande (máximo ${n(e.ctx?.max_length)} caracteres).`;
-    case "string_pattern_mismatch": return `${field} no tiene el formato esperado.`;
-    case "literal_error": return `${field} no es una opción válida.`;
-    case "json_invalid": return "Los datos enviados no son válidos.";
-    default: return `${field}: ${e.msg ?? "valor no válido"}.`;
+    case "missing": return translate("{field} es obligatorio.", { field });
+    case "string_too_short": return Number(e.ctx?.min_length) <= 1 ? translate("{field} está vacío.", { field })
+      : translate("{field} es muy corto (mínimo {n} caracteres).", { field, n: n(e.ctx?.min_length) });
+    case "string_too_long": return translate("{field} es muy grande (máximo {n} caracteres).", { field, n: n(e.ctx?.max_length) });
+    case "string_pattern_mismatch": return translate("{field} no tiene el formato esperado.", { field });
+    case "literal_error": return translate("{field} no es una opción válida.", { field });
+    case "json_invalid": return translate("Los datos enviados no son válidos.");
+    default: return `${field}: ${e.msg ?? translate("valor no válido")}.`;
   }
 }
 
@@ -378,9 +386,10 @@ async function request<T>(path: string, init: RequestInit & { json?: unknown } =
     const body = await res.json().catch(() => null);
     if (res.status === 401 && !path.startsWith("/api/auth/")) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     const detail = body?.detail;
-    const message = typeof detail === "string" ? detail
+    // Los mensajes del servidor vienen en español; se traducen al idioma del tablero.
+    const message = typeof detail === "string" ? translateApi(detail)
       : Array.isArray(detail) ? validationMessage(detail) ?? `Error ${res.status}`
-      : detail?.message ?? `Error ${res.status}`;
+      : detail?.message ? translateApi(detail.message) : `Error ${res.status}`;
     throw new ApiError(res.status, message, body);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
@@ -395,7 +404,8 @@ export type GeoMethod = "geotag" | "profile" | "community" | "outlet" | "text";
 export type GeoBasis = "all" | "origin" | "text";
 
 export const GEO_METHOD_LABEL: Record<GeoMethod, string> = {
-  geotag: "Geoetiqueta", profile: "Perfil del autor", community: "Comunidad", outlet: "Sede del medio", text: "Lugar mencionado",
+  geotag: msg("Geoetiqueta"), profile: msg("Perfil del autor"), community: msg("Comunidad"), outlet: msg("Sede del medio"),
+  text: msg("Lugar mencionado"),
 };
 
 export interface GeoArea { code: string; name: string; count: number; negative: number }
@@ -508,6 +518,9 @@ export const api = {
   logout: (reason?: "idle") => request<void>("/api/auth/logout", { method: "POST", json: reason ? { reason } : undefined }),
   /** La persona está usando el tablero; mantiene viva la sesión. */
   activity: () => request<void>("/api/auth/activity", { method: "POST" }),
+  /** Guarda el idioma en la cuenta (con el inicio de sesión apagado no hace nada). */
+  savePreferences: (prefs: { language: "es" | "en" | "fr" }) =>
+    request<void>("/api/auth/preferences", { method: "PUT", json: prefs }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>("/api/auth/password", { method: "POST", json: { currentPassword, newPassword } }),
 
@@ -523,9 +536,9 @@ export const api = {
 };
 
 export const KIND_LABEL: Record<TargetKind, string> = {
-  Person: "Persona",
-  Company: "Empresa",
-  Institution: "Institución",
-  GovernmentArea: "Área de gobierno",
-  Country: "País",
+  Person: msg("Persona"),
+  Company: msg("Empresa"),
+  Institution: msg("Institución"),
+  GovernmentArea: msg("Área de gobierno"),
+  Country: msg("País"),
 };

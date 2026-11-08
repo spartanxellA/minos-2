@@ -8,8 +8,8 @@ import {
 } from "@/lib/api";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
+import { currentLang, useI18n } from "@/lib/i18n";
 
-const fmt = new Intl.NumberFormat("es-MX");
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "0%");
 
 const MX_STATES: Record<string, string> = {
@@ -21,11 +21,15 @@ const MX_STATES: Record<string, string> = {
   "MX-SIN": "Sinaloa", "MX-SON": "Sonora", "MX-TAB": "Tabasco", "MX-TAM": "Tamaulipas", "MX-TLA": "Tlaxcala",
   "MX-VER": "Veracruz", "MX-YUC": "Yucatán", "MX-ZAC": "Zacatecas",
 };
-const countryName = (() => {
-  let names: Intl.DisplayNames | null = null;
-  try { names = new Intl.DisplayNames(["es"], { type: "region" }); } catch { /* navegador sin DisplayNames */ }
-  return (code: string) => names?.of(code) ?? code;
-})();
+// Nombres de países en el idioma del tablero.
+const displayNames: Record<string, Intl.DisplayNames | null> = {};
+const countryName = (code: string) => {
+  const lang = currentLang();
+  if (!(lang in displayNames)) {
+    try { displayNames[lang] = new Intl.DisplayNames([lang], { type: "region" }); } catch { displayNames[lang] = null; /* navegador sin DisplayNames */ }
+  }
+  try { return displayNames[lang]?.of(code) ?? code; } catch { return code; }
+};
 
 // Los mapas (≈150 KB) se cargan solo cuando se abre la tarjeta.
 let mapsReady: Promise<void> | null = null;
@@ -64,6 +68,7 @@ export function GeoMapCard({ targetId, targetName, canLocate, refreshKey }: {
 }) {
   const phone = useMediaQuery(PHONE);
   const dark = useDark();
+  const { t, lang, nf: fmt } = useI18n();
   const [scope, setScope] = useState<"mx" | "world">("mx");
   const [days, setDays] = useState(30);
   const [basis, setBasis] = useState<GeoBasis>("all");
@@ -124,11 +129,11 @@ export function GeoMapCard({ targetId, targetName, canLocate, refreshKey }: {
         formatter: (p: any) => {
           if (p.seriesType === "scatter" || p.seriesType === "effectScatter") {
             const d = p.data as { name: string; count: number; negative: number };
-            return `<b>${d.name}</b><br/>${fmt.format(d.count)} menciones · ${pct(d.negative, d.count)} negativas`;
+            return `<b>${d.name}</b><br/>${t("{n} menciones", { n: d.count })} · ${t("{pct} negativas", { pct: pct(d.negative, d.count) })}`;
           }
           const d = p.data as { count?: number; negative?: number } | undefined;
-          return d?.count ? `<b>${label(p.name)}</b><br/>${fmt.format(d.count)} menciones · ${pct(d.negative ?? 0, d.count)} negativas`
-            : `${label(p.name)}<br/>Sin menciones ubicadas`;
+          return d?.count ? `<b>${label(p.name)}</b><br/>${t("{n} menciones", { n: d.count })} · ${t("{pct} negativas", { pct: pct(d.negative ?? 0, d.count) })}`
+            : `${label(p.name)}<br/>${t("Sin menciones ubicadas")}`;
         },
       },
       visualMap: {
@@ -169,7 +174,7 @@ export function GeoMapCard({ targetId, targetName, canLocate, refreshKey }: {
         },
       ],
     };
-  }, [data, points, scope, phone, dark]);
+  }, [data, points, scope, phone, dark, lang]);
 
   const shown = (scope === "mx" ? data?.places.filter((p) => p.country === "MX") : data?.places) ?? [];
 
@@ -188,23 +193,23 @@ export function GeoMapCard({ targetId, targetName, canLocate, refreshKey }: {
   return (
     <section className="card span-12 geo-card">
       <div className="card-head">
-        <h2>¿Desde dónde se habla de {targetName}?</h2>
+        <h2>{t("¿Desde dónde se habla de {name}?", { name: targetName })}</h2>
         <div className="geo-controls">
-          <div className="seg small" role="group" aria-label="Mapa">
-            <button type="button" className={scope === "mx" ? "" : "ghost"} onClick={() => setScope("mx")}>México</button>
-            <button type="button" className={scope === "world" ? "" : "ghost"} onClick={() => setScope("world")}>Mundo</button>
+          <div className="seg small" role="group" aria-label={t("Mapa")}>
+            <button type="button" className={scope === "mx" ? "" : "ghost"} onClick={() => setScope("mx")}>{t("México")}</button>
+            <button type="button" className={scope === "world" ? "" : "ghost"} onClick={() => setScope("world")}>{t("Mundo")}</button>
           </div>
-          <select aria-label="Periodo" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={1}>Últimas 24 h</option>
-            <option value={7}>Últimos 7 días</option>
-            <option value={30}>Últimos 30 días</option>
-            <option value={90}>Últimos 90 días</option>
-            <option value={365}>Último año</option>
+          <select aria-label={t("Periodo")} value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value={1}>{t("Últimas 24 h")}</option>
+            <option value={7}>{t("Últimos 7 días")}</option>
+            <option value={30}>{t("Últimos 30 días")}</option>
+            <option value={90}>{t("Últimos 90 días")}</option>
+            <option value={365}>{t("Último año")}</option>
           </select>
-          <select aria-label="Qué ubicación usar" value={basis} onChange={(e) => setBasis(e.target.value as GeoBasis)}>
-            <option value="all">Origen y lugar mencionado</option>
-            <option value="origin">Solo origen del autor o medio</option>
-            <option value="text">Solo lugar mencionado</option>
+          <select aria-label={t("Qué ubicación usar")} value={basis} onChange={(e) => setBasis(e.target.value as GeoBasis)}>
+            <option value="all">{t("Origen y lugar mencionado")}</option>
+            <option value="origin">{t("Solo origen del autor o medio")}</option>
+            <option value="text">{t("Solo lugar mencionado")}</option>
           </select>
         </div>
       </div>
@@ -212,7 +217,7 @@ export function GeoMapCard({ targetId, targetName, canLocate, refreshKey }: {
 
       <div className="geo-body">
         <div className="geo-map">
-          {!ready || !data ? <div className="empty">Cargando mapa…</div>
+          {!ready || !data ? <div className="empty">{t("Cargando mapa…")}</div>
             : <EChart option={option} height={phone ? 300 : 440} replaceSeries />}
         </div>
 
@@ -222,16 +227,16 @@ export function GeoMapCard({ targetId, targetName, canLocate, refreshKey }: {
               <div className="geo-coverage">
                 <div className="kpi">{pct(data.located, data.total)}</div>
                 <div>
-                  <b>{fmt.format(data.located)}</b> de {fmt.format(data.total)} menciones tienen ubicación
+                  <b>{fmt.format(data.located)}</b> {t("de {n} menciones tienen ubicación", { n: data.total })}
                   <div className="muted">
-                    {data.byMethod.map((m) => `${GEO_METHOD_LABEL[m.method] ?? m.method} ${fmt.format(m.count)}`).join(" · ") || "Ninguna todavía"}
+                    {data.byMethod.map((m) => `${GEO_METHOD_LABEL[m.method] ? t(GEO_METHOD_LABEL[m.method]) : m.method} ${fmt.format(m.count)}`).join(" · ") || t("Ninguna todavía")}
                   </div>
                 </div>
               </div>
 
               {shown.length > 0 ? (
                 <div className="scroll-x"><table>
-                  <thead><tr><th>Lugar</th><th className="num">Menciones</th><th className="num">Negativas</th></tr></thead>
+                  <thead><tr><th>{t("Lugar")}</th><th className="num">{t("Menciones")}</th><th className="num">{t("Negativas")}</th></tr></thead>
                   <tbody>
                     {shown.slice(0, 8).map((p) => (
                       <tr key={p.name}>
@@ -242,33 +247,28 @@ export function GeoMapCard({ targetId, targetName, canLocate, refreshKey }: {
                     ))}
                   </tbody>
                 </table></div>
-              ) : <div className="empty">Sin menciones ubicadas {scope === "mx" ? "en México " : ""}en este periodo.</div>}
+              ) : <div className="empty">{scope === "mx" ? t("Sin menciones ubicadas en México en este periodo.") : t("Sin menciones ubicadas en este periodo.")}</div>}
 
               {scope === "mx" && mxWithoutState > 0 && (
-                <p className="muted hint">{fmt.format(mxWithoutState)} solo dicen «México», sin estado; cuentan en el mapa mundial.</p>
+                <p className="muted hint">{t("{n} solo dicen «México», sin estado; cuentan en el mapa mundial.", { n: mxWithoutState })}</p>
               )}
 
               {data.bySource.length > 0 && (
                 <p className="muted hint">
-                  Por fuente: {data.bySource.map((s) => `${SOURCE_LABEL[s.source] ?? s.source} ${pct(s.located, s.total)}`).join(" · ")}
+                  {t("Por fuente:")} {data.bySource.map((s) => `${SOURCE_LABEL[s.source] ? t(SOURCE_LABEL[s.source]) : s.source} ${pct(s.located, s.total)}`).join(" · ")}
                 </p>
               )}
 
               {canLocate && data.pending > 0 && (
                 <button type="button" className="ghost" disabled={locating} onClick={locatePending}>
-                  {locating ? "Ubicando…" : `Ubicar ${fmt.format(data.pending)} menciones anteriores`}
+                  {locating ? t("Ubicando…") : t("Ubicar {n} menciones anteriores", { n: data.pending })}
                 </button>
               )}
 
               <details className="geo-help">
-                <summary>¿De dónde sale la ubicación?</summary>
+                <summary>{t("¿De dónde sale la ubicación?")}</summary>
                 <p>
-                  Del dato más confiable que dé cada fuente: la geoetiqueta de la publicación (X, muy pocas veces), la ubicación
-                  que el autor escribió en su perfil (X), el país del canal (YouTube), la comunidad (Reddit) o la sede del medio
-                  (Noticias). Si no hay ninguno, el lugar que más se nombra en el texto, que dice de dónde trata la nota y no
-                  desde dónde se escribió. Bluesky, Facebook e Instagram no comparten ubicación. Lo que no se puede ubicar no
-                  aparece en el mapa. El color de cada punto es la proporción de menciones negativas: verde hasta 25 %, amarillo
-                  hasta 50 %, rojo arriba de 50 %.
+                  {t("Del dato más confiable que dé cada fuente: la geoetiqueta de la publicación (X, muy pocas veces), la ubicación que el autor escribió en su perfil (X), el país del canal (YouTube), la comunidad (Reddit) o la sede del medio (Noticias). Si no hay ninguno, el lugar que más se nombra en el texto, que dice de dónde trata la nota y no desde dónde se escribió. Bluesky, Facebook e Instagram no comparten ubicación. Lo que no se puede ubicar no aparece en el mapa. El color de cada punto es la proporción de menciones negativas: verde hasta 25 %, amarillo hasta 50 %, rojo arriba de 50 %.")}
                 </p>
               </details>
             </>

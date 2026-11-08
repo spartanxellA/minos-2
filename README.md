@@ -228,6 +228,18 @@ Cada objetivo (persona, empresa, institución o área de gobierno) se revisa con
 - Los pesos se configuran con `MINOS_RISK_ENGINE__MEDIA_WEIGHT` y `MINOS_RISK_ENGINE__SURVEY_WEIGHT`. Son un punto
   de partida para calibrar con datos históricos.
 
+## Idioma del tablero
+
+El tablero está en español, inglés y francés. Cada persona lo elige en el menú de su cuenta (o al pie de la pantalla
+de entrada); se guarda en su cuenta (`users.language`, migración 0010) y en el navegador, así que se respeta en
+cualquier equipo. Sin elección, se usa el idioma del navegador y, si no es ninguno de los tres, español.
+
+Los textos se escriben en español en el código, dentro de `t("…")`, y sus traducciones están en `web/lib/messages/`:
+`ui.ts` (interfaz), `api.ts` (mensajes que manda el servidor: errores, alertas, avisos de fuentes, etiquetas) y
+`survey.ts` (cuestionario de riesgo). Al agregar o cambiar un texto hay que poner su traducción;
+`npm run i18n:check` (también en CI) avisa si falta alguna. Los avisos por correo, webhook y WhatsApp siguen en
+español.
+
 ## Correr en local
 
 Con Docker:

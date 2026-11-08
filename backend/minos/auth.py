@@ -91,6 +91,7 @@ class CurrentUser:
     email: str
     name: str
     role: Role
+    language: str | None = None
 
     def can(self, role: Role) -> bool:
         return self.role.rank >= role.rank
@@ -146,7 +147,7 @@ async def _user_for_token(conn: Request | WebSocket, token: str | None, *, touch
         if touch:
             user_session.last_seen_at = now
             await session.commit()
-    return CurrentUser(user.id, user.email, user.name, Role(user.role))
+    return CurrentUser(user.id, user.email, user.name, Role(user.role), user.language)
 
 
 async def close_idle_session(session: AsyncSession, conn: Request | WebSocket | None, user: db.User,
