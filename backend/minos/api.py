@@ -14,12 +14,13 @@ from .auth import CurrentUser, Role, current_user, require_role, session_alive, 
 from .connectors import WARNING_PREFIX, split_warnings
 from .connectors.base import PAUSE_HINTS
 from .domain.mentions import Sentiment
+from .domain.targets import TargetKind, normalize
 from .schemas import (
     AlertOut, BreakdownOut, ChannelStatus, ConnectorStateOut, DeactivateInput, Influencer, MentionOut, RiskOut,
     SentimentCorrection, SourceError,
     SourceSentimentCount, SourceStatus, SourcesOut, SourceWarning, SurveyResponseOut, SurveySubmission, SurveySummary,
     TargetInput,
-    TargetOut, TopicCount,
+    TargetOut, TargetSearchOut, TargetSummary, TopicCount,
 )
 from .surveys import SurveyCatalog, SurveyDefinition
 
@@ -93,6 +94,42 @@ async def list_targets(
     if target_status != "all":
         query = query.where(db.Target.enabled.is_(target_status == "active"))
     return (await session.scalars(query)).all()
+
+
+# Orden de los grupos en el selector: el mismo de la lista de tipos.
+KIND_ORDER = case({k.value: i for i, k in enumerate(TargetKind)}, value=db.Target.kind, else_=len(TargetKind))
+
+
+@router.get("/targets/search", response_model=TargetSearchOut)
+async def search_targets(
+    session: Session,
+    q: Annotated[str, Query(max_length=200)] = "",
+    kind: TargetKind | None = None,
+    target_status: Annotated[Literal["active", "inactive", "all"], Query(alias="status")] = "active",
+    limit: Annotated[int, Query(ge=0, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    """Búsqueda para el selector del tablero: cada palabra debe empezar una palabra del nombre o de un alias, sin
+    importar mayúsculas ni acentos. Agrupa por tipo y, dentro de cada tipo, pone primero los nombres que empiezan
+    con lo buscado."""
+    words = normalize(q).split()
+    where = [db.Target.search_text.like(f"% {w}%") for w in words]
+    if target_status != "all":
+        where.append(db.Target.enabled.is_(target_status == "active"))
+    kinds = dict((await session.execute(
+        select(db.Target.kind, func.count()).where(*where).group_by(db.Target.kind))).all())
+    if kind is not None:
+        where.append(db.Target.kind == kind.value)
+    total = sum(kinds.values()) if kind is None else kinds.get(kind.value, 0)
+    items = []
+    if limit and offset < total:
+        order = [KIND_ORDER]
+        if words:
+            order.append(case((db.Target.search_text.like(f" {words[0]}%"), 0), else_=1))
+        order += [func.lower(db.Target.name), db.Target.id]
+        query = select(db.Target).where(*where).order_by(*order).limit(limit).offset(offset)
+        items = [TargetSummary.model_validate(t, from_attributes=True) for t in (await session.scalars(query)).all()]
+    return TargetSearchOut(items=items, total=total, kinds=kinds)
 
 
 @router.get("/targets/{target_id}", response_model=TargetOut)

@@ -3,14 +3,14 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, BigInteger, Integer, DateTime, Float, ForeignKey, Index, String, Text, TypeDecorator, select
+from sqlalchemy import JSON, event, BigInteger, Integer, DateTime, Float, ForeignKey, Index, String, Text, TypeDecorator, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from .domain.mentions import MentionAnalysis, MentionDraft, fingerprint
 from .domain.screening import EntryKind, WatchlistRecord
-from .domain.targets import MonitoredTarget, TargetKind
+from .domain.targets import MonitoredTarget, TargetKind, normalize
 
 if TYPE_CHECKING:
     from .geo.locate import Located
@@ -45,6 +45,8 @@ class Base(DeclarativeBase):
 
 class Target(Base):
     __tablename__ = "targets"
+    # El selector del tablero filtra por estado y tipo y ordena por nombre.
+    __table_args__ = (Index("ix_targets_enabled_kind_name", "enabled", "kind", "name"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200))
@@ -65,6 +67,9 @@ class Target(Base):
     deactivated_by_email: Mapped[str | None] = mapped_column(String(254))
     deactivation_reason: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    # Nombre y alias en minúsculas y sin acentos, para buscar entre miles de objetivos («lopez» encuentra «López»).
+    # Empieza por el nombre, así « ana» al inicio indica que el nombre empieza con «ana». Se llena solo al guardar.
+    search_text: Mapped[str] = mapped_column(Text, default="")
 
     def to_domain(self) -> MonitoredTarget:
         return MonitoredTarget(
@@ -72,6 +77,16 @@ class Target(Base):
             keywords=list(self.keywords or []), excluded_terms=list(self.excluded_terms or []),
             handles=dict(self.handles or {}), enabled=self.enabled,
         )
+
+
+def target_search_text(name: str, aliases: list[str] | None) -> str:
+    return normalize(" ".join([name or "", *(aliases or [])]))
+
+
+@event.listens_for(Target, "before_insert")
+@event.listens_for(Target, "before_update")
+def _fill_search_text(_mapper, _connection, target: Target) -> None:
+    target.search_text = target_search_text(target.name, target.aliases)
 
 
 class Mention(Base):

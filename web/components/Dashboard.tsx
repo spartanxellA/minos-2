@@ -2,7 +2,7 @@
 
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
-import { api, can, GEO_METHOD_LABEL, KIND_LABEL, ROLE_LABEL, SOURCE_LABEL, type Alert, type Me, type Mention, type Sentiment, type Target } from "@/lib/api";
+import { api, can, GEO_METHOD_LABEL, ROLE_LABEL, SOURCE_LABEL, type Alert, type Me, type Mention, type Sentiment, type Target } from "@/lib/api";
 import { PasswordDialog, UsersDialog } from "./AccountDialogs";
 import { SourcesDialog } from "./SourcesDialog";
 import { AuditDialog } from "./AuditDialog";
@@ -14,6 +14,7 @@ import { useLiveTarget } from "@/lib/useLiveTarget";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
 import { NewTargetForm } from "./NewTargetForm";
+import { forgetRecentTarget, TargetPicker } from "./TargetPicker";
 import { SurveyCard } from "./SurveyCard";
 import { GeoMapCard } from "./GeoMap";
 import { Logo } from "./Logo";
@@ -28,15 +29,19 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
   const [dialog, setDialog] = useState<"users" | "password" | "sources" | "audit" | "watchlists" | "targets" | null>(null);
   const [sourceErrors, setSourceErrors] = useState(0);
   const [pendingMatches, setPendingMatches] = useState(0);
-  const [targets, setTargets] = useState<Target[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // Solo se trae el objetivo abierto; el selector busca en el servidor, así que sirve igual con miles.
+  const [selectedTarget, setSelectedTarget] = useState<Target | null>(null);
+  const selected = selectedTarget?.id ?? null;
+  // null mientras carga; "inactive" si existen objetivos pero todos están dados de baja.
+  const [inventory, setInventory] = useState<"some" | "inactive" | "none" | null>(null);
+  const [pickerKey, setPickerKey] = useState(0);
   const [notify, setNotify] = useState(false);
   const [adding, setAdding] = useState(false);
   // "analytics": vista general de todos los sujetos en lugar del tablero de uno.
   const [view, setView] = useState<"target" | "analytics">("target");
   const phone = useMediaQuery(PHONE);
   const { t, tApi, lang, nf: fmt } = useI18n();
-  const selectedName = targets.find((t) => t.id === selected)?.name ?? "";
+  const selectedName = selectedTarget?.name ?? "";
 
   const onAlert = (a: Alert) => {
     if (!notify || typeof Notification === "undefined" || Notification.permission !== "granted") return;
@@ -63,11 +68,36 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     }
     // Los avisos por correo, webhook y WhatsApp enlazan a /?target=<id>.
     const wanted = new URLSearchParams(window.location.search).get("target");
-    api.targets().then((t) => {
-      setTargets(t);
-      setSelected((s) => s ?? t.find((x) => x.id === wanted)?.id ?? t.find((x) => x.enabled)?.id ?? null);
-    }).catch(() => {});
+    (wanted ? api.target(wanted).catch(() => null) : Promise.resolve(null)).then((t) => (t ? open(t) : openFirst()));
   }, []);
+
+  function open(t: Target) {
+    setSelectedTarget(t);
+    setInventory("some");
+  }
+
+  /** Abre el primer objetivo activo (o deja el tablero vacío con el aviso que corresponda). */
+  async function openFirst() {
+    try {
+      const first = (await api.searchTargets({ status: "active", limit: 1 })).items[0];
+      if (first) return open(await api.target(first.id));
+      setSelectedTarget(null);
+      setInventory((await api.searchTargets({ status: "all", limit: 0 })).total > 0 ? "inactive" : "none");
+    } catch {
+      /* sin conexión: el tablero lo indica arriba */
+    }
+  }
+
+  async function select(id: string) {
+    setView("target");
+    if (id === selected) return;
+    try {
+      open(await api.target(id));
+    } catch {
+      forgetRecentTarget(id);
+      setPickerKey((k) => k + 1);
+    }
+  }
 
   async function toggleNotify() {
     if (typeof Notification === "undefined") return;
@@ -131,23 +161,19 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
     };
   }, [live.breakdown, lang]);
 
-  const selectedTarget = targets.find((t) => t.id === selected);
-  // El selector muestra los activos; uno dado de baja solo aparece mientras está abierto (por ejemplo desde un aviso).
-  const choices = targets.filter((t) => t.enabled || t.id === selected);
-
   function targetChanged(change: Target | { id: string; deleted: true }) {
-    const next = "deleted" in change ? targets.filter((t) => t.id !== change.id) : targets.map((t) => (t.id === change.id ? change : t));
-    setTargets(next);
-    if (change.id === selected && ("deleted" in change || !change.enabled)) setSelected(next.find((t) => t.enabled)?.id ?? null);
+    setPickerKey((k) => k + 1);
+    if ("deleted" in change) forgetRecentTarget(change.id);
+    if (change.id !== selected) return;
+    if ("deleted" in change || !change.enabled) openFirst();
+    else setSelectedTarget(change);
   }
 
   return (
     <>
       <header className="top">
         <h1 className="brand"><Logo />min<span>OS</span> 2.0</h1>
-        <select className="target" value={selected ?? ""} onChange={(e) => { setSelected(e.target.value); setView("target"); }} aria-label={t("Objetivo")}>
-          {choices.map((x) => <option key={x.id} value={x.id}>{x.name} · {t(KIND_LABEL[x.kind])}{x.enabled ? "" : ` ${t("(de baja)")}`}</option>)}
-        </select>
+        <TargetPicker selected={selectedTarget} onSelect={(x) => select(x.id)} refreshKey={pickerKey} />
         <div className="status"><span className={`dot ${live.status}`} />{live.status === "live" ? t("En vivo") : live.status === "connecting" ? t("Conectando…") : t("Sin conexión")}</div>
         <button type="button" className={`notify ${notify ? "" : "ghost"}`} onClick={toggleNotify} aria-pressed={notify}
           title={t("Aviso del navegador cuando llegue una alerta del objetivo seleccionado")}>
@@ -196,7 +222,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
       {adding && (
         <div className="new-panel">
           <NewTargetForm onCancel={() => setAdding(false)}
-            onCreated={(t) => { setTargets((p) => [...p, t]); setSelected(t.id); setAdding(false); }} />
+            onCreated={(t) => { open(t); setView("target"); setPickerKey((k) => k + 1); setAdding(false); }} />
         </div>
       )}
       {dialog === "users" && <UsersDialog me={user} onClose={() => setDialog(null)} />}
@@ -211,10 +237,10 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
 
       <main>
         {view === "analytics" ? (
-          <Analytics onOpenTarget={(id) => { setSelected(id); setView("target"); window.scrollTo({ top: 0 }); }} />
+          <Analytics onOpenTarget={(id) => { select(id); window.scrollTo({ top: 0 }); }} />
         ) : !selectedTarget ? (
           <div className="card empty">
-            {targets.length > 0 ? t("Todos los objetivos están dados de baja; se pueden reactivar en «Objetivos».") : can(user, "analyst")
+            {inventory === null ? t("Cargando…") : inventory === "inactive" ? t("Todos los objetivos están dados de baja; se pueden reactivar en «Objetivos».") : can(user, "analyst")
               ? t("Agrega una persona, empresa, institución, área de gobierno o país para empezar a monitorear.")
               : t("Todavía no hay objetivos. Un analista o administrador puede agregarlos.")}
           </div>
@@ -273,7 +299,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
 
             <ScreeningCard key={`s-${selectedTarget.id}`} target={selectedTarget} screening={live.screening}
               canReview={can(user, "analyst")} onChanged={() => { live.refreshScreening(); api.matches("pending").then((m) => setPendingMatches(m.length)).catch(() => {}); }}
-              onTargetSaved={(t) => setTargets((p) => p.map((x) => (x.id === t.id ? t : x)))} />
+              onTargetSaved={(t) => { setSelectedTarget(t); setPickerKey((k) => k + 1); }} />
 
             <section className="card span-3">
               <h2>{t("Alertas")}</h2>
