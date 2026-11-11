@@ -58,6 +58,24 @@ class TargetOut(Camel):
     _no_null = field_validator("identifiers", mode="before")(lambda v: v or {})
 
 
+class TargetSummary(Camel):
+    """Lo que el selector del tablero necesita de cada objetivo."""
+    id: uuid.UUID
+    name: str
+    kind: TargetKind
+    enabled: bool
+    aliases: list[str] = Field(default_factory=list)
+
+    _no_null = field_validator("aliases", mode="before")(lambda v: v or [])
+
+
+class TargetSearchOut(Camel):
+    items: list[TargetSummary]
+    # Cuántos hay con la búsqueda y el filtro de tipo; `kinds` cuenta por tipo sin ese filtro (para los botones).
+    total: int
+    kinds: dict[str, int]
+
+
 class MentionOut(Camel):
     id: uuid.UUID
     source: str

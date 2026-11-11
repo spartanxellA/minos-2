@@ -103,3 +103,45 @@ def test_only_admins_delete_and_only_after_deactivation(app):
         assert analyst.delete(f"/api/targets/{t['id']}").status_code == 403
         assert admin.delete(f"/api/targets/{t['id']}").status_code == 204
         assert admin.get(f"/api/targets/{t['id']}").status_code == 404
+
+
+def test_search_for_the_dashboard_picker(app):
+    with TestClient(app()) as c:
+        login(c, *ADMIN)
+        for name, kind, aliases in [("Ana López Ruiz", "Person", ["La Doctora"]), ("Andrés Lozano", "Person", []),
+                                    ("Banco Andino", "Company", ["BANDI"]), ("Andorra", "Country", []),
+                                    ("Secretaría de Salud", "GovernmentArea", [])]:
+            assert c.post("/api/targets", json={"name": name, "kind": kind, "aliases": aliases}).status_code == 201
+        gone = c.post("/api/targets", json={"name": "Anabel Ríos", "kind": "Person"}).json()
+        assert c.post(f"/api/targets/{gone['id']}/deactivate", json={"reason": "ya no aplica"}).status_code == 200
+
+        r = c.get("/api/targets/search").json()
+        assert r["total"] == 5 and r["kinds"] == {"Person": 2, "Company": 1, "Country": 1, "GovernmentArea": 1}
+        # Agrupados por tipo en el orden de la lista de tipos y por nombre dentro de cada uno.
+        assert [x["name"] for x in r["items"]] == [
+            "Ana López Ruiz", "Andrés Lozano", "Banco Andino", "Secretaría de Salud", "Andorra"]
+
+        # Sin acentos ni mayúsculas, por inicio de palabra, también en alias; los nombres que empiezan primero.
+        names = lambda **p: [x["name"] for x in c.get("/api/targets/search", params=p).json()["items"]]  # noqa: E731
+        assert names(q="lopez") == ["Ana López Ruiz"]
+        assert names(q="doctora") == ["Ana López Ruiz"]
+        assert names(q="bandi") == ["Banco Andino"]
+        assert names(q="AND") == ["Andrés Lozano", "Banco Andino", "Andorra"]
+        assert names(q="an lo") == ["Ana López Ruiz", "Andrés Lozano"]
+        assert names(q="ndr") == []
+        assert names(q="an", kind="Person") == ["Ana López Ruiz", "Andrés Lozano"]
+
+        # Los dados de baja solo con status=all o inactive.
+        assert names(q="anabel") == []
+        assert names(q="anabel", status="all") == ["Anabel Ríos"]
+        assert c.get("/api/targets/search", params={"status": "inactive"}).json()["total"] == 1
+
+        # Paginación: total y conteos no cambian; limit=0 solo cuenta.
+        page = c.get("/api/targets/search", params={"limit": 2, "offset": 2}).json()
+        assert [x["name"] for x in page["items"]] == ["Banco Andino", "Secretaría de Salud"] and page["total"] == 5
+        assert c.get("/api/targets/search", params={"limit": 0}).json()["items"] == []
+
+        # Al renombrar se actualiza la búsqueda.
+        bank = c.get("/api/targets/search", params={"q": "banco"}).json()["items"][0]
+        assert c.put(f"/api/targets/{bank['id']}", json={"name": "Grupo Financiero Sur", "kind": "Company"}).status_code == 200
+        assert names(q="banco") == [] and names(q="financiero") == ["Grupo Financiero Sur"]

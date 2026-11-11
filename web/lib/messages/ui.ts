@@ -454,4 +454,18 @@ export const UI: Record<string, [string, string]> = {
   "Anterior": ["Previous", "Précédent"],
   "Guardar y recalcular": ["Save and recalculate", "Enregistrer et recalculer"],
   "Siguiente": ["Next", "Suivant"],
+  // Selector de objetivos
+  "alias: {alias}": ["alias: {alias}", "alias : {alias}"],
+  "Seleccionado": ["Selected", "Sélectionné"],
+  "Buscar objetivo (Ctrl+K)": ["Search targets (Ctrl+K)", "Rechercher une cible (Ctrl+K)"],
+  "Elegir objetivo": ["Choose a target", "Choisir une cible"],
+  "Buscar por nombre o alias…": ["Search by name or alias…", "Rechercher par nom ou alias…"],
+  "Buscar objetivo": ["Search targets", "Rechercher une cible"],
+  "Recientes": ["Recent", "Récents"],
+  "Sin resultados para «{q}».": ["No results for “{q}”.", "Aucun résultat pour « {q} »."],
+  "No hay objetivos con este filtro.": ["No targets match this filter.", "Aucune cible ne correspond à ce filtre."],
+  "Mostrar más": ["Show more", "Afficher plus"],
+  "Buscando…": ["Searching…", "Recherche…"],
+  "{shown} de {total}": ["{shown} of {total}", "{shown} sur {total}"],
+  "↑↓ para moverse · Enter para abrir · Esc para cerrar": ["↑↓ to move · Enter to open · Esc to close", "↑↓ pour naviguer · Entrée pour ouvrir · Échap pour fermer"],
 };

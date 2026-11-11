@@ -27,6 +27,25 @@ export interface Target {
   deactivationReason?: string | null;
 }
 
+/** Lo que trae la búsqueda del selector de objetivos. */
+export type TargetSummary = Pick<Target, "id" | "name" | "kind" | "enabled" | "aliases">;
+
+export interface TargetSearch {
+  items: TargetSummary[];
+  /** Cuántos hay con la búsqueda y el tipo elegido. */
+  total: number;
+  /** Cuántos hay de cada tipo con la búsqueda (sin el filtro de tipo). */
+  kinds: Partial<Record<TargetKind, number>>;
+}
+
+export interface TargetSearchParams {
+  q?: string;
+  kind?: TargetKind | "";
+  status?: "active" | "inactive" | "all";
+  limit?: number;
+  offset?: number;
+}
+
 export type TargetInput = Omit<Target, "id" | "enabled" | "createdAt" | "updatedAt" | "deactivatedAt" | "deactivatedByEmail" | "deactivationReason">;
 
 export interface Risk {
@@ -473,6 +492,12 @@ function overviewQuery(f: OverviewFilters) {
 
 export const api = {
   targets: () => get<Target[]>("/api/targets"),
+  target: (id: string) => get<Target>(`/api/targets/${id}`),
+  searchTargets: (p: TargetSearchParams, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== "") params.set(k, String(v));
+    return request<TargetSearch>(`/api/targets/search?${params}`, { signal });
+  },
   mentionsOverview: (f: OverviewFilters) => get<MentionsOverview>(`/api/analytics/mentions?${overviewQuery(f)}`),
   risk: (id: string, hours = 24 * 7) => get<Risk[]>(`/api/targets/${id}/risk?hours=${hours}`),
   mentions: (id: string, limit = 40) => get<Mention[]>(`/api/targets/${id}/mentions?limit=${limit}`),
