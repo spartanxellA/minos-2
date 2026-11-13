@@ -21,6 +21,7 @@ from .config import Settings, get_settings
 from .realtime import RiskHub
 from .runtime import Runtime
 from .surveys import SurveyCatalog
+from .topics import topics_router
 from .watchlists.api import watchlist_router
 
 log = logging.getLogger("minos")
@@ -72,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(analytics_router)
     app.include_router(geo_router)
+    app.include_router(topics_router)
     app.include_router(watchlist_router)
     app.include_router(router)
     app.include_router(ws_router)

@@ -57,6 +57,7 @@ web:
     - npm ci --cache "$CI_PROJECT_DIR/.cache/npm" --prefer-offline
     - npm run typecheck
     - npm run i18n:check
+    - npm test
     - npm run build
 
 docker:

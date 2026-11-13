@@ -289,6 +289,26 @@ export const UI: Record<string, [string, string]> = {
   "¿De dónde sale la ubicación?": ["Where does the location come from?", "D'où vient la localisation ?"],
   "Del dato más confiable que dé cada fuente: la geoetiqueta de la publicación (X, muy pocas veces), la ubicación que el autor escribió en su perfil (X), el país del canal (YouTube), la comunidad (Reddit) o la sede del medio (Noticias). Si no hay ninguno, el lugar que más se nombra en el texto, que dice de dónde trata la nota y no desde dónde se escribió. Bluesky, Facebook e Instagram no comparten ubicación. Lo que no se puede ubicar no aparece en el mapa. El color de cada punto es la proporción de menciones negativas: verde hasta 25 %, amarillo hasta 50 %, rojo arriba de 50 %.": ["From the most reliable data each source provides: the post's geotag (X, very rarely), the location the author wrote in their profile (X), the channel's country (YouTube), the community (Reddit) or the outlet's location (News). If there is none, the place named most often in the text, which says what the story is about rather than where it was written. Bluesky, Facebook and Instagram do not share location. What cannot be located does not appear on the map. Each dot's color is the share of negative mentions: green up to 25 %, yellow up to 50 %, red above 50 %.", "De la donnée la plus fiable fournie par chaque source : la géolocalisation de la publication (X, très rarement), le lieu indiqué par l'auteur dans son profil (X), le pays de la chaîne (YouTube), la communauté (Reddit) ou le siège du média (Actualités). À défaut, le lieu le plus cité dans le texte, qui indique de quoi parle l'article et non d'où il a été écrit. Bluesky, Facebook et Instagram ne partagent pas de localisation. Ce qui ne peut être localisé n'apparaît pas sur la carte. La couleur de chaque point indique la part de mentions négatives : vert jusqu'à 25 %, jaune jusqu'à 50 %, rouge au-delà de 50 %."],
 
+  // Nube de temas
+  "¿De qué se habla sobre {name}?": ["What are people saying about {name}?", "De quoi parle-t-on à propos de {name} ?"],
+  "Sentimiento": ["Sentiment", "Sentiment"],
+  "Todas las menciones": ["All mentions", "Toutes les mentions"],
+  "Solo negativas": ["Negative only", "Négatives uniquement"],
+  "Solo neutras": ["Neutral only", "Neutres uniquement"],
+  "Solo positivas": ["Positive only", "Positives uniquement"],
+  "Todavía no hay suficientes menciones en este periodo para ver temas.": ["There are not enough mentions in this period to show topics yet.", "Il n'y a pas encore assez de mentions sur cette période pour afficher des sujets."],
+  "Nube de temas: {terms}": ["Topic cloud: {terms}", "Nuage de sujets : {terms}"],
+  "en {n} menciones": ["in {n} mentions", "dans {n} mentions"],
+  "{pct} positivas": ["{pct} positive", "{pct} positives"],
+  "Toca una palabra para ver cuántas menciones la usan y su tono.": ["Tap a word to see how many mentions use it and their tone.", "Touchez un mot pour voir combien de mentions l'utilisent et leur ton."],
+  "Tema": ["Topic", "Sujet"],
+  "Mayoría negativas": ["Mostly negative", "Surtout négatives"],
+  "Mayoría positivas": ["Mostly positive", "Surtout positives"],
+  "Mixto o neutro": ["Mixed or neutral", "Mitigé ou neutre"],
+  "Temas de las {n} menciones más recientes de {total}.": ["Topics from the {n} most recent of {total} mentions.", "Sujets des {n} mentions les plus récentes sur {total}."],
+  "Temas de {n} menciones.": ["Topics from {n} mentions.", "Sujets de {n} mentions."],
+  "El tamaño es en cuántas menciones aparece cada palabra, frase o hashtag. No se cuentan el nombre del objetivo, sus alias ni palabras comunes en español, inglés y francés.": ["Size shows how many mentions use each word, phrase or hashtag. The target's name, its aliases and common Spanish, English and French words are not counted.", "La taille indique dans combien de mentions apparaît chaque mot, expression ou hashtag. Le nom de la cible, ses alias et les mots courants en espagnol, anglais et français ne sont pas comptés."],
+
   // Nuevo objetivo y edición
   "Nombre a monitorear": ["Name to monitor", "Nom à surveiller"],
   "Alias (separados por coma)": ["Aliases (comma separated)", "Alias (séparés par des virgules)"],
