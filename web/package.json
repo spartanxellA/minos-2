@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "i18n:check": "node scripts/i18n-check.mjs"
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"lib/**/*.test.ts\""
   },
   "dependencies": {
     "echarts": "^6.1.0",
