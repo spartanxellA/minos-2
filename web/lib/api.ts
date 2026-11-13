@@ -456,6 +456,23 @@ export interface GeoOverview {
   pending: number;
 }
 
+export interface TopicTerm {
+  term: string;
+  kind: "word" | "phrase" | "hashtag";
+  /** En cuántas menciones aparece. */
+  count: number;
+  positive: number;
+  negative: number;
+}
+
+export interface TopicsOverview {
+  days: number;
+  /** Menciones del periodo; si `analyzed` es menor, se leyeron las más recientes. */
+  total: number;
+  analyzed: number;
+  terms: TopicTerm[];
+}
+
 export interface MentionsOverview {
   granularity: Granularity;
   timezone: string;
@@ -518,6 +535,8 @@ export const api = {
 
   geo: (id: string, days: number, basis: GeoBasis, source = "") =>
     get<GeoOverview>(`/api/targets/${id}/geo?${new URLSearchParams({ days: String(days), basis, ...(source ? { source } : {}) })}`),
+  topics: (id: string, days: number, sentiment: Sentiment | "" = "", limit = 80) =>
+    get<TopicsOverview>(`/api/targets/${id}/topics?${new URLSearchParams({ days: String(days), limit: String(limit), ...(sentiment ? { sentiment } : {}) })}`),
   locatePending: (id: string) => request<{ reviewed: number }>(`/api/targets/${id}/geo/locate`, { method: "POST" }),
 
   correctSentiment: (mentionId: string, sentiment: Sentiment) =>

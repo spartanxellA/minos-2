@@ -17,6 +17,7 @@ import { NewTargetForm } from "./NewTargetForm";
 import { forgetRecentTarget, TargetPicker } from "./TargetPicker";
 import { SurveyCard } from "./SurveyCard";
 import { GeoMapCard } from "./GeoMap";
+import { TopicCloudCard } from "./TopicCloud";
 import { Logo } from "./Logo";
 import { LanguageSelect, locale, msg, useI18n } from "@/lib/i18n";
 
@@ -356,6 +357,9 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
             </section>
 
             <GeoMapCard targetId={selectedTarget.id} targetName={selectedTarget.name} canLocate={can(user, "analyst")}
+              refreshKey={live.mentions.length ? Date.parse(live.mentions[0].publishedAt) : undefined} />
+
+            <TopicCloudCard targetId={selectedTarget.id} targetName={selectedTarget.name}
               refreshKey={live.mentions.length ? Date.parse(live.mentions[0].publishedAt) : undefined} />
           </div>
         )}
