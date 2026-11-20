@@ -92,3 +92,77 @@ def test_dates_and_countries_are_normalized():
     assert normalize_date("circa 1965") == "1965"
     assert normalize_date("desconocida") is None
     assert country_code("México") == country_code("MX") == country_code("Mexico") == "mx"
+
+
+def test_names_that_only_change_by_gender_or_look_alike_are_different_people():
+    assert name_score("Juan Pérez García", "Juana Perez Garcia") == 0
+    assert name_score("Mario López Ruiz", "María López Ruiz") == 0
+    assert name_score("Gabriel Torres", "Gabriela Torres") == 0
+    assert name_score("Juan Pérez García", "Julian Perez Garcia") == 0
+    assert name_score("Martín López Ruiz", "Martínez López Ruiz") == 0
+    assert name_score("Luis Gómez Ruiz", "Luz Gomez Ruiz") == 0
+    # Errores reales sí pasan: una letra en palabras de 4 o más, dos en palabras largas, trasposiciones.
+    assert name_score("Pedro Lopze Ruiz", "Pedro Lopez Ruiz") >= 90
+    assert name_score("Ana Villaseñor Ruiz", "Ana Villasenior Ruiz") >= 90
+    assert name_score("Ana Valenzuela Ruiz", "Ana Valensuelaa Ruiz") >= 90
+
+
+# Bits de información por palabra en una lista de un millón de personas (2^20): "juan" lo llevan 1 de cada 32.
+INFO = {"juan": 5, "perez": 5, "garcia": 4, "claudia": 7, "sheinbaum": 16}.get
+
+
+def common(own, listed):
+    return name_score(own, listed, info=lambda t: INFO(t, 20), total_info=20)
+
+
+def test_partial_match_of_a_very_common_name_loses_points():
+    assert common("Juan Pérez", "Juan Carlos Perez Gomez") == 38  # 100 − 2×6 − 5×(20 − 10): habría ~1000 así
+    assert common("Juan Pérez García", "Juan Carlos Perez Garcia") < 80
+    assert common("Claudia Sheinbaum", "Claudia Sheinbaum Pardo") == name_score("Claudia Sheinbaum",
+                                                                                "Claudia Sheinbaum Pardo") >= 90
+    # El nombre igual completo no es coincidencia parcial: un homónimo exacto siempre se muestra.
+    assert common("Juan Pérez", "JUAN PEREZ") == 100
+    assert common("Juan Pérez García", "Garcia Perez, Juan") == 100
+
+
+def test_index_measures_how_common_each_word_is():
+    firsts = ["Juan", "Pedro", "Luis", "Jose"]
+    lasts = ["Perez", "Ochoa", "Trejo", "Zamora", "Bravo", "Cuevas", "Ibarra", "Lara", "Meza", "Nieto", "Pineda",
+             "Quiroz", "Rivas", "Salas", "Tapia", "Uribe", "Valdes", "Yanez", "Acosta", "Duarte", "Esquivel"]
+    records = [rec(f"{f} {a} {b}", id=f"{f}{a}{b}") for f in firsts for a in lasts for b in lasts if a != b]
+    index = ScreeningIndex([*records, rec("Claudia Sheinbaum Pardo", id="rare")])
+    assert index.token_info("juan") < index.token_info("perez") < index.token_info("sheinbaum")
+    # "Juan Pérez" está en 40 nombres de la lista y ninguno es solo "Juan Pérez": no se muestra ninguno.
+    assert index.screen(person("Juan Pérez")) == []
+    assert [m.record.external_id for m in index.screen(person("Claudia Sheinbaum"))] == ["rare"]
+    assert {m.record.external_id for m in index.screen(person("Juan Perez Ochoa"))} == {
+        "JuanPerezOchoa", "JuanOchoaPerez"}
+
+
+def test_same_full_birth_date_rescues_a_partial_common_name():
+    r = rec("Juan Carlos Perez Garcia", birth_dates=["1970-05-03"])
+    info = lambda t: INFO(t, 20)  # noqa: E731
+    assert compare(person("Juan Pérez García"), r, info, 20) is None
+    m = compare(person("Juan Pérez García", birth_date="03/05/1970"), r, info, 20)
+    assert m is not None and m.score >= 90 and any("Fecha de nacimiento igual" in x for x in m.reasons)
+    assert compare(person("Juan Pérez García", birth_date="1970"), r, info, 20) is None  # el año solo no basta
+
+
+def test_nicknames_and_abbreviations_of_given_names():
+    assert name_score("Pepe Pérez García", "Jose Perez Garcia") >= 90
+    assert name_score("Ma. Guadalupe Hernández", "Maria Gpe. Hernandez") >= 90
+    assert name_score("Paco López", "Francisco Lopez") >= 90
+    assert name_score("Pepe Pérez", "Juan Perez") == 0
+    index = ScreeningIndex([rec("Jose Perez Garcia", id="1"), rec("Pedro Lopez", id="2")])
+    assert [m.record.external_id for m in index.screen(person("Pepe Pérez García"))] == ["1"]
+
+
+def test_real_false_positives_from_the_national_pep_list():
+    # Lo que la versión anterior mostraba para un socio real (de 80 a 97% de parecido): ninguno es la misma persona.
+    for listed in ["FERNANDO AGUILAR CASAS", "CATYA AGUILAR HERNANDEZ", "CASSANDRA FERNANDO",
+                   "LEONARDO ALMAGUER CASTAÑEDA", "CASANDRA HERNANDEZ AVILA", "FERNANDO CESAR AGUIÑAGA ARANDA",
+                   "MA CATALINA HERNANDEZ AGUILA", "ARGELIA HERNANDEZ CASTRO", "GABRIELA CANDELARIA AGUILAR CORONADO"]:
+        assert name_score("Fernando Aguilar Castañeda", listed) == 0, listed
+    assert name_score("Fernando Aguilar Castañeda", "FERNANDO AGUILAR CASTANEDA") == 100
+    assert name_score("Fernando Aguilar Castañeda", "AGUILAR CASTAÑEDA, FERNANDO") == 100
+    assert name_score("Fernando Aguilar Castañeda", "FERNANDO AGILAR CASTAÑEDA") >= 90
