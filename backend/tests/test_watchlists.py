@@ -443,8 +443,8 @@ def test_common_name_keeps_the_closest_matches_and_one_alert(database):
     from minos.watchlists.sync import save_list
 
     async def scenario():
-        rows = "".join(f"MARIA HERNANDEZ {s}|CARGO {i}|DEPENDENCIA {i}|||MX|1\n"
-                       for i, s in enumerate(["LOPEZ", "GARCIA", "PEREZ", "RUIZ"] * 20))
+        # 80 homónimos exactos (la misma persona con distintos cargos, o personas distintas sin más datos).
+        rows = "".join(f"MARIA HERNANDEZ|CARGO {i}|DEPENDENCIA {i}|||MX|1\n" for i in range(80))
         await save_list(database, "propia-pep", list(parse_custom_csv(rows.encode(), "propia-pep")), "v1",
                         datetime.now(UTC), name="PEP", category="pep")
         async with database.session() as s:
