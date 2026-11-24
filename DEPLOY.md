@@ -232,8 +232,8 @@ días, y `deploy/restore.sh fetch <ayer>` debe terminar sin errores (solo baja y
   aparecer `backup.sh`).
 - **La sesión se cierra sola:** es el cierre por inactividad (30 min). Se cambia con `IDLE_TIMEOUT_SECONDS` en `.env` y
   `minos up -d`.
-- **Cambié una variable `MINOS_*` en `.env` y no pasa nada:** Docker solo recibe las que nombra `docker-compose.yml`; ver
-  [docs/CONFIGURACION.md](docs/CONFIGURACION.md#variables-que-no-llegan-a-docker).
+- **Cambié una variable en `.env` y no pasa nada:** aplica el cambio con `minos up -d`; los nombres están en
+  [docs/CONFIGURACION.md](docs/CONFIGURACION.md).
 - **Una fuente no trae menciones:** en el tablero, el botón "Fuentes" muestra si cada una tiene llave, cuándo
   consultó y su último error por objetivo. En el servidor, `minos logs --since 10m worker | grep -i error`.
 - **Errores de fuentes en el log del worker** (también salen en "Fuentes"). El worker pausa solo la fuente o el feed

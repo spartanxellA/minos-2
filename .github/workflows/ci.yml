@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cuenta de administrador para la prueba
-        run: printf 'ADMIN_EMAIL=ci@minos.test\nADMIN_PASSWORD=clave-de-prueba-ci\n' > .env
+        run: printf 'ADMIN_EMAIL=ci@minos.test\nADMIN_PASSWORD=clave-de-prueba-ci\nMINOS_AUTH__MAX_FAILED_LOGINS=8\nMINOS_TIMEZONE=America/Monterrey\n' > .env
       - name: Revisar la configuración del servidor (docker-compose.prod.yml)
         run: DOMAIN=minos.example.com ACME_EMAIL=ci@example.com docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
       - name: Construir las imágenes de docker-compose
@@ -72,6 +72,8 @@ jobs:
         run: |
           docker compose up -d --wait --wait-timeout 180
           curl -fsS http://localhost:5080/health
+          # Los ajustes de .env llegan al contenedor; los que no están conservan su valor por omisión.
+          docker compose exec -T api python -c "from minos.config import get_settings as g; s = g(); assert (s.auth.max_failed_logins, s.timezone, s.auth.ip_max_failed_logins) == (8, 'America/Monterrey', 20), s.auth"
           # Sin sesión la API responde 401; con la cuenta creada al arrancar, entra.
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5080/api/surveys)" = 401
           curl -fsS -c cookies -H 'content-type: application/json' \

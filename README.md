@@ -8,7 +8,7 @@ Documentación:
 
 - [DEPLOY.md](DEPLOY.md): instalar, actualizar y respaldar en un servidor.
 - [docs/API.md](docs/API.md): todas las rutas REST, sus parámetros y el canal en vivo.
-- [docs/CONFIGURACION.md](docs/CONFIGURACION.md): todas las variables de configuración y cuáles llegan a Docker.
+- [docs/CONFIGURACION.md](docs/CONFIGURACION.md): todas las variables de configuración.
 
 El repositorio principal está en GitLab (`aen-group1/minos-2`) y tiene un espejo en GitHub (`spartanxellA/minos-2`). Un
 cambio se fusiona en una sola de las dos plataformas y la otra se sincroniza después; si se fusiona en ambas, cada una
@@ -116,7 +116,7 @@ suya); 30 fallos con un correo desde varias IP en una hora lo bloquean para todo
 correo en 15 minutos bloquean esa IP. Los bloqueos de correo y de IP quedan en Auditoría y avisan por los canales de
 notificaciones (máximo 6 avisos por hora). Se ajustan con `MINOS_AUTH__MAX_FAILED_LOGINS`, `__LOCKOUT`,
 `__ACCOUNT_MAX_FAILED_LOGINS`, `__ACCOUNT_WINDOW`, `__IP_MAX_FAILED_LOGINS`, `__IP_WINDOW` y
-`__SECURITY_ALERTS_PER_HOUR` (en Docker, ver [docs/CONFIGURACION.md](docs/CONFIGURACION.md#variables-que-no-llegan-a-docker)).
+`__SECURITY_ALERTS_PER_HOUR` en `.env`.
 Desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
 WebSocket se rechazan si vienen de otro sitio. Con `AUTH_MODE=off` no se pide contraseña, solo en development.
 
@@ -369,7 +369,7 @@ cd nlp && pytest
 cd web && npm run typecheck && npm run i18n:check && npm test   # tipos, traducciones y acomodo de la nube
 ```
 
-Son 251 pruebas del backend (60 necesitan PostgreSQL o Redis reales y se omiten sin ellos), 39 de `nlp` y 4 del tablero.
+Son 254 pruebas del backend (60 necesitan PostgreSQL o Redis reales y se omiten sin ellos), 39 de `nlp` y 4 del tablero.
 
 Con `MINOS_TEST_POSTGRES_URL=postgresql+asyncpg://...` (una base de prueba, se borra en cada corrida) también se
 prueban las migraciones (que coincidan con los modelos, que suban y bajen, la hypertable) y la API sobre PostgreSQL
@@ -382,7 +382,6 @@ request y en `main`) y en GitHub (`.github/workflows/ci.yml`); si se cambia uno 
 ## Pendiente
 
 - Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
-- Pasar a Docker las variables que hoy no están en `docker-compose.yml` (ver docs/CONFIGURACION.md).
 - Traducir los avisos por correo, webhook y WhatsApp; hoy salen solo en español.
 - Cuestionario de perfil (PDSurvey) en el tablero, reportes PDF, app móvil con notificaciones push.
 - Sancionados de la SESNA (Plataforma Digital Nacional) por su API; hoy se pueden subir como lista propia.
