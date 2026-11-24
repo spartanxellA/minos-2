@@ -97,11 +97,21 @@ cd /opt/minos-2 && git pull
 minos up -d --build      # el servicio migrate aplica las migraciones nuevas antes de arrancar la API
 ```
 
+Fusionar en GitLab o GitHub no actualiza el servidor: no hay despliegue automático. El servidor toma el código de GitLab,
+así que un cambio fusionado solo en GitHub no llega hasta que `main` se sincronice. Para saber qué versión corre:
+
+```bash
+cd /opt/minos-2 && git log -1 --oneline                  # código
+minos run --rm migrate python -m minos.migrate current   # migración de la base (la última es 0011)
+```
+
 Antes de una actualización grande puedes sacar un respaldo a mano con `deploy/backup.sh`.
 
 ## Más workers
 
-Si hay muchos objetivos o fuentes: `minos up -d --scale worker=3`. Con 4 GB caben dos o tres.
+Si hay muchos objetivos o fuentes: `minos up -d --scale worker=3`. Con 4 GB caben dos o tres. Con una lista PEP nacional
+completa (unas 660 mil personas) el índice de nombres ocupa alrededor de 500 MB en cada worker que llegue a revisar
+listas: con 4 GB conviene dejar uno y subir la memoria antes de agregar más.
 
 ## Respaldos
 
@@ -109,7 +119,7 @@ Hay tres capas; con las tres siempre hay de dónde restaurar:
 
 | Capa | Qué guarda | Dónde | Cuánto tiempo |
 | --- | --- | --- | --- |
-| Código | todo el programa y las migraciones | GitHub (cada PR fusionado) | siempre |
+| Código | todo el programa y las migraciones | GitLab (principal) y GitHub (espejo) | siempre |
 | `deploy/backup.sh` | base completa + `.env` + versión del código | `/opt/minos-2/backups/` y copia externa cifrada | 14 días aquí; 30 diarios y 12 mensuales fuera |
 | Backups de DigitalOcean | el Droplet entero (disco completo) | DigitalOcean | según el plan del panel |
 
@@ -200,7 +210,7 @@ Si la IP cambió, actualiza el registro A del dominio. Para abrir un respaldo a 
 
 Una vez al mes conviene comprobar que todo sirve: `deploy/restore.sh list` debe mostrar respaldos de los últimos
 días, y `deploy/restore.sh fetch <ayer>` debe terminar sin errores (solo baja y revisa, no cambia nada). El CI
-también respalda y restaura una base real de TimescaleDB en cada cambio.
+(GitLab y GitHub) también respalda y restaura una base real de TimescaleDB en cada cambio.
 
 ## Si algo falla
 
@@ -220,6 +230,10 @@ también respalda y restaura una base real de TimescaleDB en cada cambio.
   - `Falta BACKUP_PASSPHRASE`: la copia externa siempre va cifrada; agrega la frase al `.env`.
 - **Ver cómo van los respaldos:** `tail /var/log/minos-backup.log`, `deploy/restore.sh list` y `crontab -l` (debe
   aparecer `backup.sh`).
+- **La sesión se cierra sola:** es el cierre por inactividad (30 min). Se cambia con `IDLE_TIMEOUT_SECONDS` en `.env` y
+  `minos up -d`.
+- **Cambié una variable `MINOS_*` en `.env` y no pasa nada:** Docker solo recibe las que nombra `docker-compose.yml`; ver
+  [docs/CONFIGURACION.md](docs/CONFIGURACION.md#variables-que-no-llegan-a-docker).
 - **Una fuente no trae menciones:** en el tablero, el botón "Fuentes" muestra si cada una tiene llave, cuándo
   consultó y su último error por objetivo. En el servidor, `minos logs --since 10m worker | grep -i error`.
 - **Errores de fuentes en el log del worker** (también salen en "Fuentes"). El worker pausa solo la fuente o el feed
