@@ -4,28 +4,42 @@ Monitoreo en tiempo real del riesgo reputacional de personas, empresas, instituc
 Es una reescritura de minOS 1.x (2018), que se hizo con Ionic, Angular, Node.js, Python y MySQL. El backend nuevo
 está en Python, igual que los scrapers y el análisis de texto, y el tablero en Next.js.
 
+Documentación:
+
+- [DEPLOY.md](DEPLOY.md): instalar, actualizar y respaldar en un servidor.
+- [docs/API.md](docs/API.md): todas las rutas REST, sus parámetros y el canal en vivo.
+- [docs/CONFIGURACION.md](docs/CONFIGURACION.md): todas las variables de configuración.
+
+El repositorio principal está en GitLab (`aen-group1/minos-2`) y tiene un espejo en GitHub (`spartanxellA/minos-2`). Un
+cambio se fusiona en una sola de las dos plataformas y la otra se sincroniza después; si se fusiona en ambas, cada una
+crea su propio commit y los `main` se separan.
+
 ## Piezas
 
 | Carpeta | Qué es | Tecnología |
 | --- | --- | --- |
 | `backend/minos/domain` | Objetivos, menciones, cálculo de riesgo (cuestionario, medios, IRR, alertas) | Python puro |
 | `backend/minos/connectors` | Conectores de fuentes (los scrapers): Noticias/RSS (Google Noticias + feeds), X (API v2), YouTube (Data API v3), Bluesky (búsqueda y en vivo por Jetstream), Reddit, páginas propias de Facebook e Instagram, demo | httpx, feedparser, websockets |
+| `backend/minos/geo` | Ubicación de las menciones con un nomenclátor local, y el mapa | Python puro |
+| `backend/minos/topics` | Nube de temas: palabras, frases y hashtags más mencionados | Python puro |
+| `backend/minos/watchlists` | Listas negras: descarga, listas propias, revisión y su API | httpx, rapidfuzz |
 | `backend/minos` | API REST y WebSocket del tablero (`/ws/targets/{id}`) | FastAPI, SQLAlchemy 2, PostgreSQL |
 | `backend/minos/worker.py` | Proceso aparte con la ingesta (conectores) y el motor de riesgo; escala con varias réplicas | asyncio, Redis |
 | `nlp/` | Servicio de análisis: sentimiento para todo, Claude solo para lo negativo, lo dudoso o de alto alcance | FastAPI |
-| `web/` | Tablero en vivo y cuestionario de riesgo | Next.js, ECharts |
+| `web/` | Tablero en vivo en español, inglés y francés | Next.js 16, React 19, ECharts 6 |
+| `deploy/` | Caddy (HTTPS) y los scripts de respaldo y restauración | Bash, rclone |
 | `data/surveys.json` | Los 2 cuestionarios de minOS 1.6 (107 preguntas, opciones y pesos), migrados tal cual | JSON |
 
 ## Cómo fluye una mención
 
 1. Cada conector trae lo nuevo desde su cursor (`connector_cursors`) cuando le toca según su intervalo.
 2. `is_relevant` descarta homónimos y términos excluidos; se deduplica por id externo y por huella del texto.
-3. El lote se analiza una sola vez (servicio `nlp`, o el mismo diccionario si no responde) y se guarda.
+3. El lote se analiza una sola vez (servicio `nlp`, o el mismo diccionario si no responde), se ubica en el mapa (`minos.geo`) y se guarda.
    El diccionario (`nlp/minos_nlp/lexicon.py`) pesa cada palabra y aplica reglas de contexto: negación, intensificadores, "pero", frases hechas, emojis y hashtags. Para agregar palabras basta con editar los diccionarios de ese archivo.
 4. La ingesta pide el recálculo por la cola (Redis Stream `minos:recompute`, grupo `risk-engine`: cada pedido lo
    atiende una sola réplica) y avisa de las menciones nuevas.
 5. El motor de riesgo recalcula el IRR del objetivo, guarda el punto de la serie y evalúa alertas.
-6. Los eventos `mentionsAdded`, `riskUpdated` y `alertRaised` salen por Redis pub/sub (`minos:live`); cada instancia
+6. Los eventos `mentionsAdded`, `mentionUpdated`, `riskUpdated`, `alertRaised` y `screeningUpdated` salen por Redis pub/sub (`minos:live`); cada instancia
    de la API los reenvía a sus WebSocket.
 
 Con varias réplicas de workers, un candado en Redis por objetivo y fuente evita consultar dos veces lo mismo, y otro
@@ -55,7 +69,17 @@ Cada conector se apaga solo si le falta su llave (variables en `.env.example`).
 
 Facebook e Instagram no permiten buscar menciones públicas: solo se lee lo que pasa en las cuentas propias del
 objetivo, con un token de Meta Business que tenga acceso a ellas. Esos comentarios cuentan aunque no nombren al
-objetivo. Las cuentas se guardan en `handles` del objetivo (`PUT /api/targets/{id}`).
+objetivo. Las cuentas se guardan en `handles` del objetivo: desde el tablero, en "Objetivos" → editar → "Cuenta en…", o
+con `PUT /api/targets/{id}`.
+
+**Pausas (RSS, X y YouTube).** Si la fuente responde 401, 402, 403, 404, 410, 429 o 503, el worker la pausa y no la pide en cada ronda:
+respeta `Retry-After` o espera un lapso que se duplica con cada fallo (por ejemplo, 429: de 15 min a 6 h; 402: de 6 a
+24 h). En RSS se pausa solo el feed (con 429 o 503, todo el sitio); en X y YouTube, la fuente entera. Los feeds de
+`RSS_FEEDS` se descargan una vez por ronda para todos los objetivos. YouTube reparte la cuota diaria
+(`YOUTUBE_DAILY_QUOTA`) entre los objetivos activos: con muchos, el intervalo se alarga solo.
+
+**Panel "Fuentes".** Muestra si cada fuente tiene llave, cuándo corrió y qué trajo. Un feed en pausa sale como aviso
+agrupado, no como error repetido por objetivo. El texto técnico de los errores solo lo ve un administrador.
 
 ## Cuentas e inicio de sesión
 
@@ -64,9 +88,9 @@ El tablero, la API y el WebSocket piden iniciar sesión con correo y contraseña
 
 | Rol | Puede |
 | --- | --- |
-| Lector | Ver el tablero, las menciones, las alertas y los cuestionarios contestados |
-| Analista | Además, agregar y editar objetivos y contestar el cuestionario |
-| Administrador | Además, borrar objetivos y administrar cuentas (botón "Usuarios") |
+| Lector | Ver el tablero, las menciones, las alertas, el mapa, los temas, el análisis, las coincidencias y los cuestionarios contestados |
+| Analista | Además, agregar, editar, dar de baja y reactivar objetivos, contestar el cuestionario, corregir el sentimiento de una mención, ubicar menciones anteriores y revisar coincidencias en listas |
+| Administrador | Además, borrar objetivos, administrar cuentas (botón "Usuarios"), cargar y borrar listas propias, y ver y exportar la auditoría |
 
 **Inactividad**: si pasan 30 minutos sin que la persona use el tablero (clics, teclas, toques o desplazarse), la
 sesión se cierra. Dos minutos antes aparece el aviso "¿Sigues ahí?" con la cuenta regresiva y el botón "Seguir
@@ -92,8 +116,17 @@ suya); 30 fallos con un correo desde varias IP en una hora lo bloquean para todo
 correo en 15 minutos bloquean esa IP. Los bloqueos de correo y de IP quedan en Auditoría y avisan por los canales de
 notificaciones (máximo 6 avisos por hora). Se ajustan con `MINOS_AUTH__MAX_FAILED_LOGINS`, `__LOCKOUT`,
 `__ACCOUNT_MAX_FAILED_LOGINS`, `__ACCOUNT_WINDOW`, `__IP_MAX_FAILED_LOGINS`, `__IP_WINDOW` y
-`__SECURITY_ALERTS_PER_HOUR`. Desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
+`__SECURITY_ALERTS_PER_HOUR` en `.env`.
+Desactivar una cuenta o cambiarle la contraseña cierra sus sesiones al momento; las peticiones que cambian datos y el
 WebSocket se rechazan si vienen de otro sitio. Con `AUTH_MODE=off` no se pide contraseña, solo en development.
+
+### Selector de objetivos
+
+El tablero ya no descarga todos los objetivos al abrir: el selector del encabezado busca en el servidor por nombre o
+alias, sin importar mayúsculas ni acentos, por inicio de palabra. Agrupa por tipo, filtra por tipo y por dados de baja,
+recuerda los 6 más recientes y carga más al bajar, así que sirve igual con diez objetivos que con miles. Se abre con
+Ctrl+K (⌘K en Mac) y en el teléfono ocupa toda la pantalla. API: `GET /api/targets/search`. La búsqueda usa la columna
+`targets.search_text` (migración 0011), que se llena sola al guardar.
 
 ### Mantenimiento de objetivos
 
@@ -117,8 +150,10 @@ API: `PUT /api/targets/{id}`, `POST /api/targets/{id}/deactivate` (`{"reason": "
 
 Cada acción queda en la bitácora `audit_events` con quién, cuándo, desde qué IP y navegador, y los valores de antes y
 después: inicios y cierres de sesión (también los fallidos, con el motivo, los bloqueos y los cierres por inactividad), cambios de contraseña,
-altas, cambios de rol, desactivaciones y bajas de cuentas, altas, cambios, bajas (con motivo), reactivaciones y borrados de objetivos, y cuestionarios
-contestados. Las cuentas creadas desde la terminal o al arrancar aparecen como "sistema". Nunca se guardan
+altas, cambios de rol, desactivaciones y bajas de cuentas, altas, cambios, bajas (con motivo), reactivaciones y
+borrados de objetivos, cuestionarios contestados, sentimientos corregidos, menciones anteriores ubicadas en el mapa,
+coincidencias revisadas, listas propias cargadas, actualizadas o borradas, y descargas de la propia bitácora (23
+acciones; la lista está en `minos.audit.ACTIONS`). Las cuentas creadas desde la terminal o al arrancar aparecen como "sistema". Nunca se guardan
 contraseñas ni tokens.
 
 Solo los administradores la ven (menú de la cuenta → "Auditoría"), con filtros por acción, usuario, fechas, objeto o
@@ -135,6 +170,24 @@ por mes o por año y se filtra por tipo de sujeto y medio; los objetivos dados d
 fuera salvo que se marque "Incluir dados de baja". Los meses se cortan en la zona `MINOS_TIMEZONE`
 (por omisión `America/Mexico_City`). API: `GET /api/analytics/mentions?granularity=month|year&since=AAAA-MM&until=…
 &kind=…&source=…&top=10&includeInactive=false`.
+
+### Historial por objetivo
+
+Dentro de "Análisis", el selector "Objetivo" (o "Ver historial" en el ranking) muestra el historial de un solo objetivo,
+activo o dado de baja: totales por sentimiento y acusaciones graves, menciones en el tiempo, menciones por medio, índice
+de riesgo promedio y máximo, y el detalle por periodo. Se agrupa por día (7, 30, 90 o 180 días), mes o año y se filtra
+por medio; el índice siempre considera todos los medios. API: `GET /api/analytics/targets/{id}/history?granularity=day|month|year&days=30&since=…&until=…&source=…`.
+No necesita migración: se calcula con `mentions` y `risk_snapshots`.
+
+### Nube de temas
+
+La tarjeta "¿De qué se habla sobre…?" del tablero muestra las palabras, frases y hashtags más mencionados del objetivo.
+Cuenta en cuántas menciones aparece cada término (repetirlo en una misma publicación no suma), sin palabras vacías en
+español, inglés y francés (`backend/minos/topics/stopwords.py`), sin enlaces ni cuentas y sin el nombre, alias o cuentas
+del propio objetivo. Rojo: más de la mitad de sus menciones son negativas; verde: positivas; azul: lo demás. Se filtra
+por periodo (24 h a un año) y sentimiento, y al tocar un término se ve su detalle. Se calcula al momento con las 5,000
+menciones más recientes del periodo, sin migración. La nube se acomoda con código propio (`web/lib/wordcloud.ts`).
+API: `GET /api/targets/{id}/topics?days=30&source=…&sentiment=…&limit=80`.
 
 ### Mapa de menciones
 
@@ -200,8 +253,15 @@ Cada objetivo (persona, empresa, institución o área de gobierno) se revisa con
   (con el detalle en CSV) y el historial de cada persona en la ficha de la coincidencia. Si cambia el estatus de una
   coincidencia confirmada, se recalcula el índice (un PEP inactivo pesa la mitad) y queda una alerta.
 - Coincidencia (`minos.domain.screening`): nombres sin acentos, títulos ni formas jurídicas, en cualquier orden, con
-  tolerancia a errores de ortografía (Jaro-Winkler y una clave fonética para el español) y a un segundo apellido
-  ausente. Se muestran las de 80 % o más. Un RFC, CURP o pasaporte igual da 100 %; un RFC distinto resta 30, una fecha
+  tolerancia a errores de ortografía y a un segundo apellido ausente. Dos palabras se parecen si suenan igual (clave
+  fonética para el español) o difieren en una letra (de 4 letras en adelante) o dos (de 8 en adelante). "Juan" y "Julián"
+  o "Martín" y "Martínez" no son iguales, ni los pares de género (Juan/Juana, Mario/María). Se reconocen hipocorísticos y
+  abreviaturas (Pepe/José, Ma./María, Gpe./Guadalupe).
+- Nombres comunes: cada palabra vale según cuántos registros la llevan. Si el nombre solo coincide en parte y lo que
+  coincide es muy común ("Juan Pérez" contra "Juan Carlos Pérez Gómez"), pierde 5 puntos por cada bit de información que
+  falte para distinguir a una persona entre todas las de las listas. La misma fecha de nacimiento completa anula esa resta.
+  El candidato debe compartir al menos dos palabras con una persona.
+- Se muestran las de 80 % o más. Un RFC, CURP o pasaporte igual da 100 %; un RFC distinto resta 30, una fecha
   de nacimiento distinta resta 25 y una nacionalidad distinta resta 10. Fuerte = 95 % o más con un dato extra igual.
   Los alias de baja calidad y en alfabetos no latinos no se comparan. Los países no se revisan.
 - Cada objetivo se revisa en menos de un minuto al crearlo o editarlo, y otra vez cuando cambia alguna lista.
@@ -210,8 +270,7 @@ Cada objetivo (persona, empresa, institución o área de gobierno) se revisa con
 - Efecto en el IRR (solo las confirmadas y vigentes): una sanción deja el índice en 85 como mínimo; fiscal,
   inhabilitación u otra suman 20; PEP suma 10 (ser PEP no es negativo, solo expone más); un "Presunto" del SAT y un PEP
   "Inactivo" pesan la mitad. Se toma la mayor de cada tipo de lista. La gráfica marca el momento de cada confirmación.
-- Rutas: `GET /api/targets/{id}/screening`, `GET /api/screening/matches?status=pending`,
-  `POST /api/screening/matches/{id}/review`, `GET /api/watchlists`, `POST/DELETE /api/watchlists/custom`.
+- Rutas: ver [docs/API.md](docs/API.md#listas-negras).
 - Aviso legal: una coincidencia de nombre no prueba identidad; el tablero lo dice siempre. Se tratan datos personales,
   así que la finalidad debe estar en el aviso de privacidad. La lista de la UIF solo la puede usar un sujeto obligado.
 
@@ -280,12 +339,26 @@ python -m minos.migrate downgrade                # revierte la última
 python -m minos.migrate current                  # muestra la versión de la base
 ```
 
+| Versión | Qué agrega |
+| --- | --- |
+| 0011 | `targets.search_text` e índice, para el selector de objetivos |
+| 0010 | `users.language`, idioma del tablero |
+| 0009 | `watchlist_uploads` y `watchlist_changes`, historial de listas propias |
+| 0008 | Ubicación de cada mención (`mentions.geo_*`) |
+| 0007 | `user_sessions.last_seen_at`, cierre por inactividad |
+| 0006 | Corrección de sentimiento en `mentions` |
+| 0005 | Baja lógica de objetivos |
+| 0004 | Listas negras y datos de identidad de los objetivos |
+| 0003 | `audit_events` |
+| 0002 | `users` y `user_sessions` |
+| 0001 | Esquema inicial e hypertable `risk_snapshots` |
+
 Revisa siempre la migración generada antes de subirla. Con TimescaleDB disponible, `risk_snapshots` es una
 hypertable particionada por semana; en un PostgreSQL sin la extensión queda como tabla normal y todo funciona igual.
 
 La configuración va en variables `MINOS_*` (secciones con `__`, duraciones en segundos). Por ejemplo
 `MINOS_DATABASE_URL`, `MINOS_CONNECTORS__X__BEARER_TOKEN` o `MINOS_INGESTION__TICK=30`; la lista completa está en
-`backend/minos/config.py`. Con `MINOS_DEMO__ENABLED=true` la fuente `demo` genera menciones sintéticas para ver el
+[docs/CONFIGURACION.md](docs/CONFIGURACION.md). Con `MINOS_DEMO__ENABLED=true` la fuente `demo` genera menciones sintéticas para ver el
 tablero moverse sin llaves de API.
 
 ## Pruebas
@@ -293,17 +366,23 @@ tablero moverse sin llaves de API.
 ```bash
 cd backend && pytest     # dominio, conectores (HTTP simulado), cuestionarios, API + pipeline + WebSocket (SQLite)
 cd nlp && pytest
-cd web && npm run typecheck
+cd web && npm run typecheck && npm run i18n:check && npm test   # tipos, traducciones y acomodo de la nube
 ```
+
+Son 254 pruebas del backend (60 necesitan PostgreSQL o Redis reales y se omiten sin ellos), 39 de `nlp` y 4 del tablero.
 
 Con `MINOS_TEST_POSTGRES_URL=postgresql+asyncpg://...` (una base de prueba, se borra en cada corrida) también se
 prueban las migraciones (que coincidan con los modelos, que suban y bajen, la hypertable) y la API sobre PostgreSQL
-migrado. Las pruebas del bus usan fakeredis, o un Redis real con `MINOS_TEST_REDIS_URL=redis://...`. CI lo hace contra TimescaleDB y Redis, y además construye las imágenes y levanta el stack con `docker compose`.
+migrado. Las pruebas del bus usan fakeredis, o un Redis real con `MINOS_TEST_REDIS_URL=redis://...`.
+
+CI lo hace contra TimescaleDB y Redis, y además construye el tablero y las imágenes, levanta el stack con `docker
+compose`, inicia sesión y respalda y restaura una base real. Corre igual en GitLab (`.gitlab-ci.yml`, en cada merge
+request y en `main`) y en GitHub (`.github/workflows/ci.yml`); si se cambia uno hay que cambiar el otro.
 
 ## Pendiente
 
 - Políticas de retención y compresión de TimescaleDB cuando haya volumen real.
-- Editar las cuentas propias (`handles`) de un objetivo desde el tablero; hoy se hace por la API.
+- Traducir los avisos por correo, webhook y WhatsApp; hoy salen solo en español.
 - Cuestionario de perfil (PDSurvey) en el tablero, reportes PDF, app móvil con notificaciones push.
 - Sancionados de la SESNA (Plataforma Digital Nacional) por su API; hoy se pueden subir como lista propia.
 - Destinatarios de avisos por objetivo; hoy son los mismos para todos.

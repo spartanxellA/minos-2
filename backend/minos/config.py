@@ -228,7 +228,9 @@ class AuthSettings(BaseModel):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MINOS_", env_nested_delimiter="__", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="MINOS_", env_nested_delimiter="__", env_file=".env", extra="ignore",
+                                      # "MINOS_X=" vacío en .env vale como no ponerlo.
+                                      env_ignore_empty=True)
 
     env: str = "development"
     database_url: str = "postgresql+asyncpg://minos:minos@localhost:5432/minos"
