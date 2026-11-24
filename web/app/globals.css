@@ -238,14 +238,23 @@ button.more { display: block; margin: 10px auto; }
 
 /* Análisis general */
 .analytics-filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin-bottom: 16px; }
-.analytics-filters label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
-.analytics-filters label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); align-self: center; }
+.analytics-filters > label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+.analytics-filters > label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); align-self: center; }
 .analytics-filters select { color: var(--ink); }
 .analytics-filters .summary { margin-left: auto; font-size: 12px; align-self: center; }
+.target-filter { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); min-width: 0; }
+.target-filter .row { display: flex; gap: 6px; min-width: 0; }
+.target-filter .target-picker { flex: 1; font-size: 14px; color: var(--ink); }
+.target-filter .row > button { white-space: nowrap; }
+.history-kpis { display: flex; flex-wrap: wrap; gap: 12px 32px; margin: 0; }
+.history-kpis dt { font-size: 12px; color: var(--muted); }
+.history-kpis dd { margin: 2px 0 0; font-size: 24px; font-weight: 700; line-height: 1.1; }
+.history-kpis dd small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .seg { display: inline-flex; }
 .seg button { border-radius: 0; }
+.seg button + button { border-left: 0; }
 .seg button:first-child { border-radius: 8px 0 0 8px; }
-.seg button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.seg button:last-child { border-radius: 0 8px 8px 0; }
 .seg.small button { padding: 3px 10px; font-size: 12px; min-height: 0; }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .card-head h2 { margin-bottom: 10px; }
@@ -281,7 +290,7 @@ table.ranking td { white-space: nowrap; }
   form.new { flex-direction: column; align-items: stretch; }
   form.new .actions > * { flex: 1; }
   main { padding: 12px 12px 32px; }
-  .analytics-filters > label:not(.check), .analytics-filters > .seg { flex: 1 1 100%; }
+  .analytics-filters > label:not(.check), .analytics-filters > .seg, .analytics-filters > .target-filter { flex: 1 1 100%; }
   .analytics-filters .seg button { flex: 1; }
   .analytics-filters .summary { margin-left: 0; }
   .seg.small button { min-height: 32px; }

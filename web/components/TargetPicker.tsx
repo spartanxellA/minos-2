@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { api, KIND_LABEL, type TargetKind, type TargetSearch, type TargetSummary } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
-import { KIND_COLOR } from "./Analytics";
+import { KIND_COLOR } from "@/lib/charts";
 
 const KINDS = Object.keys(KIND_LABEL) as TargetKind[];
 const PAGE = 50;
@@ -45,11 +45,15 @@ export function forgetRecentTarget(id: string) {
  * Selector de objetivo del tablero. Busca en el servidor (nombre y alias, sin importar acentos), filtra por tipo,
  * agrupa los resultados por tipo y carga más al bajar, así que funciona igual con diez objetivos que con miles.
  */
-export function TargetPicker({ selected, onSelect, refreshKey = 0 }: {
+export function TargetPicker({ selected, onSelect, refreshKey = 0, shortcut = true, placeholder }: {
   selected: TargetSummary | null;
   onSelect: (t: TargetSummary) => void;
   /** Cambia cuando se edita, da de baja o borra un objetivo, para volver a buscar. */
   refreshKey?: number;
+  /** Si responde a Ctrl+K; solo uno por pantalla debe hacerlo. */
+  shortcut?: boolean;
+  /** Texto cuando no hay ninguno elegido. */
+  placeholder?: string;
 }) {
   const { t, nf } = useI18n();
   const phone = useMediaQuery(PHONE);
@@ -131,6 +135,7 @@ export function TargetPicker({ selected, onSelect, refreshKey = 0 }: {
 
   // Ctrl+K o ⌘K abren el selector desde cualquier parte del tablero.
   useEffect(() => {
+    if (!shortcut) return;
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -222,14 +227,14 @@ export function TargetPicker({ selected, onSelect, refreshKey = 0 }: {
   return (
     <div className="target-picker" ref={root}>
       <button ref={trigger} type="button" className="trigger" aria-haspopup="dialog" aria-expanded={open}
-        onClick={() => (open ? close(false) : show())} title={t("Buscar objetivo (Ctrl+K)")}>
+        onClick={() => (open ? close(false) : show())} title={shortcut ? t("Buscar objetivo (Ctrl+K)") : t("Buscar objetivo")}>
         {selected ? (
           <>
             <span className="kind-dot" style={{ background: KIND_COLOR[selected.kind] }} aria-hidden />
             <span className="name">{selected.name}</span>
             <span className="meta">{kindLabel(selected.kind)}{selected.enabled ? "" : ` ${t("(de baja)")}`}</span>
           </>
-        ) : <span className="name muted">{t("Elegir objetivo")}</span>}
+        ) : <span className="name muted">{placeholder ?? t("Elegir objetivo")}</span>}
         <span className="caret" aria-hidden>▾</span>
       </button>
 
