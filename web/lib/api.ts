@@ -417,6 +417,8 @@ async function request<T>(path: string, init: RequestInit & { json?: unknown } =
 const get = <T,>(path: string) => request<T>(path);
 
 export type Granularity = "month" | "year";
+/** Por día solo se ve el historial de un objetivo. */
+export type HistoryGranularity = Granularity | "day";
 
 export type GeoMethod = "geotag" | "profile" | "community" | "outlet" | "text";
 /** "origin": de dónde es quien publica. "text": de qué lugar habla la mención. */
@@ -489,6 +491,31 @@ export interface MentionsOverview {
   riskByKind: { period: string; kind: TargetKind; avg: number }[];
 }
 
+export interface SentimentCount {
+  mentions: number; positive: number; neutral: number; negative: number; severe: number;
+}
+
+export interface TargetHistory {
+  target: { id: string; name: string; kind: TargetKind; enabled: boolean };
+  granularity: HistoryGranularity;
+  timezone: string;
+  /** Todos los del rango, con o sin menciones. */
+  periods: (SentimentCount & { period: string })[];
+  totals: SentimentCount;
+  bySource: (SentimentCount & { source: string })[];
+  /** Solo periodos con cálculos; el índice es de todos los medios aunque se filtre por uno. */
+  risk: { period: string; avg: number; max: number }[];
+  lastIndex: number | null;
+}
+
+export interface HistoryFilters {
+  granularity: HistoryGranularity;
+  since?: string;
+  /** Solo por día. */
+  days?: number;
+  source?: string;
+}
+
 export interface OverviewFilters {
   granularity: Granularity;
   since?: string;
@@ -499,7 +526,7 @@ export interface OverviewFilters {
   includeInactive?: boolean;
 }
 
-function overviewQuery(f: OverviewFilters) {
+function overviewQuery(f: OverviewFilters | HistoryFilters) {
   const params = new URLSearchParams({ granularity: f.granularity });
   for (const [k, v] of Object.entries(f)) {
     if (k !== "granularity" && v !== undefined && v !== "" && v !== false) params.set(k, String(v));
@@ -516,6 +543,7 @@ export const api = {
     return request<TargetSearch>(`/api/targets/search?${params}`, { signal });
   },
   mentionsOverview: (f: OverviewFilters) => get<MentionsOverview>(`/api/analytics/mentions?${overviewQuery(f)}`),
+  targetHistory: (id: string, f: HistoryFilters) => get<TargetHistory>(`/api/analytics/targets/${id}/history?${overviewQuery(f)}`),
   risk: (id: string, hours = 24 * 7) => get<Risk[]>(`/api/targets/${id}/risk?hours=${hours}`),
   mentions: (id: string, limit = 40) => get<Mention[]>(`/api/targets/${id}/mentions?limit=${limit}`),
   breakdown: (id: string, hours = 24) => get<Breakdown>(`/api/targets/${id}/breakdown?hours=${hours}`),

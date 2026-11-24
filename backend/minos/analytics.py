@@ -1,9 +1,9 @@
 """Análisis general: qué sujetos se mencionan más, por tipo, y cómo cambian menciones e índice de riesgo por mes o año.
 
-A diferencia del resto de la API, aquí no se mira un solo objetivo sino todos los monitoreados a la vez.
+`/mentions` mira todos los objetivos monitoreados a la vez; `/targets/{id}/history`, el historial de uno solo.
 """
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
@@ -18,6 +18,7 @@ from .domain.targets import TargetKind
 from .schemas import Camel
 
 Granularity = Literal["month", "year"]
+HistoryGranularity = Literal["day", "month", "year"]
 PeriodParam = Annotated[str | None, Query(pattern=r"^\d{4}(-(0[1-9]|1[0-2]))?$")]
 
 
@@ -82,6 +83,49 @@ class MentionsOverview(Camel):
     risk_by_kind: list[KindPeriodRisk]
 
 
+class HistoryTarget(Camel):
+    id: uuid.UUID
+    name: str
+    kind: TargetKind
+    enabled: bool
+
+
+class SentimentCount(Camel):
+    mentions: int = 0
+    positive: int = 0
+    neutral: int = 0
+    negative: int = 0
+    severe: int = 0
+
+
+class HistoryPeriod(SentimentCount):
+    period: str
+
+
+class HistorySource(SentimentCount):
+    source: str
+
+
+class PeriodRisk(Camel):
+    period: str
+    avg: float
+    max: float
+
+
+class TargetHistory(Camel):
+    target: HistoryTarget
+    granularity: HistoryGranularity
+    timezone: str
+    # Todos los periodos del rango, con o sin menciones.
+    periods: list[HistoryPeriod]
+    totals: SentimentCount
+    by_source: list[HistorySource]
+    # Solo los periodos con cálculos. El índice siempre es de todos los medios, aunque se filtre por uno.
+    risk: list[PeriodRisk]
+    # Último índice de riesgo calculado, sin importar el rango.
+    last_index: float | None
+
+
 async def get_session(request: Request):
     async with request.app.state.db.session() as session:
         yield session
@@ -113,10 +157,73 @@ def _periods(start: tuple[int, int], end: tuple[int, int], granularity: Granular
     return out
 
 
-def _period_expr(column, granularity: Granularity, dialect: str, tz: str):
+def _period_expr(column, granularity: HistoryGranularity, dialect: str, tz: str):
     if dialect == "postgresql":
-        return func.to_char(func.timezone(tz, column), "YYYY" if granularity == "year" else "YYYY-MM")
-    return func.strftime("%Y" if granularity == "year" else "%Y-%m", column)
+        pattern = {"year": "YYYY", "month": "YYYY-MM", "day": "YYYY-MM-DD"}[granularity]
+        return func.to_char(func.timezone(tz, column), pattern)
+    return func.strftime({"year": "%Y", "month": "%Y-%m", "day": "%Y-%m-%d"}[granularity], column)
+
+
+def _timezone(request: Request) -> tuple[str, str]:
+    dialect = request.app.state.db.engine.dialect.name
+    # SQLite (pruebas y tablero local) no tiene zonas horarias: ahí todo va en UTC.
+    return dialect, request.app.state.settings.timezone if dialect == "postgresql" else "UTC"
+
+
+def _count_if(condition):
+    return func.sum(case((condition, 1), else_=0))
+
+
+def _sentiment_counts():
+    """Columnas en el orden de SentimentCount: total, positivas, neutras, negativas y acusaciones graves."""
+    M = db.Mention
+    return (
+        func.count(), _count_if(M.sentiment == Sentiment.POSITIVE.value),
+        _count_if(M.sentiment == Sentiment.NEUTRAL.value), _count_if(M.sentiment == Sentiment.NEGATIVE.value),
+        _count_if(M.is_severe_accusation.is_(True)),
+    )
+
+
+async def _range(
+    session: AsyncSession, zone: ZoneInfo, granularity: Granularity, since: str | None, until: str | None,
+    target_id: uuid.UUID | None = None,
+) -> tuple[list[str], datetime, datetime]:
+    """Periodos del rango y sus límites en UTC. Por omisión: últimos 12 meses, o desde el año de la primera mención."""
+    M = db.Mention
+    now = datetime.now(zone)
+    year_mode = granularity == "year"
+    end = _parse(until) if until else (now.year, now.month)
+    if year_mode:
+        end = (end[0], 1)
+    if since:
+        start = _parse(since)
+    elif year_mode:
+        oldest = select(func.min(M.published_at))
+        first = await session.scalar(oldest.where(M.target_id == target_id) if target_id else oldest)
+        start = (first.astimezone(zone).year if first else end[0], 1)
+    else:
+        start = _shift(*end, -11)
+    if year_mode:
+        start = (start[0], 1)
+    if start > end:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El inicio del rango es posterior al final.")
+    periods = _periods(start, end, granularity)
+    if len(periods) > 240:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El rango es demasiado largo; usa la vista por año.")
+    lower = datetime(*start, 1, tzinfo=zone).astimezone(UTC)
+    upper = datetime(*_shift(*end, 12 if year_mode else 1), 1, tzinfo=zone).astimezone(UTC)
+    return periods, lower, upper
+
+
+def _day_range(zone: ZoneInfo, days: int) -> tuple[list[str], datetime, datetime]:
+    today = datetime.now(zone).date()
+    first = today - timedelta(days=days - 1)
+
+    def midnight(d: date) -> datetime:
+        return datetime.combine(d, time(), tzinfo=zone).astimezone(UTC)
+
+    periods = [(first + timedelta(days=i)).isoformat() for i in range(days)]
+    return periods, midnight(first), midnight(today + timedelta(days=1))
 
 
 @analytics_router.get("/mentions", response_model=MentionsOverview)
@@ -132,33 +239,9 @@ async def mentions_overview(
     include_inactive: Annotated[bool, Query(alias="includeInactive")] = False,
 ):
     """Ranking de sujetos por menciones y series por mes o año. Por omisión: últimos 12 meses, o todos los años."""
-    dialect = request.app.state.db.engine.dialect.name
-    # SQLite (pruebas y tablero local) no tiene zonas horarias: ahí todo va en UTC.
-    tz = request.app.state.settings.timezone if dialect == "postgresql" else "UTC"
-    zone = ZoneInfo(tz)
+    dialect, tz = _timezone(request)
     M, R, T = db.Mention, db.RiskSnapshot, db.Target
-
-    now = datetime.now(zone)
-    year_mode = granularity == "year"
-    end = _parse(until) if until else (now.year, now.month)
-    if year_mode:
-        end = (end[0], 1)
-    if since:
-        start = _parse(since)
-    elif year_mode:
-        first = await session.scalar(select(func.min(M.published_at)))
-        start = (first.astimezone(zone).year if first else end[0], 1)
-    else:
-        start = _shift(*end, -11)
-    if year_mode:
-        start = (start[0], 1)
-    if start > end:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El inicio del rango es posterior al final.")
-    periods = _periods(start, end, granularity)
-    if len(periods) > 240:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El rango es demasiado largo; usa la vista por año.")
-    lower = datetime(*start, 1, tzinfo=zone).astimezone(UTC)
-    upper = datetime(*_shift(*end, 12 if year_mode else 1), 1, tzinfo=zone).astimezone(UTC)
+    periods, lower, upper = await _range(session, ZoneInfo(tz), granularity, since, until)
 
     target_filter = []
     if kind:
@@ -172,17 +255,10 @@ async def mentions_overview(
     if source:
         mention_scope.append(M.source == source)
 
-    def count_if(condition):
-        return func.sum(case((condition, 1), else_=0))
-
     totals = {
         target_id: (n, pos or 0, neu or 0, neg or 0, sev or 0)
         for target_id, n, pos, neu, neg, sev in await session.execute(
-            select(
-                M.target_id, func.count(), count_if(M.sentiment == Sentiment.POSITIVE.value),
-                count_if(M.sentiment == Sentiment.NEUTRAL.value), count_if(M.sentiment == Sentiment.NEGATIVE.value),
-                count_if(M.is_severe_accusation.is_(True)),
-            ).join(T, T.id == M.target_id).where(*mention_scope).group_by(M.target_id)
+            select(M.target_id, *_sentiment_counts()).join(T, T.id == M.target_id).where(*mention_scope).group_by(M.target_id)
         )
     }
 
@@ -250,4 +326,72 @@ async def mentions_overview(
         granularity=granularity, timezone=tz, periods=periods,
         ranking=ranking, by_kind=by_kind, mentions_by_kind=mentions_by_kind, mentions_by_target=mentions_by_target,
         risk_by_target=risk_by_target, risk_by_kind=risk_by_kind,
+    )
+
+
+@analytics_router.get("/targets/{target_id}/history", response_model=TargetHistory)
+async def target_history(
+    target_id: uuid.UUID,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    granularity: HistoryGranularity = "month",
+    since: PeriodParam = None,
+    until: PeriodParam = None,
+    days: Annotated[int, Query(ge=2, le=180)] = 30,
+    source: str | None = None,
+):
+    """Historial de un objetivo, activo o dado de baja: menciones por sentimiento y medio, e índice de riesgo.
+
+    Por día se usan los últimos `days` días; por mes o año, `since` y `until` igual que en `/mentions`.
+    """
+    target = await session.get(db.Target, target_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Objetivo no encontrado")
+    dialect, tz = _timezone(request)
+    zone = ZoneInfo(tz)
+    if granularity == "day":
+        periods, lower, upper = _day_range(zone, days)
+    else:
+        periods, lower, upper = await _range(session, zone, granularity, since, until, target_id)
+
+    M, R = db.Mention, db.RiskSnapshot
+    scope = [M.target_id == target_id, M.published_at >= lower, M.published_at < upper]
+    if source:
+        scope.append(M.source == source)
+
+    async def counts(column) -> dict[str, SentimentCount]:
+        rows = await session.execute(select(column, *_sentiment_counts()).where(*scope).group_by(column))
+        return {
+            key: SentimentCount(mentions=n, positive=pos, neutral=neu, negative=neg, severe=sev)
+            for key, n, pos, neu, neg, sev in rows
+        }
+
+    by_period = await counts(_period_expr(M.published_at, granularity, dialect, tz))
+    by_source = await counts(M.source)
+    totals = SentimentCount(**{
+        field: sum(getattr(c, field) for c in by_source.values()) for field in SentimentCount.model_fields
+    })
+
+    r_period = _period_expr(R.at, granularity, dialect, tz)
+    risk = {
+        p: PeriodRisk(period=p, avg=round(avg, 2), max=round(mx, 2))
+        for p, avg, mx in await session.execute(
+            select(r_period, func.avg(R.index), func.max(R.index))
+            .where(R.target_id == target_id, R.at >= lower, R.at < upper).group_by(r_period)
+        )
+    }
+    last_index = await session.scalar(
+        select(R.index).where(R.target_id == target_id).order_by(R.at.desc()).limit(1)
+    )
+
+    return TargetHistory(
+        target=HistoryTarget(id=target.id, name=target.name, kind=TargetKind(target.kind), enabled=target.enabled),
+        granularity=granularity, timezone=tz,
+        periods=[HistoryPeriod(period=p, **by_period.get(p, SentimentCount()).model_dump()) for p in periods],
+        totals=totals,
+        by_source=sorted(
+            (HistorySource(source=s, **c.model_dump()) for s, c in by_source.items()),
+            key=lambda s: (-s.mentions, s.source),
+        ),
+        risk=[risk[p] for p in periods if p in risk], last_index=last_index,
     )

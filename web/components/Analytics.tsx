@@ -3,52 +3,32 @@
 import type { EChartsOption } from "echarts";
 import { useEffect, useMemo, useState } from "react";
 import {
-  api, KIND_LABEL, SOURCE_LABEL, type Granularity, type MentionsOverview, type OverviewFilters, type TargetKind,
+  api, KIND_LABEL, SOURCE_LABEL, type MentionsOverview, type HistoryFilters, type HistoryGranularity, type OverviewFilters, type TargetKind,
+  type TargetSummary,
 } from "@/lib/api";
 import { PHONE, useMediaQuery } from "@/lib/useMediaQuery";
 import { EChart } from "./EChart";
-import { locale, msg, useI18n } from "@/lib/i18n";
+import { TargetHistory } from "./TargetHistory";
+import { TargetPicker } from "./TargetPicker";
+import { KIND_COLOR, monthsAgo, periodLabel, riskBands, SENT } from "@/lib/charts";
+import { useI18n } from "@/lib/i18n";
 
-const SENT = [
-  { key: "positive", label: msg("Positivo"), color: "#2e7d32" },
-  { key: "neutral", label: msg("Neutro"), color: "#8a94a0" },
-  { key: "negative", label: msg("Negativo"), color: "#d32f2f" },
-] as const;
-// Sin rojo ni verde, que ya significan sentimiento y nivel de riesgo.
-export const KIND_COLOR: Record<TargetKind, string> = {
-  Person: "#1668b7", Company: "#e07b00", Institution: "#2a9d8f", GovernmentArea: "#8e5bd0", Country: "#c2185b",
-};
 const SERIES = ["#1668b7", "#e07b00", "#2a9d8f", "#8e5bd0", "#c2185b", "#6d8f00", "#0097a7", "#a1662f", "#5c6bc0", "#7b8794"];
 const KINDS = Object.keys(KIND_LABEL) as TargetKind[];
 const MEDIA_SOURCES = ["rss", "x", "youtube", "bluesky", "reddit", "facebook", "instagram"];
 
-function periodLabel(p: string, long = false) {
-  if (p.length === 4) return p;
-  const [y, m] = p.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleString(locale(), { month: long ? "long" : "short", year: long ? "numeric" : "2-digit" });
-}
-
-function monthsAgo(n: number) {
-  const d = new Date();
-  d.setDate(1);
-  d.setMonth(d.getMonth() - (n - 1));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-const riskBands = {
-  silent: true, itemStyle: { opacity: 0.06 }, data: [
-    [{ yAxis: 0, itemStyle: { color: "#2e7d32" } }, { yAxis: 25 }],
-    [{ yAxis: 25, itemStyle: { color: "#c9a800" } }, { yAxis: 50 }],
-    [{ yAxis: 50, itemStyle: { color: "#d32f2f" } }, { yAxis: 100 }],
-  ],
-} as const;
-
-/** Análisis general de todos los sujetos monitoreados: quién se menciona más, por tipo y cómo cambia por mes o año. */
-export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void }) {
+/**
+ * Análisis general de todos los sujetos monitoreados: quién se menciona más, por tipo y cómo cambia por mes o año.
+ * Con un objetivo elegido, las gráficas son las de su historial.
+ */
+export function Analytics({ onOpenTarget, refreshKey }: { onOpenTarget: (id: string) => void; refreshKey?: number }) {
   const phone = useMediaQuery(PHONE);
   const { t, lang, nf: fmt } = useI18n();
   const kindLabel = (k: TargetKind) => t(KIND_LABEL[k]);
-  const [granularity, setGranularity] = useState<Granularity>("month");
+  const [granularity, setGranularity] = useState<HistoryGranularity>("month");
+  // null: todos los objetivos.
+  const [target, setTarget] = useState<TargetSummary | null>(null);
+  const [days, setDays] = useState(30);
   const [months, setMonths] = useState(12);
   const [kind, setKind] = useState<TargetKind | "">("");
   const [source, setSource] = useState("");
@@ -59,7 +39,14 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function chooseTarget(x: TargetSummary | null) {
+    setTarget(x);
+    // Por día solo existe para un objetivo.
+    if (!x && granularity === "day") setGranularity("month");
+  }
+
   useEffect(() => {
+    if (target || granularity === "day") return;
     const filters: OverviewFilters = {
       granularity, kind, source, top, includeInactive, since: granularity === "month" ? monthsAgo(months) : undefined,
     };
@@ -70,7 +57,7 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
       .catch((err) => { if (!stale) setError((err as Error).message); })
       .finally(() => { if (!stale) setLoading(false); });
     return () => { stale = true; };
-  }, [granularity, months, kind, source, top, includeInactive]);
+  }, [target, granularity, months, kind, source, top, includeInactive]);
 
   const ranked = useMemo(() => (data?.ranking ?? []).filter((s) => s.mentions > 0).slice(0, top), [data, top]);
   const periods = data?.periods ?? [];
@@ -166,10 +153,23 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
   const total = data?.byKind.reduce((n, k) => n + k.mentions, 0) ?? 0;
   const empty = <div className="empty">{t("Sin menciones en este rango.")}</div>;
 
+  const historyFilters: HistoryFilters = {
+    granularity, source,
+    since: granularity === "month" ? monthsAgo(months) : undefined, days: granularity === "day" ? days : undefined,
+  };
+
   return (
     <div className="analytics">
       <div className="card analytics-filters">
+        <div className="target-filter">
+          <span>{t("Objetivo")}</span>
+          <div className="row">
+            <TargetPicker selected={target} onSelect={chooseTarget} refreshKey={refreshKey} shortcut={false} placeholder={t("Todos los objetivos")} />
+            {target && <button type="button" className="ghost" onClick={() => chooseTarget(null)}>{t("Ver todos")}</button>}
+          </div>
+        </div>
         <div className="seg" role="group" aria-label={t("Agrupar por")}>
+          {target && <button type="button" className={granularity === "day" ? "" : "ghost"} onClick={() => setGranularity("day")}>{t("Por día")}</button>}
           <button type="button" className={granularity === "month" ? "" : "ghost"} onClick={() => setGranularity("month")}>{t("Por mes")}</button>
           <button type="button" className={granularity === "year" ? "" : "ghost"} onClick={() => setGranularity("year")}>{t("Por año")}</button>
         </div>
@@ -180,19 +180,26 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
             </select>
           </label>
         )}
-        <label>{t("Tipo de sujeto")}
+        {granularity === "day" && (
+          <label>{t("Rango")}
+            <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+              {[7, 30, 90, 180].map((n) => <option key={n} value={n}>{t("Últimos {n} días", { n })}</option>)}
+            </select>
+          </label>
+        )}
+        {!target && <label>{t("Tipo de sujeto")}
           <select value={kind} onChange={(e) => setKind(e.target.value as TargetKind | "")}>
             <option value="">{t("Todos")}</option>
             {KINDS.map((k) => <option key={k} value={k}>{kindLabel(k)}</option>)}
           </select>
-        </label>
+        </label>}
         <label>{t("Medio")}
           <select value={source} onChange={(e) => setSource(e.target.value)}>
             <option value="">{t("Todos")}</option>
             {MEDIA_SOURCES.map((s) => <option key={s} value={s}>{SOURCE_LABEL[s] ? t(SOURCE_LABEL[s]) : s}</option>)}
           </select>
         </label>
-        <label>{t("Mostrar")}
+        {!target && <><label>{t("Mostrar")}
           <select value={top} onChange={(e) => setTop(Number(e.target.value))}>
             {[5, 10, 20].map((n) => <option key={n} value={n}>{t("Top {n}", { n })}</option>)}
           </select>
@@ -201,13 +208,15 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
           <input type="checkbox" checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />
           {t("Incluir dados de baja")}
         </label>
-        <div className="muted summary">
+        </>}
+        {!target && <div className="muted summary">
           {loading ? t("Cargando…") : data && <>{t("{n} menciones", { n: total })} · {range}{data.timezone !== "UTC" ? "" : " · UTC"}</>}
-        </div>
+        </div>}
       </div>
-      {error && <p className="error">{error}</p>}
+      {target && <TargetHistory key={target.id} targetId={target.id} filters={historyFilters} onOpenTarget={onOpenTarget} />}
+      {!target && error && <p className="error">{error}</p>}
 
-      <div className="grid">
+      {!target && <div className="grid">
         <section className="card span-7">
           <h2>{t("Sujetos más mencionados")}</h2>
           {ranked.length ? (
@@ -250,7 +259,7 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
           <div className="scroll-x"><table className="ranking">
             <thead><tr>
               <th className="num">#</th><th>{t("Sujeto")}</th><th className="opt">{t("Tipo")}</th><th className="num">{t("Menciones")}</th>
-              <th className="num">{t("Negativas")}</th><th className="num opt">{t("Acusaciones graves")}</th><th className="num">{t("Índice")}</th>
+              <th className="num">{t("Negativas")}</th><th className="num opt">{t("Acusaciones graves")}</th><th className="num">{t("Índice")}</th><th>{t("Historial")}</th>
             </tr></thead>
             <tbody>
               {(data?.ranking ?? []).map((s, i) => (
@@ -265,12 +274,14 @@ export function Analytics({ onOpenTarget }: { onOpenTarget: (id: string) => void
                   </td>
                   <td className="num opt">{fmt.format(s.severe)}</td>
                   <td className="num">{s.lastIndex == null ? "–" : s.lastIndex.toFixed(1)}</td>
+                  <td><button type="button" className="link" aria-label={t("Historial de {name}", { name: s.name })}
+                    onClick={() => { chooseTarget({ id: s.targetId, name: s.name, kind: s.kind, enabled: s.enabled, aliases: [] }); window.scrollTo({ top: 0 }); }}>{t("Ver historial")}</button></td>
                 </tr>
               ))}
             </tbody>
           </table></div>
         </section>
-      </div>
+      </div>}
     </div>
   );
 }

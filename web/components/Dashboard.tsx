@@ -238,7 +238,7 @@ export function Dashboard({ user, onLogout }: { user: Me; onLogout: () => void }
 
       <main>
         {view === "analytics" ? (
-          <Analytics onOpenTarget={(id) => { select(id); window.scrollTo({ top: 0 }); }} />
+          <Analytics refreshKey={pickerKey} onOpenTarget={(id) => { select(id); window.scrollTo({ top: 0 }); }} />
         ) : !selectedTarget ? (
           <div className="card empty">
             {inventory === null ? t("Cargando…") : inventory === "inactive" ? t("Todos los objetivos están dados de baja; se pueden reactivar en «Objetivos».") : can(user, "analyst")

@@ -474,6 +474,27 @@ export const UI: Record<string, [string, string]> = {
   "Anterior": ["Previous", "Précédent"],
   "Guardar y recalcular": ["Save and recalculate", "Enregistrer et recalculer"],
   "Siguiente": ["Next", "Suivant"],
+
+  // Historial de un objetivo
+  "Todos los objetivos": ["All targets", "Toutes les cibles"],
+  "Ver todos": ["View all", "Tout afficher"],
+  "Por día": ["By day", "Par jour"],
+  "Últimos {n} días": ["Last {n} days", "{n} derniers jours"],
+  "Ver historial": ["View history", "Voir l'historique"],
+  "Historial de {name}": ["History of {name}", "Historique de {name}"],
+  "Abrir tablero": ["Open dashboard", "Ouvrir le tableau de bord"],
+  "Índice actual": ["Current index", "Indice actuel"],
+  "Índice promedio": ["Average index", "Indice moyen"],
+  "Menciones en el tiempo, por sentimiento": ["Mentions over time, by sentiment", "Mentions dans le temps, par sentiment"],
+  "Menciones por medio": ["Mentions by outlet", "Mentions par média"],
+  "Índice de riesgo en el tiempo": ["Risk index over time", "Indice de risque dans le temps"],
+  "El índice considera todos los medios, aunque filtres por uno.": ["The index covers all outlets, even when you filter by one.", "L'indice couvre tous les médias, même si vous filtrez sur un seul."],
+  "Detalle por periodo": ["Detail by period", "Détail par période"],
+  "Promedio": ["Average", "Moyenne"],
+  "Máximo": ["Maximum", "Maximum"],
+  "Positivas": ["Positive", "Positives"],
+  "Neutras": ["Neutral", "Neutres"],
+
   // Selector de objetivos
   "alias: {alias}": ["alias: {alias}", "alias : {alias}"],
   "Seleccionado": ["Selected", "Sélectionné"],
