@@ -1,6 +1,6 @@
 """Análisis general: ranking de sujetos por menciones, totales por tipo e históricos por mes y año."""
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from test_api import client, create_target  # noqa: F401  (client es fixture)
 
@@ -108,3 +108,64 @@ def test_default_range_is_last_twelve_months_and_bad_ranges_fail(client):
     assert len(body["periods"]) == 12 and body["ranking"] == []
     assert client.get(URL, params={"since": "2026-05", "until": "2026-01"}).status_code == 400
     assert client.get(URL, params={"since": "2026-13"}).status_code == 422
+
+
+def history(client, target, **params):
+    return client.get(f"/api/analytics/targets/{target['id']}/history", params=params)
+
+
+def test_target_history_by_month_only_counts_that_target(client):
+    ana, acme, _ = seed(client)
+
+    r = history(client, ana, since="2026-01", until="2026-04")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["target"] == {"id": ana["id"], "name": "Ana López", "kind": "Person", "enabled": True}
+    assert [(p["period"], p["mentions"], p["positive"], p["neutral"], p["negative"], p["severe"]) for p in body["periods"]] == [
+        ("2026-01", 2, 1, 0, 1, 1), ("2026-02", 0, 0, 0, 0, 0), ("2026-03", 1, 0, 1, 0, 0), ("2026-04", 0, 0, 0, 0, 0),
+    ]
+    assert body["totals"] == {"mentions": 3, "positive": 1, "neutral": 1, "negative": 1, "severe": 1}
+    assert [(s["source"], s["mentions"], s["negative"]) for s in body["bySource"]] == [("rss", 2, 1), ("x", 1, 0)]
+    assert [(x["period"], x["avg"], x["max"]) for x in body["risk"]] == [("2026-01", 30, 40), ("2026-03", 60, 60)]
+    assert body["lastIndex"] == 60
+
+
+def test_target_history_filters_by_source_but_not_the_index(client):
+    ana, _, _ = seed(client)
+    body = history(client, ana, since="2026-01", until="2026-03", source="x").json()
+    assert body["totals"]["mentions"] == 1 and [s["source"] for s in body["bySource"]] == ["x"]
+    assert len(body["risk"]) == 2
+
+
+def test_target_history_by_year_starts_at_its_first_mention(client):
+    ana, acme, _ = seed(client)
+    assert [(p["period"], p["mentions"]) for p in history(client, ana, granularity="year", until="2026").json()["periods"]] == [
+        ("2025", 1), ("2026", 3),
+    ]
+    assert [p["period"] for p in history(client, acme, granularity="year", until="2026").json()["periods"]] == ["2026"]
+
+
+def test_target_history_by_day(client):
+    ana = create_target(client)
+    now = datetime.now(UTC)
+    add_mentions(client, ana["id"], (now, "Negative", "x"), (now - timedelta(days=3), "Positive", "x"),
+                 (now - timedelta(days=40), "Negative", "x"))
+    body = history(client, ana, granularity="day", days=7).json()
+    assert len(body["periods"]) == 7 and body["totals"]["mentions"] == 2
+    assert [i for i, p in enumerate(body["periods"]) if p["mentions"]] == [3, 6]
+
+
+def test_target_history_of_inactive_empty_and_unknown_targets(client):
+    ana, acme, _ = seed(client)
+    client.post(f"/api/targets/{acme['id']}/deactivate", json={"reason": "Ya no se monitorea"})
+    body = history(client, acme, since="2026-01", until="2026-03").json()
+    assert body["target"]["enabled"] is False and body["totals"]["mentions"] == 2
+
+    empty = history(client, create_target(client, name="Sin datos")).json()
+    assert len(empty["periods"]) == 12 and empty["totals"]["mentions"] == 0
+    assert empty["bySource"] == [] and empty["risk"] == [] and empty["lastIndex"] is None
+
+    assert history(client, {"id": str(uuid.uuid4())}).status_code == 404
+    assert history(client, ana, since="2026-05", until="2026-01").status_code == 400
+    assert history(client, ana, granularity="day", days=1000).status_code == 422
